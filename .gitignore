@@ -1,1 +1,3 @@
-./papers/**
+papers/*.pdf
+img
+.DS_Store

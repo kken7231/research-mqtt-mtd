@@ -1,0 +1,38 @@
+services:
+  # Broker
+  broker:
+    # build:
+    #   context: ~/git/mosquitto/docker/2.0-openssl
+    #   args:
+    #     - VERSION=2.0.18
+    # image: eclipse-mosquitto:2.0.18
+    # volumes:
+    #   - ~/git/mosquitto/docker/2.0-openssl/mosquitto-no-auth.conf:/mosquitto/config/mosquitto.conf
+
+    build:
+      context: ./mosquitto-broker
+    volumes:
+      - ./mosquitto-broker/mosquitto.conf:/mosquitto/config/mosquitto.conf
+    tty: true
+    stdin_open: true
+    ports:
+      - "1883:1883"
+    restart: always
+
+  # Publisher
+  pub:
+    build:
+      context: ./mosquitto-cli
+    tty: true
+
+  # Subscriber 1
+  sub1:
+    build:
+      context: ./mosquitto-cli
+    tty: true
+
+  # Subscriber 2
+  sub2:
+    build:
+      context: ./mosquitto-cli
+    tty: true

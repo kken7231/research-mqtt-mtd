@@ -1,0 +1,27 @@
+{
+  "folders": [
+    {
+      "path": "."
+    },
+    {
+      "path": "../../../../../git/mosquitto"
+    }
+  ],
+  "settings": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "[markdown]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[yaml]": {
+      "editor.defaultFormatter": "ms-azuretools.vscode-docker",
+      "editor.insertSpaces": true,
+      "editor.tabSize": 2,
+      "editor.autoIndent": "advanced",
+      "diffEditor.ignoreTrimWhitespace": false
+    },
+    "prettier.requireConfig": false
+  },
+  "extensions": {
+    "recommendations": ["esbenp.prettier-vscode"]
+  }
+}
