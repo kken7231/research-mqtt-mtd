@@ -2,16 +2,16 @@ services:
   # Broker
   broker:
     build:
-      context: ./broker
+      context: ../docker/broker
+      dockerfile: Dockerfile.none
+    image: mqtt-mtd/plain/broker
     volumes:
       - ./broker/mosquitto.conf:/mosquitto/config/mosquitto.conf
-      - ./certs/broker:/mosquitto/config/certs/broker
-      - ./certs/ca:/mosquitto/config/certs/ca
+      - ../certs/broker:/mosquitto/config/certs/broker
+      - ../certs/ca:/mosquitto/config/certs/ca
     hostname: broker
     tty: true
     stdin_open: true
-    ports:
-      - "8883:8883"
     restart: always
     networks:
       - net
@@ -19,10 +19,11 @@ services:
   # Publisher
   pub:
     build:
-      context: ../../mosquitto-cli
+      context: ../docker/client
+    image: mqtt-mtd/plain/client
     volumes:
-      - ./certs/client:/mosquitto/config/certs/client
-      - ./certs/ca:/mosquitto/config/certs/ca
+      - ../certs/client:/mosquitto/config/certs/client
+      - ../certs/ca:/mosquitto/config/certs/ca
     hostname: publisher
     tty: true
     networks:
@@ -31,10 +32,11 @@ services:
   # Subscriber
   sub:
     build:
-      context: ../../mosquitto-cli
+      context: ../docker/client
+    image: mqtt-mtd/plain/client
     volumes:
-      - ./certs/client:/mosquitto/config/certs/client
-      - ./certs/ca:/mosquitto/config/certs/ca
+      - ../certs/client:/mosquitto/config/certs/client
+      - ../certs/ca:/mosquitto/config/certs/ca
     tty: true
     network_mode: "service:broker"
 

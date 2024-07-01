@@ -1,0 +1,6 @@
+FROM alpine:3.20.1
+
+RUN apk update && \
+    apk add --no-cache mosquitto=2.0.18-r0 python3
+
+CMD mosquitto -c /mosquitto/config/mosquitto.conf

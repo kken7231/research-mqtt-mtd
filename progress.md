@@ -121,7 +121,7 @@ services:
 
 ```dockerfile
 # code/mosquitto-broker/Dockerfile
-FROM alpine:3.18
+FROM alpine:3.20.1
 
 # Install mosquitto
 RUN apk update && \
@@ -143,7 +143,7 @@ allow_anonymous true
 
 ```dockerfile
 # code/mosquitto-cli/Dockerfile
-FROM alpine:3.18
+FROM alpine:3.20.1
 
 # Install mosquitto-clients
 RUN apk update && \
@@ -209,7 +209,8 @@ mkdir ebpf
 cd ebpf
 git clone https://github.com/iovisor/bcc
 sudo apt install -y zip bison build-essential cmake flex git libedit-dev \
-  libllvm14 llvm-14-dev libclang-14-dev libpolly-14-dev python3 zlib1g-dev libelf-dev libfl-dev python3-setuptools \
+  libllvm14 llvm-14-dev libclang-14-dev libpolly-14-dev python3 zlib1g-dev \
+  libelf-dev libfl-dev python3-setuptools \
   liblzma-dev libdebuginfod-dev arping netperf iperf
 mkdir bcc/build; cd bcc/build
 cmake ..
@@ -283,6 +284,7 @@ def start_server():
             break
         except Exception as e:
             print(f"Error accepting connections: {e}")
+            break;
 
     listen_socket.close()
 
@@ -304,7 +306,7 @@ socket_domain ipv4
 
 ![img](img/20240623_packet_handover_pic.png)
 
-### Ideas
+### Idea
 
 - Answers as normal on every port possible using eBPF?
 - VM Instance - too costy, go with just python packet handovering
@@ -441,7 +443,7 @@ require_certificate true
 
 ```dockerfile
 # tls-only/broker/Dockerfile
-FROM alpine:3.18
+FROM alpine:3.20.1
 
 # Install mosquitto
 RUN apk update && \
@@ -461,8 +463,8 @@ services:
       context: ./broker
     volumes:
       - ./broker/mosquitto.conf:/mosquitto/config/mosquitto.conf
-      - ./certs/broker:/mosquitto/config/certs/broker
-      - ./certs/ca:/mosquitto/config/certs/ca
+      - ../certs/broker:/mosquitto/config/certs/broker
+      - ../certs/ca:/mosquitto/config/certs/ca
     hostname: broker
     tty: true
     stdin_open: true
@@ -477,8 +479,8 @@ services:
     build:
       context: ../../mosquitto-cli
     volumes:
-      - ./certs/client:/mosquitto/config/certs/client
-      - ./certs/ca:/mosquitto/config/certs/ca
+      - ../certs/client:/mosquitto/config/certs/client
+      - ../certs/ca:/mosquitto/config/certs/ca
     hostname: publisher
     tty: true
     networks:
@@ -489,8 +491,8 @@ services:
     build:
       context: ../../mosquitto-cli
     volumes:
-      - ./certs/client:/mosquitto/config/certs/client
-      - ./certs/ca:/mosquitto/config/certs/ca
+      - ../certs/client:/mosquitto/config/certs/client
+      - ../certs/ca:/mosquitto/config/certs/ca
     tty: true
     network_mode: "service:broker"
 
@@ -527,6 +529,69 @@ mosquitto_sub -d -h broker -p 8883 --cafile /mosquitto/config/certs/ca/ca.crt --
 ```
 
 
-<video src="img/20240624_tlsonly.mov" controls="true"></video>
+<!-- <video src="img/20240624_tlsonly.mov" controls="true"></video> -->
 
 ![img](img/20240624_tlsonly_pic.png)
+
+### Talk with Ogawa Kun and Kakoi Kun
+- Resolver
+  - Tells a client where to connect
+    - VLAN: hostname
+    - Localhost: port 
+  - Connections
+    - Periodic: Client-subscribe, resolver-publish
+    - On-demand: Client-request, resolver-response
+  - Number of hops - configurable, need to be checked
+  - Opens only the first. Opens the second after a successful publish to the first
+  - On TLS
+- Postbox
+  - Client auth: Easier hash(topic name & client key) as topic name & destination knowledge
+  - Entities
+    - VLAN: Docker container
+    - Localhost: python process
+  - No TLS
+
+### Looking back the ideas...
+- Answers as normal on every port possible using eBPF? -> No.
+- VM Instance - too costy, go with just python packet handovering -> Changed.
+- Hash as a topic name in a publish packet and no tls -> reduces crypto usage -> GOOD
+- Port changing & calculation method - to be discussed -> no calculation, resolver will resolve
+
+## 2024/06/30
+
+### eBPF-enabled broker container
+Using alpine:3.20.1 instead of 3.18, since it's the latest. Renaming of linux kernel headers and modules is needed, since the container kernel is of linuxkit but linux-lts-dev gets a general lts modules.
+```dockerfile
+FROM alpine:3.20.1
+
+# Install mosquitto
+RUN apk update && \
+    apk add --no-cache mosquitto=2.0.18-r0 python3 bcc-tools linux-lts-dev
+
+RUN ln -s $(ls /lib/modules) /lib/modules/$(uname -r)
+
+CMD mosquitto -c /mosquitto/config/mosquitto.conf
+
+# To test: /usr/share/bcc/tools/execsnoop
+
+```
+
+## 2024/07/01
+broker
+```sh
+docker exec -it hopper-label-broker-1 sh
+python3 /mosquitto/mtd.py
+```
+subscriber
+```sh
+docker exec -it hopper-label-broker-1 sh # since mosquitto broker is accessible only from localhost, logs in as the broker for now
+apk add mosquitto-clients
+mosquitto_sub -p 11883 -t 'sample-topics'
+```
+publisher
+```sh
+docker exec -it hopper-label-pub-1  sh
+rm -rf /mosquitto/topic_names
+python3 /mosquitto/publisher.py broker 8883 sample-topics
+mosquitto_pub -h broker -p 1883 -t 3R@ccZO@yWZXjhJz0Q== -m 'Hello MTD!'
+```

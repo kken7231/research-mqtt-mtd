@@ -1,3 +1,5 @@
 papers/*.pdf
 img
 .DS_Store
+*.pptx
+*.tex

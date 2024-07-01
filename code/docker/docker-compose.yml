@@ -10,7 +10,9 @@ services:
     #   - ~/git/mosquitto/docker/2.0-openssl/mosquitto-no-auth.conf:/mosquitto/config/mosquitto.conf
 
     build:
-      context: ./mosquitto-broker
+      context: ./broker
+      dockerfile: Dockerfile.1883
+    image: mqtt-mtd/plain/broker-1883
     volumes:
       - ./mosquitto-broker/mosquitto.conf:/mosquitto/config/mosquitto.conf
     tty: true
@@ -22,17 +24,17 @@ services:
   # Publisher
   pub:
     build:
-      context: ./mosquitto-cli
+      context: ./client
     tty: true
 
   # Subscriber 1
   sub1:
     build:
-      context: ./mosquitto-cli
+      context: ./client
     tty: true
 
   # Subscriber 2
   sub2:
     build:
-      context: ./mosquitto-cli
+      context: ./client
     tty: true

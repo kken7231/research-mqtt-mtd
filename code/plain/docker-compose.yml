@@ -1,0 +1,41 @@
+services:
+  # Broker
+  broker:
+    build:
+      context: ../docker/broker
+      dockerfile: Dockerfile.none
+    image: mqtt-mtd/plain/broker
+    volumes:
+      - ../docker/mosquitto.conf:/mosquitto/config/mosquitto.conf
+    hostname: broker
+    tty: true
+    stdin_open: true
+    restart: always
+    networks:
+      - net
+
+  # Publisher
+  pub:
+    build:
+      context: ../docker/client
+    image: mqtt-mtd/plain/client
+    hostname: publisher
+    tty: true
+    networks:
+      - net
+
+  # Subscriber
+  sub:
+    build:
+      context: ../docker/client
+    image: mqtt-mtd/plain/client
+    tty: true
+    network_mode: "service:broker"
+
+networks:
+  net:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 192.168.11.0/24
