@@ -12,7 +12,10 @@
     "[markdown]": {
       "editor.defaultFormatter": "esbenp.prettier-vscode"
     },
-    "prettier.requireConfig": false
+    "prettier.requireConfig": false,
+    "[go]": {
+      "editor.defaultFormatter": "golang.go"
+    }
   },
   "extensions": {
     "recommendations": ["esbenp.prettier-vscode"]

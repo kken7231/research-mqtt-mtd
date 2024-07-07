@@ -17,8 +17,6 @@ makedirs(PUBLISHER_OUTPUT_DIRECTORY, exist_ok=True)
 # Dictionary to manage topic_name - current randomized topic-name relationship
 TOPIC_RANDOM_BYTES = {}
 
-PACKET_TYPES = ['RESRVD', 'CONNECT', 'CONNACK', 'PUBLSH', 'PUBACK', 'PUBREC', 'PUBREL', 'PUBCMP', 'SUBSCR', 'SUBACK', 'UNSUBS', 'UNSUBA', 'PNGREQ', 'PNGRSP', 'DISCNT', 'AUTH  ']
-
 def is_valid_hostname(hostname):
     if len(hostname) > 255:
         return False

@@ -5,10 +5,8 @@ from base64 import b64encode, b64decode
 from datetime import datetime
 
 # Configuration settings
-TIMESTAMP_LENGTH = 4
-IGNORED_BITS = 10
 PORT_BROKER = 11883
-RANDOMIZED_TOPIC_NAME_LENGTH = 13
+RANDOMIZED_TOPIC_NAME_LENGTH = 11
 NUM_RANDOMIZED_TOPIC_NAMES = 12
 FETCH_LABEL = 'mqtt-mtd-hopping-label:'
 

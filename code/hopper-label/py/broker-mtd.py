@@ -7,7 +7,7 @@ from ssl import SSLSocket, create_default_context, Purpose
 from threading import Lock, Thread
 from typing import Dict, List
 from common import (
-    TIMESTAMP_LENGTH, IGNORED_BITS, PORT_BROKER, NUM_RANDOMIZED_TOPIC_NAMES,
+    PORT_BROKER, NUM_RANDOMIZED_TOPIC_NAMES,
     RANDOMIZED_TOPIC_NAME_LENGTH, FETCH_LABEL, SERVER_ADDRESS_8883,
     SERVER_ADDRESS_1883, PACKET_TYPES, b64decode_mqttsafe, print_packet,
     CERT_FILE, CA_FILE, KEY_FILE, BROKER_OUTPUT_DIRECTORY
@@ -86,15 +86,16 @@ def generate_and_save_unique_randomized_topic_names(topic_name: bytes, client_ip
         raise Exception("Number of randoms must be positive")
 
     with Lock():
-        timestamp = pack('!I', (int(time_ns()) >> IGNORED_BITS) & 0xFFFFFFFF)
+        timestamp = pack('!Q', time_ns())[0:7] # Ignores the least significant byte
+        timestamp_len =len(timestamp)
         topic_key = f"{topic_name.decode()}-{client_ip}"
         file_path = BROKER_OUTPUT_DIRECTORY / topic_key
         random_bytes = bytes()
         for _ in range(number_of_randoms - 1):
-            random_bytes += timestamp + token_bytes(total_length - TIMESTAMP_LENGTH)
+            random_bytes += timestamp + token_bytes(total_length - timestamp_len)
         with open(file_path, 'wb') as f:
             f.write(random_bytes)
-        first_topic_name = timestamp + token_bytes(total_length - TIMESTAMP_LENGTH)
+        first_topic_name = timestamp + token_bytes(total_length - timestamp_len)
         TOPIC_RANDOM_BYTES[first_topic_name] = topic_name
         return first_topic_name + random_bytes
 

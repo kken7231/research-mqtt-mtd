@@ -6,12 +6,11 @@ services:
     image: mqtt-mtd/hopper-label/broker
     privileged: true
     volumes:
-      - ./broker/topic_names:/mosquitto/topic_names
-      - ./broker/mosquitto.conf:/mosquitto/config/mosquitto.conf
-      - ./py/broker-mtd.py:/mosquitto/mtd.py
-      - ./py/common.py:/mosquitto/common.py
-      - ../certs/broker:/mosquitto/config/certs/broker
-      - ../certs/ca:/mosquitto/config/certs/ca
+      - ./py:/mosquitto/py:ro
+      - ./go:/mosquitto/go:ro
+      - ./broker/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ../certs/broker:/mosquitto/config/certs/broker:ro
+      - ../certs/ca:/mosquitto/config/certs/ca:ro
     hostname: broker
     tty: true
     stdin_open: true
@@ -25,10 +24,9 @@ services:
       context: ./client
     image: mqtt-mtd/hopper-label/client
     volumes:
-      - ./py/common.py:/mosquitto/common.py
-      - ./py/publisher.py:/mosquitto/publisher.py
-      - ../certs/client:/mosquitto/config/certs/client
-      - ../certs/ca:/mosquitto/config/certs/ca
+      - ./go:/mosquitto/go:ro
+      - ../certs/client:/mosquitto/config/certs/client:ro
+      - ../certs/ca:/mosquitto/config/certs/ca:ro
     hostname: publisher
     tty: true
     networks:
@@ -40,10 +38,13 @@ services:
       context: ./client
     image: mqtt-mtd/hopper-label/client
     volumes:
-      - ../certs/client:/mosquitto/config/certs/client
-      - ../certs/ca:/mosquitto/config/certs/ca
+      - ./go:/mosquitto/go:ro
+      - ../certs/client:/mosquitto/config/certs/client:ro
+      - ../certs/ca:/mosquitto/config/certs/ca:ro
+    hostname: subscriber
     tty: true
-    network_mode: "service:broker"
+    networks:
+      - net
 
 networks:
   net:
