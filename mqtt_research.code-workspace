@@ -25,7 +25,17 @@
       "https://espressif.github.io/arduino-esp32/package_esp32_index.json",
       "http://arduino.esp8266.com/stable/package_esp8266com_index.json"
     ],
-    "idf.adapterTargetName": "esp32c3"
+    "idf.adapterTargetName": "esp32c3",
+    "files.associations": {
+      "regex": "c",
+      "vector": "c",
+      "*.tcc": "c",
+      "format": "c",
+      "stdbool.h": "c",
+      "stdlib.h": "c",
+      "string.h": "c",
+      "stdio.h": "c"
+    }
   },
   "extensions": {
     "recommendations": ["esbenp.prettier-vscode"]

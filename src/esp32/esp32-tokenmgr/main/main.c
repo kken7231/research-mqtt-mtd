@@ -24,6 +24,17 @@
 #define TOKEN_SIZE (TIMESTAMP_LEN + RANDOM_BYTES_LEN)
 #define TIME_REVOCATION (7 * 24 * 60 * 60) // 1 week in seconds
 
+#define LOGPRINTE(tag, format, ...) \
+    ESP_LOGE(tag, format, ##__VA_ARGS__); \
+    printf(format, ##__VA_ARGS__); \
+    printf("\n");
+
+#define LOGPRINTI(tag, format, ...) \
+    ESP_LOGI(tag, format, ##__VA_ARGS__); \
+    printf(format, ##__VA_ARGS__); \
+    printf("\n");
+
+
 typedef enum {
     ACCESS_PUB = 1,
     ACCESS_SUB = 2,
@@ -41,47 +52,48 @@ typedef struct {
 typedef struct {
     uint8_t timestamp[TIMESTAMP_LEN];
     uint8_t *random_bytes;
-    size_t token_count;
+    uint8_t token_count;
 } token_store_t;
 
 static const char *TAG = "token_mgr";
 static const char *ISSUER_HOST = "server";
-static const char *MQTTBROKER_HOST = "server";
+// static const char *MQTTBROKER_HOST = "server";
 static token_store_t token_store = {0};
+
 
 static esp_err_t save_token_store_to_nvs() {
     nvs_handle_t nvs_handle;
     esp_err_t err = nvs_open("storage", NVS_READWRITE, &nvs_handle);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Error (%s) opening NVS handle!", esp_err_to_name(err));
+        LOGPRINTE(TAG, "Error (%s) opening NVS handle!", esp_err_to_name(err));
         return err;
     }
 
     err = nvs_set_blob(nvs_handle, "timestamp", token_store.timestamp, TIMESTAMP_LEN);
     if (err != ESP_OK) {
         nvs_close(nvs_handle);
-        ESP_LOGE(TAG, "Failed to save timestamp: %s", esp_err_to_name(err));
+        LOGPRINTE(TAG, "Failed to save timestamp: %s", esp_err_to_name(err));
         return err;
     }
 
     err = nvs_set_blob(nvs_handle, "random_bytes", token_store.random_bytes, token_store.token_count * RANDOM_BYTES_LEN);
     if (err != ESP_OK) {
         nvs_close(nvs_handle);
-        ESP_LOGE(TAG, "Failed to save random bytes: %s", esp_err_to_name(err));
+        LOGPRINTE(TAG, "Failed to save random bytes: %s", esp_err_to_name(err));
         return err;
     }
 
     err = nvs_set_u32(nvs_handle, "token_count", token_store.token_count);
     if (err != ESP_OK) {
         nvs_close(nvs_handle);
-        ESP_LOGE(TAG, "Failed to save token count: %s", esp_err_to_name(err));
+        LOGPRINTE(TAG, "Failed to save token count: %s", esp_err_to_name(err));
         return err;
     }
 
     err = nvs_commit(nvs_handle);
     if (err != ESP_OK) {
         nvs_close(nvs_handle);
-        ESP_LOGE(TAG, "Failed to commit NVS: %s", esp_err_to_name(err));
+        LOGPRINTE(TAG, "Failed to commit NVS: %s", esp_err_to_name(err));
         return err;
     }
 
@@ -93,19 +105,19 @@ static esp_err_t load_token_store_from_nvs() {
     nvs_handle_t nvs_handle;
     esp_err_t err = nvs_open("storage", NVS_READONLY, &nvs_handle);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Error (%s) opening NVS handle!", esp_err_to_name(err));
+        LOGPRINTE(TAG, "Error (%s) opening NVS handle!", esp_err_to_name(err));
         return err;
     }
 
     size_t timestamp_size = TIMESTAMP_LEN;
     err = nvs_get_blob(nvs_handle, "timestamp", token_store.timestamp, &timestamp_size);
     if (err == ESP_ERR_NVS_NOT_FOUND) {
-        ESP_LOGI(TAG, "No token store found in NVS");
+        LOGPRINTI(TAG, "No token store found in NVS");
         nvs_close(nvs_handle);
         return ESP_ERR_NOT_FOUND;
     } else if (err != ESP_OK) {
         nvs_close(nvs_handle);
-        ESP_LOGE(TAG, "Failed to load timestamp: %s", esp_err_to_name(err));
+        LOGPRINTE(TAG, "Failed to load timestamp: %s", esp_err_to_name(err));
         return err;
     }
 
@@ -113,14 +125,14 @@ static esp_err_t load_token_store_from_nvs() {
     err = nvs_get_blob(nvs_handle, "random_bytes", NULL, &random_bytes_size);
     if (err != ESP_OK) {
         nvs_close(nvs_handle);
-        ESP_LOGE(TAG, "Failed to get size of random bytes: %s", esp_err_to_name(err));
+        LOGPRINTE(TAG, "Failed to get size of random bytes: %s", esp_err_to_name(err));
         return err;
     }
 
     token_store.random_bytes = malloc(random_bytes_size);
     if (!token_store.random_bytes) {
         nvs_close(nvs_handle);
-        ESP_LOGE(TAG, "Failed to allocate memory for random bytes");
+        LOGPRINTE(TAG, "Failed to allocate memory for random bytes");
         return ESP_ERR_NO_MEM;
     }
 
@@ -129,16 +141,16 @@ static esp_err_t load_token_store_from_nvs() {
         free(token_store.random_bytes);
         token_store.random_bytes = NULL;
         nvs_close(nvs_handle);
-        ESP_LOGE(TAG, "Failed to load random bytes: %s", esp_err_to_name(err));
+        LOGPRINTE(TAG, "Failed to load random bytes: %s", esp_err_to_name(err));
         return err;
     }
 
-    err = nvs_get_u32(nvs_handle, "token_count", &token_store.token_count);
+    err = nvs_get_u8(nvs_handle, "token_count", &token_store.token_count);
     if (err != ESP_OK) {
         free(token_store.random_bytes);
         token_store.random_bytes = NULL;
         nvs_close(nvs_handle);
-        ESP_LOGE(TAG, "Failed to load token count: %s", esp_err_to_name(err));
+        LOGPRINTE(TAG, "Failed to load token count: %s", esp_err_to_name(err));
         return err;
     }
 
@@ -151,7 +163,7 @@ static esp_err_t conn_read(esp_tls_t *tls, uint8_t *dst, size_t len, uint32_t ti
     while (read_len < len) {
         int ret = esp_tls_conn_read(tls, dst + read_len, len - read_len);
         if (ret < 0) {
-            ESP_LOGE(TAG, "Connection read error: %d", ret);
+            LOGPRINTE(TAG, "Connection read error: %d", ret);
             return ESP_FAIL;
         }
         read_len += ret;
@@ -164,7 +176,7 @@ static esp_err_t conn_write(esp_tls_t *tls, const uint8_t *data, size_t len, uin
     while (written_len < len) {
         int ret = esp_tls_conn_write(tls, data + written_len, len - written_len);
         if (ret < 0) {
-            ESP_LOGE(TAG, "Connection write error: %d", ret);
+            LOGPRINTE(TAG, "Connection write error: %d", ret);
             return ESP_FAIL;
         }
         written_len += ret;
@@ -174,7 +186,7 @@ static esp_err_t conn_write(esp_tls_t *tls, const uint8_t *data, size_t len, uin
 
 static esp_err_t fetch_tokens(fetch_request_t req, const uint8_t *topic, size_t topic_len) {
     if (topic_len > 0x7F) {
-        ESP_LOGE(TAG, "Topic must be less than 0x7F letters");
+        LOGPRINTE(TAG, "Topic must be less than 0x7F letters");
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -188,7 +200,7 @@ static esp_err_t fetch_tokens(fetch_request_t req, const uint8_t *topic, size_t 
     };
     esp_tls_t *tls = esp_tls_init();
     if (esp_tls_conn_new_sync(ISSUER_HOST, strlen(ISSUER_HOST), ISSUER_PORT, &cfg, tls) < 0) {
-        ESP_LOGE(TAG, "Failed to open TLS connection");
+        LOGPRINTE(TAG, "Failed to open TLS connection");
         return ESP_FAIL;
     }
 
@@ -232,13 +244,13 @@ static esp_err_t fetch_tokens(fetch_request_t req, const uint8_t *topic, size_t 
 
 static esp_err_t get_token(const char *topic, fetch_request_t fetch_req, uint8_t **timestamp, uint8_t **token) {
     if (fetch_req.num_tokens < 4 || fetch_req.num_tokens > 0x3F * 4 || fetch_req.num_tokens % 4 != 0) {
-        ESP_LOGE(TAG, "Invalid number of tokens. Must be between [4, 0x3F*4] and multiples of 4");
+        LOGPRINTE(TAG, "Invalid number of tokens. Must be between [4, 0x3F*4] and multiples of 4");
         return ESP_ERR_INVALID_ARG;
     }
 
     size_t topic_len = strlen(topic);
     if (topic_len > 0x7F) {
-        ESP_LOGE(TAG, "Topic must be less than 0x7F letters");
+        LOGPRINTE(TAG, "Topic must be less than 0x7F letters");
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -262,6 +274,7 @@ static esp_err_t get_token(const char *topic, fetch_request_t fetch_req, uint8_t
 }
 
 void app_main(void) {
+    printf("App started\n");
     // Initialize NVS
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -284,10 +297,10 @@ void app_main(void) {
     uint8_t *token = NULL;
     ret = get_token("/sample/topic/pub", fetch_req, &timestamp, &token);
     if (ret == ESP_OK) {
-        ESP_LOGI(TAG, "Successfully fetched token");
+        LOGPRINTI(TAG, "Successfully fetched token");
         // Do something with the token
     } else {
-        ESP_LOGE(TAG, "Failed to fetch token");
+        LOGPRINTE(TAG, "Failed to fetch token");
     }
 
     if (timestamp) free(timestamp);
