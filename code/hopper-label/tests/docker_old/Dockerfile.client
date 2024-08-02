@@ -1,0 +1,27 @@
+FROM alpine:3.20.1
+
+RUN apk update && \
+    apk add --no-cache mosquitto-clients=2.0.18-r0 go=1.22.4-r0
+    
+    
+# RUN apk add curl tar
+
+# RUN curl -L -o /tmp/process-exporter.tar.gz https://github.com/ncabatoff/process-exporter/releases/download/v0.8.2/process-exporter-0.8.2.linux-arm64.tar.gz && \
+#     tar -xzf /tmp/process-exporter.tar.gz -C /usr/local/bin --strip-components=1 process-exporter-0.8.2.linux-arm64/process-exporter && \
+#     chmod +x /usr/local/bin/process-exporter
+
+# RUN mkdir -p /etc/process-exporter
+
+# COPY process-exporter.yml /etc/process-exporter/process-exporter.yml
+
+RUN mkdir -p /mosquitto/config/certs
+
+COPY --chmod=444 certs/ca /mosquitto/config/certs/ca/
+COPY --chmod=444 certs/client /mosquitto/config/certs/client/
+
+RUN mkdir -p /mosquitto/go
+COPY --chmod=444 go /mosquitto/go
+
+COPY --chmod=755 entrypoint-client.sh /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]

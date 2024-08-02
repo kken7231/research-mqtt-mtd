@@ -1,0 +1,45 @@
+# Docker compose file for server
+services:
+  mqttserver:
+    image: eclipse-mosquitto:2.0.18
+    container_name: mqttmtd_mqttserver
+    volumes:
+      - ./confs/mosquitto-plain-localonly_11883.conf:/mosquitto/config/mosquitto.conf:ro
+    networks:
+      - mqttmtd-net
+    links:
+      - server
+
+  mqttinterface:
+    build:
+      context: .
+      dockerfile: Dockerfile.mqttinterface
+    image: mqttmtd_mqttinterface_image
+    container_name: mqttmtd_mqttinterface
+    volumes:
+      - ./go/:/mqttmtd/go:ro
+    networks:
+      - mqttmtd-net
+    links:
+      - server
+
+  authserver:
+    build:
+      context: .
+      dockerfile: Dockerfile.authserver
+    image: mqttmtd_authserver_image
+    container_name: mqttmtd_authserver
+    tty: true
+    networks:
+      - mqttmtd-net
+    links:
+      - server
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./go/:/mqttmtd/go:ro
+      - ./acl.yml:/mqttmtd/acl.yml:ro
+
+networks:
+  mqttmtd-net:
+    external: true

@@ -4,7 +4,7 @@
       "path": "."
     },
     {
-      "path": "../../../../../git/mosquitto"
+      "path": "src/esp32/esp32-tokenmgr"
     }
   ],
   "settings": {
@@ -15,7 +15,16 @@
     "prettier.requireConfig": false,
     "[go]": {
       "editor.defaultFormatter": "golang.go"
-    }
+    },
+    "arduino.ignoreBoards": [
+    ],
+    "arduino.useArduinoCli": true,
+    "arduino.path": "/opt/homebrew/bin",
+    "arduino.commandPath": "arduino-cli",
+    "arduino.additionalUrls": [
+      "https://espressif.github.io/arduino-esp32/package_esp32_index.json",
+      "http://arduino.esp8266.com/stable/package_esp8266com_index.json"
+    ]
   },
   "extensions": {
     "recommendations": ["esbenp.prettier-vscode"]

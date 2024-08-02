@@ -1903,6 +1903,65 @@ mosquitto_sub -h broker -p 1883  -t $(go run github.com/kken7231/research-mqtt-m
 
 ### Testing
 ```sh
-mkdir test; cd test
-go install github.com/testcontainers/testcontainers-go@latest
+mkdir tests; cd tests
+NEW_TEST=01_simplepub
+
+mkdir $NEW_TEST; cd $NEW_TEST
+go mod init
+go get github.com/testcontainers/testcontainers-go
+go get github.com/eclipse/paho.mqtt.golang
+go get github.com/stretchr/testify
 ```
+
+## 2024/07/08
+
+### Weekly Semi
+- 攻撃検知
+  - 検知したら逃さない・シグナルを出す・攻撃手法を分析
+  - 検知したら仮想コンテナ作ってそこへ誘導する
+    - 次につなげる
+
+- 「工場・病院のIoT環境でも対応できる」というストーリー
+  - 実践的な説明
+  - 「研究の目的」「Introduction」に（ゆくゆくは）入れる
+
+- 攻撃手法の分析
+  - データベースをもとに詳細に
+
+## 2024/07/10
+
+
+### Literature
+- Securing MQTT Ecosystem
+  - MQTT-Based Attacks: Unauthroized access, week credentials, insecure tansmission, dos attacks
+  - *Unauthorized access grants malicious actors the capability to connect to servers, allowing them to either publish tailored messages or subscribe to specific topics. This can lead to potential data breaches or induce hazardous operations on devices* (page 6, left, line 8:13)
+  - Data sniffing and MiTM attack => confidentiality and integrity
+  - MQTT-PWN has topic enumerator (discovers available topics)
+  - Authentication: granularity
+  	- ACL: V. C. Hu, D. Ferraiolo, R. Kuhn, A. R. Friedman, A. J. Lang, M. M.
+Cogdell, A. Schnitzer, K. Sandlin, R. Miller, K. Scarfone et al., ‘‘Guide to attribute based access control (abac) definition and considerations (draft),’’ NIST special publication, vol. 800, no. 162, pp. 1–54, 2013.
+
+  	- MQTT-ABAC: Michaelides, M., Sengul, C. & Patras, P. An Experimental Evaluation of MQTT Authentication and Authorization in IoT. Proceedings Of The 15th ACM Workshop On Wireless Network Testbeds, Experimental Evaluation & CHaracterization. pp. 69-76 (2021), https://doi.org/10.1145/3477086.3480838
+  - Future directions: enhancing security testing, developing lightweight security solution
+ 
+- De Rango, F., Potrino, G., Tropea, M. & Fazio, P. Energy-aware dynamic Internet of Things security system based on Elliptic Curve Cryptography and Message Queue Telemetry Transport protocol for mitigating Replay attacks. Pervasive And Mobile Computing. 61 pp. 101105 (2020), https://www.sciencedirect.com/science/article/pii/S1574119219304705
+
+- M. Sălăgean and D. Zinca, ‘‘Iot applications based on mqtt protocol,’’ in 2020 international symposium on electronics and telecommunications (ISETC). IEEE, 2020, pp. 1–4.
+
+
+### Structure
+- Current State on MQTT-Based Attacks
+	- Unauthorized access, week credentials, insecure transmission, DoS attacks
+	- Unauthorized access
+		- Unwillingly allows attackers to publish malicious messages or subscribe to topics
+		- Will lead to potential data breaches or induce hazardous operations
+	- Insecure transmission
+		- Data sniffing and MiTM attack
+		- End-to-end encryption can be a countermeasure
+		- ECC is suitable for contrained devices
+	- Constrained -> cannot be resource intensive with cryptographic operations like TLS
+	- Together with enhancing security testiong, developing lightweight security solution is in demand
+
+
+- Related Works
+  - 

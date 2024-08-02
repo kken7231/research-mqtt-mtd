@@ -1,0 +1,10 @@
+process_names:
+  - exe:
+    - /client.sh
+    - /broker.sh
+    - mosquitto
+    - mosquitto_pub
+    - mosquitto_sub
+  # - name: "{{.Comm}}"
+  #   cmdline:
+  #     - '.*'

@@ -6,7 +6,6 @@ services:
     image: mqtt-mtd/hopper-label/broker
     privileged: true
     volumes:
-      - ./py:/mosquitto/py:ro
       - ./go:/mosquitto/go:ro
       - ./broker/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - ../certs/broker:/mosquitto/config/certs/broker:ro

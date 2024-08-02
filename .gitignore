@@ -1,5 +1,7 @@
-papers/*.pdf
+papers
 img
 .DS_Store
 *.pptx
 *.tex
+
+src/certs

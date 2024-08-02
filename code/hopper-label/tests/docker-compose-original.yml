@@ -1,0 +1,36 @@
+services:
+  # Broker
+  broker:
+    build:
+      context: ../res/broker
+    image: mqtt-mtd/hopper-label/tests/broker
+    privileged: true
+    hostname: broker
+    networks:
+      - net
+
+  # Publisher
+  pub:
+    build:
+      context: ../res/client
+    image: mqtt-mtd/hopper-label/tests/client
+    hostname: publisher
+    networks:
+      - net
+
+  # Subscriber
+  sub:
+    build:
+      context: ../res/client
+    image: mqtt-mtd/hopper-label/tests/client
+    hostname: subscriber
+    networks:
+      - net
+
+networks:
+  net:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 192.168.11.0/24
