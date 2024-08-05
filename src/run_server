@@ -4,4 +4,5 @@ docker network create --driver bridge --subnet 10.0.0.0/24 mqttmtd-net
 # docker-compose up --build
 
 docker rm -f mqttmtd_server
-docker build -t mqttmtd_server_image -f Dockerfile.server . && docker run -d --name mqttmtd_server --hostname server -p 8080:8080 --network mqttmtd-net  mqttmtd_server_image && docker logs -f mqttmtd_server
+docker rmi -f mqttmtd_server_image
+docker build -t mqttmtd_server_image -f Dockerfile.server . && docker run -d --name mqttmtd_server --hostname server -p 8080:8080 -p 1883:1883 -p 18883:18883 --network mqttmtd-net  mqttmtd_server_image && docker logs -f mqttmtd_server

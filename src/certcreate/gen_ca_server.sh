@@ -36,12 +36,12 @@ SERVER_CERT="$SERVER_CERTS_DIR/server.crt"
 SERVER_PASSWORD=""
 
 # Generate CA key
-openssl genpkey -algorithm RSA -out "$CA_KEY" -pass pass:"$CA_PASSWORD" # -aes256
+openssl ecparam -name prime256v1 -genkey -out "$CA_KEY" # -pass pass:"$CA_PASSWORD" -aes256
 # Generate CA certificate
 openssl req -x509 -new -nodes -key "$CA_KEY" -sha256 -days 3650 -out "$CA_CERT" -config "$CA_CONFIG" -passin pass:"$CA_PASSWORD"
 
 # Generate Server key
-openssl genpkey -algorithm RSA -out "$SERVER_KEY" -pass pass:"$SERVER_PASSWORD" # -aes256
+openssl ecparam -name prime256v1 -genkey -out "$SERVER_KEY"  # -pass pass:"$SERVER_PASSWORD" -aes256
 # Generate Server CSR
 openssl req -new -key "$SERVER_KEY" -out "$SERVER_CSR" -config "$SERVER_CONFIG" -passin pass:"$SERVER_PASSWORD"
 # Sign Server certificate with CA

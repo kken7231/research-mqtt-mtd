@@ -20,6 +20,8 @@ services:
       - ./go/:/mqttmtd/go:ro
     networks:
       - mqttmtd-net
+    ports:
+      - "1883:1883"
     links:
       - server
 
@@ -35,6 +37,7 @@ services:
     links:
       - server
     ports:
+      - "8883:8883"
       - "8080:8080"
     volumes:
       - ./go/:/mqttmtd/go:ro

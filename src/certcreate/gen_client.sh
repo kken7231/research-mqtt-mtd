@@ -60,7 +60,7 @@ if [ "$uuid_email" = true ]; then
 fi
 
 # Generate Client key
-openssl genpkey -algorithm RSA -out "$CLIENT_KEY" -pass pass:"$CLIENT_PASSWORD" # -aes256
+openssl ecparam -name prime256v1 -genkey -out "$CLIENT_KEY" # -pass pass:"$CLIENT_PASSWORD" -aes256
 
 # Generate Client CSR
 openssl req -new -key "$CLIENT_KEY" -out "$CLIENT_CSR" -config "$CLIENT_CONFIG" -passin pass:"$CLIENT_PASSWORD"

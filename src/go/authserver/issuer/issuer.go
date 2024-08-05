@@ -34,8 +34,9 @@ func Run(acl *types.AccessControlList, atl *types.AuthTokenList) {
 	config := &tls.Config{
 		Certificates: []tls.Certificate{cert},
 		ClientAuth:   tls.RequireAndVerifyClientCert,
-		MinVersion:   tls.VersionTLS13,
+		MinVersion:   tls.VersionTLS12,
 		ClientCAs:    caCertPool,
+		CipherSuites: []uint16{tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256},
 	}
 	listener, err := tls.Listen("tcp", consts.LADDR_ISSUER, config)
 	if err != nil {

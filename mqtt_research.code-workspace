@@ -34,7 +34,12 @@
       "stdbool.h": "c",
       "stdlib.h": "c",
       "string.h": "c",
-      "stdio.h": "c"
+      "stdio.h": "c",
+      "esp_log.h": "c",
+      "esp_tls.h": "c"
+    },
+    "[c]": {
+      "editor.defaultFormatter": "ms-vscode.cpptools"
     }
   },
   "extensions": {
