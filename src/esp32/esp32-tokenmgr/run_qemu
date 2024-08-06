@@ -1,0 +1,12 @@
+pushd /workspaces/research-mqtt-mtd/src/esp32/esp32-tokenmgr/build
+esptool.py --chip=esp32c3 merge_bin --output=/workspaces/research-mqtt-mtd/src/esp32/esp32-tokenmgr/build/flash_image.bin --fill-flash-size=2MB --flash_mode dio --flash_freq 80m --flash_size 2MB 0x0 ./bootloader/bootloader.bin 0x10000 ./esp32-tokenmgr.bin 0x8000 ./partition_table/partition-table.bin
+popd
+qemu-system-riscv32 \
+    -M esp32c3\
+    -drive file=/workspaces/research-mqtt-mtd/src/esp32/esp32-tokenmgr/build/flash_image.bin,if=mtd,format=raw\
+    -drive file=/workspaces/research-mqtt-mtd/src/esp32/esp32-tokenmgr/qemu_efuse.bin,if=none,format=raw,id=efuse\
+    -global driver=nvram.esp32c3.efuse,property=drive,value=efuse\
+    -global driver=timer.esp32c3.timg,property=wdt_disable,value=true\
+    -nic user,model=open_eth\
+    -nographic\
+    -serial mon:stdio
