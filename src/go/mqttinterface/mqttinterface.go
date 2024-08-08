@@ -6,12 +6,12 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"go/authserver/types"
 	"go/common"
 	"go/mqttinterface/mqttparser"
 	"net"
 	"sync"
 	"time"
-	"unsafe"
 )
 
 const (
@@ -125,97 +125,106 @@ func clientToMqttHandler(buf []byte, incomingConn net.Conn, brokerConn net.Conn,
 		return
 	}
 
-	if fixedHdr.ControlPacketType == MqttControlPUBLISH {
+	if fixedHdr.ControlPacketType == MqttControlPUBLISH || fixedHdr.ControlPacketType == MqttControlSUBSCRIBE {
 		// cyberdeception??
-		bb := bytes.Buffer{}
-		topicName, others, puberr := getTopicNameFromPublish(buf)
-		if puberr != nil {
-			err = puberr
-			fmt.Printf("cli2Mqtt(%s): Failed getting topicName: %v\n", incomingAddr, err)
+		bb := &bytes.Buffer{}
+
+		decodeIfB64 := func(topic *[]byte, topicType string) (err error) {
+			if len(*topic)%4 != 0 {
+				// cyberdeception
+				fmt.Printf("cli2Mqtt(%s): Seems not a b64 encoded\n", incomingAddr)
+			} else {
+				decodedTopic := make([]byte, len(*topic)/4*3)
+				if _, err = base64.StdEncoding.Decode(decodedTopic, *topic); err != nil {
+					fmt.Printf("cli2Mqtt(%s): Failed decoding the given %s: %v\n", incomingAddr, topicType, err)
+					return
+				}
+				fmt.Printf("cli2Mqtt(%s): %s Bytes B64Decoded: %s\n", incomingAddr, topicType, hex.EncodeToString(decodedTopic))
+				common.SetLen(topic, len(decodedTopic))
+				copy(*topic, decodedTopic)
+			}
 			return
 		}
-		fmt.Printf("cli2Mqtt(%s): Topic Name Bytes: %s\n", incomingAddr, hex.EncodeToString(topicName))
 
-		if len(topicName)%4 != 0 {
-			// cyberdeception
-			fmt.Printf("cli2Mqtt(%s): Seems not a b64 encoded\n", incomingAddr)
-		} else {
-			decodedTopicName := make([]byte, len(topicName)/4*3)
-			if _, err = base64.StdEncoding.Decode(decodedTopicName, topicName); err != nil {
-				fmt.Printf("cli2Mqtt(%s): Failed decoding the given topicname: %v\n", incomingAddr, err)
+		verifyToken := func(buf *[]byte, accessType types.AccessType, topic []byte) (err error) {
+			common.SetLen(buf, len(topic)+1)
+			if accessType == types.AccessPub {
+				(*buf)[0] = 0x80
+			} else if accessType == types.AccessSub {
+				(*buf)[0] = 0x00
+			} else {
+				err = fmt.Errorf("cli2Mqtt(%s): invalid access type 0x%02X", incomingAddr, accessType)
 				return
 			}
-			fmt.Printf("cli2Mqtt(%s): Topic Name Bytes B64Decoded: %s\n", incomingAddr, hex.EncodeToString(decodedTopicName))
-			common.SetLen(&topicName, len(decodedTopicName))
-			copy(topicName, decodedTopicName)
-		}
-
-		common.SetLen(&buf, len(topicName)+1)
-		buf[0] = 0x80
-		copy(buf[1:], topicName)
-		select {
-		case <-done:
-			err = fmt.Errorf("cli2Mqtt(%s): interrupted by chan", incomingAddr)
-			return
-		default:
-		}
-		if err = sendPacketToVerifier(&buf, done); err != nil {
-			return
-		}
-		if buf[0] > 1 {
-			// failed, cyberdeception
-			err = fmt.Errorf("cli2Mqtt(%s): verification failed", incomingAddr)
-			return
-		}
-		// success
-		bb.Write(buf[1:])
-		bb.Write(others)
-		bb.WriteByte(0)
-
-		var encodedRemainingLen []byte
-		if encodedRemainingLen, err = mqttparser.EncodeToVariableByteInteger(bb.Len()); err != nil {
-			return
-		}
-		common.SetLen(&buf, 1+len(encodedRemainingLen)+bb.Len())
-		buf[0] = byte(fixedHdr.ControlPacketType)<<4 | (fixedHdr.Flags & 0xF)
-		copy(buf[1:1+len(encodedRemainingLen)], encodedRemainingLen)
-		copy(buf[1+len(encodedRemainingLen):], bb.Bytes())
-	} else if fixedHdr.ControlPacketType == MqttControlSUBSCRIBE {
-		// cyberdeception??
-		bb := bytes.Buffer{}
-		contentBefore, topicFiltersWithOptions, contentAfter, suberr := getTopicFiltersFromSubscribe(buf)
-		bb.Write(contentBefore)
-		if suberr != nil {
-			err = suberr
-			fmt.Printf("cli2Mqtt(%s): Failed getting topicFilters: %v\n", incomingAddr, err)
-			return
-		}
-
-		for _, filterWithOption := range topicFiltersWithOptions {
-			fmt.Printf("cli2Mqtt(%s): Topic Filter: %s, Option: 0x%02x\n", incomingAddr, unsafe.String(unsafe.SliceData(filterWithOption[:len(filterWithOption)-1]), len(filterWithOption)-1), filterWithOption[len(filterWithOption)-1])
-
-			common.SetLen(&buf, len(filterWithOption))
-			buf[0] = 0x00
-			copy(buf[1:], filterWithOption[:len(filterWithOption)-1])
+			copy((*buf)[1:], topic)
 			select {
 			case <-done:
 				err = fmt.Errorf("cli2Mqtt(%s): interrupted by chan", incomingAddr)
 				return
 			default:
 			}
-			if err = sendPacketToVerifier(&buf, done); err != nil {
+			if err = sendPacketToVerifier(buf, done); err != nil {
 				return
 			}
-			if buf[0] > 1 {
+			if (*buf)[0] > 1 {
 				// failed, cyberdeception
 				err = fmt.Errorf("cli2Mqtt(%s): verification failed", incomingAddr)
 				return
 			}
-			// success
-			bb.Write(buf[1:])
-			bb.WriteByte(filterWithOption[len(filterWithOption)])
+			return
 		}
-		bb.Write(contentAfter)
+
+		if fixedHdr.ControlPacketType == MqttControlPUBLISH {
+			var (
+				topicName    []byte
+				contentAfter []byte
+			)
+			topicName, contentAfter, err = getTopicNameFromPublish(buf)
+			if err != nil {
+				fmt.Printf("cli2Mqtt(%s): Failed getting topicName: %v\n", incomingAddr, err)
+				return
+			}
+			fmt.Printf("cli2Mqtt(%s): Topic Name Bytes: %s\n", incomingAddr, hex.EncodeToString(topicName))
+
+			if err = decodeIfB64(&topicName, "Topic Name"); err != nil {
+				return
+			}
+
+			if err = verifyToken(&buf, types.AccessPub, topicName); err != nil {
+				return
+			}
+			bb.Write(buf[1:])
+			bb.Write(contentAfter)
+		} else {
+			var (
+				topicFiltersWithOptions [][]byte
+				contentBefore           []byte
+				contentAfter            []byte
+			)
+			contentBefore, topicFiltersWithOptions, contentAfter, err = getTopicFiltersFromSubscribe(buf)
+			if err != nil {
+				fmt.Printf("cli2Mqtt(%s): Failed getting topicFilters: %v\n", incomingAddr, err)
+				return
+			}
+			bb.Write(contentBefore)
+
+			for _, filterWithOption := range topicFiltersWithOptions {
+				topicFilter := filterWithOption[:len(filterWithOption)-1]
+				topicFilterOption := filterWithOption[len(filterWithOption)-1]
+				fmt.Printf("cli2Mqtt(%s): Topic Filter Bytes: %s, Option: 0x%02x\n", incomingAddr, hex.EncodeToString(topicFilter), topicFilterOption)
+
+				if err = decodeIfB64(&topicFilter, "Topic Filter"); err != nil {
+					return
+				}
+
+				if err = verifyToken(&buf, types.AccessSub, topicFilter); err != nil {
+					return
+				}
+				bb.Write(buf[1:])
+				bb.WriteByte(topicFilterOption)
+			}
+			bb.Write(contentAfter)
+		}
 
 		var encodedRemainingLen []byte
 		if encodedRemainingLen, err = mqttparser.EncodeToVariableByteInteger(bb.Len()); err != nil {
@@ -247,7 +256,7 @@ func clientToMqttHandler(buf []byte, incomingConn net.Conn, brokerConn net.Conn,
 		return
 	}
 
-	if fixedHdr.ControlPacketType == MqttControlPUBLISH || fixedHdr.ControlPacketType == MqttControlSUBSCRIBE {
+	if fixedHdr.ControlPacketType == MqttControlPUBLISH {
 		shouldCloseSock = true
 	}
 

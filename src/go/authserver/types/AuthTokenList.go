@@ -56,8 +56,8 @@ func (atl *AuthTokenList) replaceEntries(first *ATLEntry, last *ATLEntry) error 
 	return nil
 }
 
-func (atl *AuthTokenList) RevokeEntry(clientName []byte, topic []byte) error {
-	previous, entry, err := atl.lookupEntryWithClientNameAndTopic(clientName, topic)
+func (atl *AuthTokenList) RevokeEntry(clientName []byte, topic []byte, reqAccessType AccessType) error {
+	previous, entry, err := atl.lookupEntryWithClientNameTopicAndAccessType(clientName, topic, reqAccessType)
 	if err != nil {
 		return fmt.Errorf("found error during revocation: %v", err)
 	}
@@ -206,7 +206,7 @@ func (atl *AuthTokenList) LookupEntryWithToken(token []byte) (previous *ATLEntry
 	return
 }
 
-func (atl *AuthTokenList) lookupEntryWithClientNameAndTopic(clientName []byte, topic []byte) (*ATLEntry, *ATLEntry, error) {
+func (atl *AuthTokenList) lookupEntryWithClientNameTopicAndAccessType(clientName []byte, topic []byte, accessType AccessType) (*ATLEntry, *ATLEntry, error) {
 	if len(topic) == 0 {
 		return nil, nil, fmt.Errorf("length of topic %v is zero", topic)
 	}
@@ -217,7 +217,7 @@ func (atl *AuthTokenList) lookupEntryWithClientNameAndTopic(clientName []byte, t
 		previousEntry = entry
 		entry = entry.next
 	}() {
-		if bytes.Equal(topic, entry.Topic) && bytes.Equal(clientName, entry.ClientName) {
+		if bytes.Equal(topic, entry.Topic) && bytes.Equal(clientName, entry.ClientName) && accessType == entry.AccessType {
 			return previousEntry, entry, nil
 		}
 	}

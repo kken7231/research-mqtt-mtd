@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -24,6 +25,16 @@ const (
 	SAMPLE_TOPIC_PUB    string = "/sample/topic/pub"
 	SAMPLE_TOPIC_SUB    string = "/sample/topic/sub"
 	SAMPLE_TOPIC_PUBSUB string = "/sample/topic/pubsub"
+
+	ADDR_MQTT_INTERFACE string = "mqtt://192.168.11.16:1883"
+
+	CA_CRT     string = "/mqttmtd/certs/ca/ca.crt"
+	CLIENT_CRT string = "/mqttmtd/certs/client/client1.crt"
+	CLIENT_KEY string = "/mqttmtd/certs/client/client1.key"
+
+	// CA_CRT     string = "/Users/kentarou/git/research-mqtt-mtd/src/certs/ca/ca.crt"
+	// CLIENT_CRT string = "/Users/kentarou/git/research-mqtt-mtd/src/certs/clients/client1.crt"
+	// CLIENT_KEY string = "/Users/kentarou/git/research-mqtt-mtd/src/certs/clients/client1.key"
 )
 
 var (
@@ -135,9 +146,9 @@ func PrepareFetchReq(accessType tokenmgr.AccessType) (fetchReq *tokenmgr.FetchRe
 	fetchReq = &tokenmgr.FetchRequest{
 		NumTokens:  NumTokens,
 		AccessType: accessType,
-		CaCrt:      "/mqttmtd/certs/ca/ca.crt",
-		ClientCrt:  "/mqttmtd/certs/client/client1.crt",
-		ClientKey:  "/mqttmtd/certs/client/client1.key",
+		CaCrt:      CA_CRT,
+		ClientCrt:  CLIENT_CRT,
+		ClientKey:  CLIENT_KEY,
 	}
 	return
 }
@@ -153,7 +164,7 @@ func AutopahoPublish(tb testing.TB, timestamp []byte, randomBytes []byte, msg st
 		b.StopTimer()
 	}
 
-	u, err := url.Parse("mqtt://server:1883")
+	u, err := url.Parse(ADDR_MQTT_INTERFACE)
 	if err != nil {
 		Fatal(tb, err)
 	}
@@ -161,42 +172,19 @@ func AutopahoPublish(tb testing.TB, timestamp []byte, randomBytes []byte, msg st
 	if b, ok := tb.(*testing.B); ok {
 		b.StartTimer()
 	}
+	onClientErrorFunc := func(err error) {
+		fmt.Printf("client error: %s\n", err)
+	}
 	cliCfg := autopaho.ClientConfig{
-		ServerUrls: []*url.URL{u},
-		KeepAlive:  20, // Keepalive message should be sent every 20 seconds
-		// CleanStartOnInitialConnection defaults to false. Setting this to true will clear the session on the first connection.
-		CleanStartOnInitialConnection: false,
-		// SessionExpiryInterval - Seconds that a session will survive after disconnection.
-		// It is important to set this because otherwise, any queued messages will be lost if the connection drops and
-		// the server will not queue messages while it is down. The specific setting will depend upon your needs
-		// (60 = 1 minute, 3600 = 1 hour, 86400 = one day, 0xFFFFFFFE = 136 years, 0xFFFFFFFF = don't expire)
-		SessionExpiryInterval: 60,
-		OnConnectionUp: func(cm *autopaho.ConnectionManager, connAck *paho.Connack) {
-			fmt.Println("mqtt connection up")
-			// Subscribing in the OnConnectionUp callback is recommended (ensures the subscription is reestablished if
-			// the connection drops)
-			// if _, err := cm.Subscribe(context.Background(), &paho.Subscribe{
-			// 	Subscriptions: []paho.SubscribeOptions{
-			// 		{Topic: topic, QoS: 1},
-			// 	},
-			// }); err != nil {
-			// 	fmt.Printf("failed to subscribe (%s). This is likely to mean no messages will be received.", err)
-			// }
-			// fmt.Println("mqtt subscription made")
-		},
-		OnConnectError: func(err error) { fmt.Printf("error whilst attempting connection: %s\n", err) },
-		// eclipse/paho.golang/paho provides base mqtt functionality, the below config will be passed in for each connection
+		ServerUrls:                    []*url.URL{u},
+		KeepAlive:                     20,
+		CleanStartOnInitialConnection: true,
+		SessionExpiryInterval:         0xFFFFFFFF,
+		OnConnectionUp:                func(cm *autopaho.ConnectionManager, connAck *paho.Connack) { fmt.Println("mqtt connection up") },
+		OnConnectError:                func(err error) { fmt.Printf("error whilst attempting connection: %s\n", err) },
 		ClientConfig: paho.ClientConfig{
-			// If you are using QOS 1/2, then it's important to specify a client id (which must be unique)
-			// ClientID: clientID,
-			// OnPublishReceived is a slice of functions that will be called when a message is received.
-			// You can write the function(s) yourself or use the supplied Router
-			OnPublishReceived: []func(paho.PublishReceived) (bool, error){
-				func(pr paho.PublishReceived) (bool, error) {
-					fmt.Printf("received message on topic %s; body: %s (retain: %t)\n", pr.Packet.Topic, pr.Packet.Payload, pr.Packet.Retain)
-					return true, nil
-				}},
-			OnClientError: func(err error) { fmt.Printf("client error: %s\n", err) },
+			OnPublishReceived: []func(paho.PublishReceived) (bool, error){},
+			OnClientError:     onClientErrorFunc,
 			OnServerDisconnect: func(d *paho.Disconnect) {
 				if d.Properties != nil {
 					fmt.Printf("server requested disconnect: %s\n", d.Properties.ReasonString)
@@ -238,6 +226,113 @@ func AutopahoPublish(tb testing.TB, timestamp []byte, randomBytes []byte, msg st
 	}); err != nil {
 		if ctx.Err() == nil {
 			Fatal(tb, err)
+		}
+	}
+	fmt.Println("mqtt publish made")
+
+	cm.Disconnect(ctx)
+	<-cm.Done() // Wait for clean shutdown (cancelling the context triggered the shutdown)
+}
+
+func AutopahoSubscribe(tb testing.TB, timestamp []byte, randomBytes []byte, isErrorExpected bool, subscribeChan chan struct{}, waitForPublish []byte) {
+	if b, ok := tb.(*testing.B); ok {
+		b.StartTimer()
+	}
+	b64Encoded := make([]byte, tokenmgr.TOKEN_SIZE/3*4)
+	base64.StdEncoding.Encode(b64Encoded, append(timestamp, randomBytes...))
+
+	if b, ok := tb.(*testing.B); ok {
+		b.StopTimer()
+	}
+
+	u, err := url.Parse(ADDR_MQTT_INTERFACE)
+	if err != nil {
+		Fatal(tb, err)
+	}
+
+	if b, ok := tb.(*testing.B); ok {
+		b.StartTimer()
+	}
+	onClientErrorFunc := func(err error) {
+		fmt.Printf("client error: %s\n", err)
+		if !isErrorExpected {
+			Fatal(tb, err)
+		}
+	}
+	received := make(chan struct{})
+	cliCfg := autopaho.ClientConfig{
+		ServerUrls:                    []*url.URL{u},
+		KeepAlive:                     20,
+		CleanStartOnInitialConnection: true,
+		SessionExpiryInterval:         0xFFFFFFFF,
+		OnConnectionUp:                func(cm *autopaho.ConnectionManager, connAck *paho.Connack) { fmt.Println("mqtt connection up") },
+		OnConnectError:                func(err error) { fmt.Printf("error whilst attempting connection: %s\n", err) },
+		ClientConfig: paho.ClientConfig{
+			OnPublishReceived: []func(paho.PublishReceived) (bool, error){
+				func(pr paho.PublishReceived) (bool, error) {
+					fmt.Printf("received message on topic %s; body: %s (retain: %t)\n", pr.Packet.Topic, pr.Packet.Payload, pr.Packet.Retain)
+					if bytes.Equal(pr.Packet.Payload, waitForPublish) {
+						received <- struct{}{}
+					}
+					return true, nil
+				}},
+			OnClientError: onClientErrorFunc,
+			OnServerDisconnect: func(d *paho.Disconnect) {
+				if d.Properties != nil {
+					fmt.Printf("server requested disconnect: %s\n", d.Properties.ReasonString)
+				} else {
+					fmt.Printf("server requested disconnect; reason code: %d\n", d.ReasonCode)
+				}
+			},
+		},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer func() {
+		cancel()
+
+		if b, ok := tb.(*testing.B); ok {
+			b.StopTimer()
+		}
+	}()
+
+	// Connect to the server - this will return immediately after initiating the connection process
+	cm, err := autopaho.NewConnection(ctx, cliCfg) // starts process; will reconnect until context cancelled
+	if err != nil {
+		Fatal(tb, err)
+		return
+	}
+
+	// AwaitConnection will return immediately if connection is up; adding this call stops publication whilst
+	// connection is unavailable.
+	err = cm.AwaitConnection(ctx)
+	if err != nil { // Should only happen when context is cancelled
+		fmt.Printf("publisher done (AwaitConnection: %s)\n", err)
+		return
+	}
+
+	// Subscribe to topic
+	if _, err = cm.Subscribe(context.Background(), &paho.Subscribe{
+		Subscriptions: []paho.SubscribeOptions{{
+			QoS:   0,
+			Topic: string(b64Encoded),
+		}},
+	}); err != nil {
+		if ctx.Err() == nil && !isErrorExpected {
+			Fatal(tb, err)
+		}
+	} else if isErrorExpected {
+		Fatal(tb, err)
+	}
+	fmt.Println("mqtt subscription made")
+	if subscribeChan != nil {
+		subscribeChan <- struct{}{}
+	}
+
+	if len(waitForPublish) > 0 {
+		select {
+		case <-time.After(time.Second * 10):
+			Fatal(tb, err)
+		case <-received:
 		}
 	}
 	cm.Disconnect(ctx)

@@ -8,6 +8,7 @@ prepend_service_name() {
 }
 # Start the MQTT server and log its output
 mosquitto -c /mosquitto/config/mosquitto.conf 2>&1 | prepend_service_name "mosquitto     " >> /mqttmtd/logs/combined.log &
+mosquitto -c /mosquitto/config/mosquitto-tls.conf 2>&1 | prepend_service_name "mosquitto-tls " >> /mqttmtd/logs/combined.log &
 
 sleep 1
 

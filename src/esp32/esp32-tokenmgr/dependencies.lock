@@ -1,0 +1,15 @@
+dependencies:
+  espressif/esp-cryptoauthlib:
+    component_hash: 3b50d30c9a79934e9d2b6af69cf46e000cc4bae881250dba7bb76cc45c00a371
+    source:
+      service_url: https://api.components.espressif.com/
+      type: service
+    version: 3.5.1~5
+  idf:
+    component_hash: null
+    source:
+      type: idf
+    version: 5.3.0
+manifest_hash: c7d221adfdeaf8041adc4bb7657da41135841309eb4b6d92afe2caf72403a722
+target: esp32c3
+version: 1.0.0

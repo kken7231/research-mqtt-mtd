@@ -63,6 +63,7 @@ static token_store_t token_store = {0};
 #define WIFI_FAIL_BIT BIT1
 static EventGroupHandle_t s_wifi_event_group;
 static int s_retry_num = 0;
+static const int CIPHERSUITES_LIST[] = {MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0};
 
 static void event_handler(void *arg, esp_event_base_t event_base,
                           int32_t event_id, void *event_data)
@@ -123,11 +124,6 @@ esp_netif_t *wifi_init_sta(void)
         .sta = {
             .ssid = WIFI_SSID,
             .password = WIFI_PASS,
-            /* Authmode threshold resets to WPA2 as default if password matches WPA2 standards (password len => 8).
-             * If you want to connect the device to deprecated WEP/WPA networks, Please set the threshold value
-             * to WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK and set the password with length and format matching to
-             * WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK standards.
-             */
             // .threshold.authmode = ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD,
             // .sae_pwe_h2e = ESP_WIFI_SAE_MODE,
             // .sae_h2e_identifier = EXAMPLE_H2E_IDENTIFIER,
@@ -139,16 +135,12 @@ esp_netif_t *wifi_init_sta(void)
 
     ESP_LOGI(TAG, "wifi_init_sta finished.");
 
-    /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
-     * number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */
     EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
                                            WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
                                            pdFALSE,
                                            pdFALSE,
                                            portMAX_DELAY);
 
-    /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually
-     * happened. */
     if (bits & WIFI_CONNECTED_BIT)
     {
         ESP_LOGI(TAG, "connected to ap SSID:%s password:%s",
@@ -337,7 +329,7 @@ static esp_err_t fetch_tokens(fetch_request_t req, const uint8_t *topic, size_t 
         .clientkey_buf = req.client_key,
         .clientkey_bytes = req.client_key_len,
         .tls_version = ESP_TLS_VER_TLS_1_2,
-        .ciphersuites_list = (int[]){MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0},
+        .ciphersuites_list = CIPHERSUITES_LIST
     };
     esp_tls_t *tls = esp_tls_init();
     if (tls == NULL)

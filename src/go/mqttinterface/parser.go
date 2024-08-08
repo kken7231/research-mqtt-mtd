@@ -125,14 +125,14 @@ func getFixedHeader(conn net.Conn, timeout time.Duration, done <-chan struct{}) 
 	return
 }
 
-func getTopicNameFromPublish(varHdrAndPayload []byte) (topicName []byte, others []byte, err error) {
+func getTopicNameFromPublish(varHdrAndPayload []byte) (topicName []byte, contentAfter []byte, err error) {
 	length := int(binary.BigEndian.Uint16(varHdrAndPayload[:2]))
 	if length > len(varHdrAndPayload)-2 {
 		err = fmt.Errorf("length not inadequate")
 		return
 	}
 	topicName = varHdrAndPayload[2 : 2+length]
-	others = varHdrAndPayload[2+length:]
+	contentAfter = varHdrAndPayload[2+length:]
 	return
 }
 

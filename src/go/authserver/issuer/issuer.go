@@ -34,10 +34,10 @@ func Run(acl *types.AccessControlList, atl *types.AuthTokenList) {
 	config := &tls.Config{
 		Certificates: []tls.Certificate{cert},
 		ClientAuth:   tls.RequireAndVerifyClientCert,
-		MinVersion:   tls.VersionTLS12,
+		MinVersion:   tls.VersionTLS13,
 		ClientCAs:    caCertPool,
-		CipherSuites: []uint16{tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256},
 	}
+
 	listener, err := tls.Listen("tcp", consts.LADDR_ISSUER, config)
 	if err != nil {
 		log.Fatalf("Issuer - Failed to start mTLS listener: %v", err)
@@ -229,7 +229,7 @@ func tokenIssuerHandler(conn *tls.Conn, acl *types.AccessControlList, atl *types
 
 	// ATL update
 	atl.Lock()
-	atl.RevokeEntry(unsafe.Slice(unsafe.StringData(clientName), len(clientName)), reqTopic)
+	atl.RevokeEntry(unsafe.Slice(unsafe.StringData(clientName), len(clientName)), reqTopic, reqAccessType)
 	atl.AppendEntry(&types.ATLEntry{
 		Timestamp:          timestamp,
 		RandomBytes:        firstRandomBytes,

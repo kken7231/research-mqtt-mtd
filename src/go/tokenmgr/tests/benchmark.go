@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"go/tokenmgr/tests/t01gettoken"
 	"go/tokenmgr/tests/t02publish"
+	"go/tokenmgr/tests/t03subscribe"
 	"go/tokenmgr/tests/testutil"
 	"log"
 	"reflect"
@@ -21,6 +22,7 @@ import (
 var (
 	t01Benchmarks = t01gettoken.Benchmarks
 	t02Benchmarks = t02publish.Benchmarks
+	t03Benchmarks = t03subscribe.Benchmarks
 )
 
 func main() {
@@ -39,6 +41,8 @@ func main() {
 		benchmarkFuncs = t01Benchmarks
 	case 2:
 		benchmarkFuncs = t02Benchmarks
+	case 3:
+		benchmarkFuncs = t03Benchmarks
 	default:
 		log.Fatal("Illegal test index")
 	}

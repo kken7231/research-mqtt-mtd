@@ -2,7 +2,7 @@ services:
   mosquitto:
     image: eclipse-mosquitto
     ports:
-      - "1883:1883"
+      - "31883:31883"
       - "9001:9001"
     volumes:
       - ./mosquitto/config:/mosquitto/config
