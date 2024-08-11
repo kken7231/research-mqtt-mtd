@@ -29,18 +29,18 @@ fi
 CLIENT_CONFIG="./conf/client.conf"
 
 # Generate sequence number
-SEQ=$(ls -l $CLIENT_CERTS_DIR | grep -E 'client[0-9]+.crt' | wc -l)
+SEQ=$(ls -l $CLIENT_CERTS_DIR | grep -E 'client[0-9]+.pem' | wc -l)
 SEQ=$((SEQ + 1))
 
 # CA File Paths (Assuming CA certificate and key already exist)
 CA_KEY="$CERTS_DIR/ca/ca.key"
-CA_CERT="$CERTS_DIR/ca/ca.crt"
+CA_CERT="$CERTS_DIR/ca/ca.pem"
 CA_PASSWORD="mqttca"
 
 # Client File Paths
 CLIENT_KEY="$CLIENT_CERTS_DIR/client$SEQ.key"
 CLIENT_CSR="$CLIENT_CERTS_DIR/client$SEQ.csr"
-CLIENT_CERT="$CLIENT_CERTS_DIR/client$SEQ.crt"
+CLIENT_CERT="$CLIENT_CERTS_DIR/client$SEQ.pem"
 if [ "$uuid_email" = true ]; then
   CLIENT_UUID="$CLIENT_CERTS_DIR/client$SEQ.uuid"
 fi

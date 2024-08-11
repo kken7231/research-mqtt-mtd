@@ -13,7 +13,7 @@ WiFiClient espClient;
 
 // MQTTブローカー
 const char *mqtt_broker = "192.168.11.16";
-const char *topic = "esp32/test";
+const char *topic = "powerlogger";
 const int mqtt_port = 31883;
 PubSubClient client(espClient);
 
@@ -60,6 +60,7 @@ void loop() {
 
     if(client.connected() || client.connect("abc")) {
       sprintf(buffer, "{cur:%f,vol:%f,pow:%f}", cur, vol, pow);
+      Serial.println(buffer);
       client.publish(topic, buffer);
     }
   }

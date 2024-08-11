@@ -36,7 +36,12 @@
       "string.h": "c",
       "stdio.h": "c",
       "esp_log.h": "c",
-      "esp_tls.h": "c"
+      "esp_tls.h": "c",
+      "esp_system.h": "c",
+      "esp_debug.h": "c",
+      "ssl.h": "c",
+      "nvs_flash.h": "c",
+      "unistd.h": "c"
     },
     "[c]": {
       "editor.defaultFormatter": "ms-vscode.cpptools"

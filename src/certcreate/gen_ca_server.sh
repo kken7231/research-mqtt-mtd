@@ -26,13 +26,13 @@ SERVER_CONFIG="./conf/server.conf"
 
 # CA File Paths
 CA_KEY="$CA_CERTS_DIR/ca.key"
-CA_CERT="$CA_CERTS_DIR/ca.crt"
+CA_CERT="$CA_CERTS_DIR/ca.pem"
 CA_PASSWORD="mqttca"
 
 # Server File Paths
 SERVER_KEY="$SERVER_CERTS_DIR/server.key"
 SERVER_CSR="$SERVER_CERTS_DIR/server.csr"
-SERVER_CERT="$SERVER_CERTS_DIR/server.crt"
+SERVER_CERT="$SERVER_CERTS_DIR/server.pem"
 SERVER_PASSWORD=""
 
 # Generate CA key

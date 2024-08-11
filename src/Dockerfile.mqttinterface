@@ -1,3 +1,0 @@
-FROM golang:1.22.5-alpine3.20
-
-CMD sleep 1; cd /mqttmtd/go; go run ./mqttinterface

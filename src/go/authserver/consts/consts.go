@@ -8,10 +8,10 @@ const (
 	DEFAULT_FILEPATH_ACL        = "/mqttmtd/acl.yml"
 	DEFAULT_FILEPATH_TOKENS_DIR = "/mqttmtd/tokens/"
 
-	CA_CRTFILE = "/mqttmtd/certs/ca/ca.crt"
+	CA_CRTFILE = "/mqttmtd/certs/ca/ca.pem"
 	CA_KEYFILE = "/mqttmtd/certs/ca/ca.key"
 
-	SERVER_CRTFILE = "/mqttmtd/certs/server/server.crt"
+	SERVER_CRTFILE = "/mqttmtd/certs/server/server.pem"
 	SERVER_KEYFILE = "/mqttmtd/certs/server/server.key"
 
 	LADDR_ISSUER     = ":18883"
