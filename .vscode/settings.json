@@ -1,4 +1,4 @@
 {
-    "idf.port": "/dev/tty.usbmodem83201",
+    "idf.port": "/dev/tty.usbmodem101",
     "cmake.sourceDirectory": "/Users/kentarou/git/research-mqtt-mtd/src/esp32/esp32-tokenmgr/main"
 }

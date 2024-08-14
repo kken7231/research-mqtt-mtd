@@ -8,8 +8,10 @@ int loggingInterval = 1000;
 long lastRead = 0;
 float ss;
 // WiFi
-const char *WIFI_SSID = "aBuffalo-T-E510";
-const char *WIFI_PASSWORD = "penguink";
+// const char *WIFI_SSID = "aBuffalo-T-E510";
+// const char *WIFI_PASSWORD = "penguink";
+const char *WIFI_SSID = "koidelab";
+const char *WIFI_PASSWORD = "nni-8ugimrjnmw";
 WiFiClient espClient;
 PubSubClient client(espClient);
 
@@ -19,7 +21,7 @@ const long gmtOffset_sec = 3600 * 9;  // GMT offset for Japan Standard Time (JST
 const int daylightOffset_sec = 0;
 
 // MQTT broker details
-const char* mqtt_broker = "192.168.11.16";
+const char* mqtt_broker = "192.168.11.6";
 const char* topic = "watts_data";
 const int mqtt_port = 31883;
 
