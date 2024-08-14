@@ -1,0 +1,54 @@
+import sqlite3
+import paho.mqtt.client as mqtt
+import json
+from datetime import datetime, timezone, timedelta
+
+# Connect to SQLite
+conn = sqlite3.connect('/db/sensor_data.db')
+cursor = conn.cursor()
+
+# Create table if it doesn't exist
+cursor.execute('''CREATE TABLE IF NOT EXISTS watts_data (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    current REAL,
+                    voltage REAL,
+                    power REAL,
+                    timestamp TEXT
+                  )''')
+conn.commit()
+
+def on_connect(client, userdata, flags, rc, properties):
+    if rc == 0:
+        print("Connected to MQTT broker successfully")
+        client.subscribe("watts_data")
+    else:
+        print(f"Failed to connect, return code {rc}")
+
+def on_message(client, userdata, msg):
+    data = msg.payload.decode()
+    timestamp, current, voltage, power = parse_sensor_data(data)
+    if timestamp != 0:
+        timestamp = datetime.fromtimestamp(float(timestamp),tz=timezone(timedelta(hours=9))).isoformat()
+        cursor.execute('INSERT INTO watts_data (current, voltage, power, timestamp) VALUES (?, ?, ?, ?)',(current, voltage, power, timestamp))
+        conn.commit()
+        print(f"Stored data: Timestamp={timestamp}, Current={current}, Voltage={voltage}, Power={power}")
+
+def parse_sensor_data(data):
+    try:
+        data_dict = json.loads(data)
+        timestamp = int(data_dict.get('ts', 0))
+        current = float(data_dict.get('cur', 0.0))
+        voltage = float(data_dict.get('vol', 0.0))
+        power = float(data_dict.get('pow', 0.0))
+        return timestamp, current, voltage, power
+    except json.JSONDecodeError:
+        print("Failed to parse watts data")
+        return 0, 0.0, 0.0, 0.0
+
+# Create a client with protocol v311
+client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+client.on_connect = on_connect
+client.on_message = on_message
+
+client.connect("mosquitto", 31883, 60)
+client.loop_forever()
