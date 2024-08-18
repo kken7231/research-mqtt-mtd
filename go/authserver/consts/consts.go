@@ -5,7 +5,7 @@ import (
 )
 
 const (
-	DEFAULT_FILEPATH_ACL        = "/mqttmtd/acl.yml"
+	DEFAULT_FILEPATH_ACL        = "/mqttmtd/config/acl.yml"
 	DEFAULT_FILEPATH_TOKENS_DIR = "/mqttmtd/tokens/"
 
 	CA_CRTFILE = "/mqttmtd/certs/ca/ca.pem"

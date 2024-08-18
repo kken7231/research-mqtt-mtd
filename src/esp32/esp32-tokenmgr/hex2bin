@@ -1,1 +1,0 @@
-xxd -r -p ./efuse.hex ./qemu_efuse.bin

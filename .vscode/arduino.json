@@ -1,6 +1,0 @@
-{
-    "configuration": "CDCOnBoot=default,PartitionScheme=default,CPUFreq=160,FlashMode=qio,FlashFreq=80,FlashSize=4M,UploadSpeed=921600,DebugLevel=none,EraseFlash=none",
-    "board": "esp32:esp32:dfrobot_beetle_esp32c3",
-    "sketch": "src/arduino/powerLogger/powerLogger.ino",
-    "port": "/dev/tty.usbmodem11101"
-}

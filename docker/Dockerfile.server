@@ -11,18 +11,14 @@ WORKDIR /mqttmtd/go
 
 # Copy the built binaries from previous stages
 COPY --from=go-builder /mqttmtd/go/mqttinterface/mqttinterface /mqttmtd/mqttinterface
-COPY --from=go-builder /mqttmtd/go/authserver/authserver /mqttmtd/authserver
+COPY --from=go-builder /mqttmtd/go/authserver/authserver       /mqttmtd/authserver
 
 # Copy configuration files and start script
-COPY ./confs/mosquitto-plain-localonly_11883.conf /mosquitto/config/mosquitto.conf
-COPY ./confs/mosquitto-tls_8883.conf /mosquitto/config/mosquitto-tls.conf
-COPY --chmod=0700 ./confs/acl.acl /mosquitto/config/acl.acl
-COPY --chmod=0700 ./confs/dhparam.pem /mosquitto/config/dhparam.pem
-COPY ./certs/ca/ /mqttmtd/certs/ca/
-COPY ./certs/ca/ /mosquitto/config/certs/ca/
-COPY ./certs/server/ /mqttmtd/certs/server/
-COPY ./certs/server/ /mosquitto/config/certs/server/
-COPY ./acl.yml /mqttmtd/acl.yml
+COPY --chmod=700 ./mosquitto_config/ /mosquitto/config/
+COPY --chmod=700 ./mosquitto_config/ /mqttmtd/config/
+COPY --chmod=700 ./certs/ca/         /mqttmtd/certs/ca/
+COPY --chmod=700 ./certs/server/     /mqttmtd/certs/server/
+
 COPY ./server_start.sh /mqttmtd/server_start.sh
 
 # Create logs directory
@@ -32,10 +28,10 @@ RUN mkdir /mqttmtd/logs
 RUN chmod +x /mqttmtd/server_start.sh
 
 # Expose necessary ports
-# EXPOSE 8080
-# EXPOSE 1883
-# EXPOSE 8883
-# EXPOSE 18883
+EXPOSE 8080
+EXPOSE 1883
+EXPOSE 8883
+EXPOSE 18883
 
 # Start all services and log output
 CMD ["/mqttmtd/server_start.sh"]

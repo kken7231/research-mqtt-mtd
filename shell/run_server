@@ -1,0 +1,12 @@
+GIT_ROOT=$(git rev-parse --show-toplevel)
+
+# docker network rm -f mqttmtd-net
+# docker network create --driver bridge --subnet 10.0.0.0/24 mqttmtd-net
+
+# docker-compose up --build
+
+docker rm -f mqttmtd_server
+docker rmi -f mqttmtd_server_image
+docker build -t mqttmtd_server_image -f ${GIT_ROOT}/docker/Dockerfile.server ${GIT_ROOT} && \
+ docker run -d --name mqttmtd_server --hostname server -p 8080:8080 -p 1883:1883 -p 8883:8883 -p 18883:18883 -e "HOST_IP=$(ipconfig getifaddr en1)"  mqttmtd_server_image && \
+ docker logs -f mqttmtd_server
