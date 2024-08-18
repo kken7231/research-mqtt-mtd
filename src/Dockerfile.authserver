@@ -1,9 +1,0 @@
-FROM golang:1.22.5-alpine3.20
-
-RUN mkdir -p /mqttmtd/certs
-COPY --chmod=444 certs/ca /mqttmtd/certs/ca/
-COPY --chmod=444 certs/server /mqttmtd/certs/server/
-
-EXPOSE 8080
-
-CMD sleep 1; cd /mqttmtd/go; go run ./authserver
