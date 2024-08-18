@@ -1,10 +1,11 @@
 #!/bin/bash
+GIT_ROOT=$(git rev-parse --show-toplevel)
 
 # Exit on any error
 set -e
 
 # Directories
-CERTS_DIR="./certs"
+CERTS_DIR="$GIT_ROOT/certs"
 uuid_email=false
 CLIENT_NAME=""
 
@@ -18,7 +19,7 @@ while getopts "c:un:" opt; do
   esac
 done
 
-. ./gen_conf.sh
+. $GIT_ROOT/certcreate/gen_conf.sh
 
 # Directories
 mkdir -p "$CLIENT_CERTS_DIR"

@@ -1,3 +1,4 @@
+
 GIT_ROOT=$(git rev-parse --show-toplevel)
 
 # Check if a client name is provided

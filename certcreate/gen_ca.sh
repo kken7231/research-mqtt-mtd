@@ -1,10 +1,11 @@
 #!/bin/bash
+GIT_ROOT=$(git rev-parse --show-toplevel)
 
 # Exit on any error
 set -e
 
 # Directories
-CERTS_DIR="./certs"
+CERTS_DIR="$GIT_ROOT/certs"
 
 # Parse command-line arguments
 while getopts "c:" opt; do
@@ -14,7 +15,7 @@ while getopts "c:" opt; do
   esac
 done
 
-. ./gen_conf.sh
+. $GIT_ROOT/certcreate/gen_conf.sh
 
 # Directories
 rm -rf "$CA_CERTS_DIR"

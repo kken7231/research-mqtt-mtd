@@ -1,18 +1,21 @@
+#!/bin/bash
+CERTCREATE_DIR="$(git rev-parse --show-toplevel)/certcreate"
+
 # Directories
 export CA_CERTS_DIR="$CERTS_DIR/ca"
 export SERVER_CERTS_DIR="$CERTS_DIR/server"
 export CLIENT_CERTS_DIR="$CERTS_DIR/clients"
 
 # Configuration Files
-export CA_CONFIG="./conf/ca.conf"
-export SERVER_CONFIG_TEMPLATE="./conf/server_template.conf"
-export SERVER_CONFIG="./conf/server.conf"
+export CA_CONFIG="$CERTCREATE_DIR/conf/ca.conf"
+export SERVER_CONFIG_TEMPLATE="$CERTCREATE_DIR/conf/server_template.conf"
+export SERVER_CONFIG="$CERTCREATE_DIR/conf/server.conf"
 if [ "$uuid_email" = true ]; then
-  export CLIENT_CONFIG_TEMPLATE="./conf/client_template_uuid.conf"
+  export CLIENT_CONFIG_TEMPLATE="$CERTCREATE_DIR/conf/client_template_uuid.conf"
 else
-  export CLIENT_CONFIG_TEMPLATE="./conf/client_template_nouuid.conf"
+  export CLIENT_CONFIG_TEMPLATE="$CERTCREATE_DIR/conf/client_template_nouuid.conf"
 fi
-export CLIENT_CONFIG="./conf/client.conf"
+export CLIENT_CONFIG="$CERTCREATE_DIR/conf/client.conf"
 
 # CA File Paths
 export CA_KEY="$CA_CERTS_DIR/ca.key"

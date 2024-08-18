@@ -1,10 +1,11 @@
 #!/bin/bash
+GIT_ROOT=$(git rev-parse --show-toplevel)
 
 # Exit on any error
 set -e
 
 # Default directories and number of certificates
-CERTS_DIR="./certs"
+CERTS_DIR="$GIT_ROOT/certs"
 NUM_CERTS=5
 
 # Parse command-line arguments
