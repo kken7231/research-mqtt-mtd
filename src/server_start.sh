@@ -6,6 +6,9 @@ prepend_service_name() {
     echo "$1| $line"
   done
 }
+echo "$HOST_IP server" >> /etc/hosts
+echo "192.168.11.60 client1" >> /etc/hosts
+
 # Start the MQTT server and log its output
 mosquitto -c /mosquitto/config/mosquitto.conf 2>&1 | prepend_service_name "mosquitto     " >> /mqttmtd/logs/combined.log &
 mosquitto -c /mosquitto/config/mosquitto-tls.conf 2>&1 | prepend_service_name "mosquitto-tls " >> /mqttmtd/logs/combined.log &

@@ -5,6 +5,6 @@
   "idf.adapterTargetName": "esp32c3",
   "idf.openOcdConfigs": ["board/esp32s3-builtin.cfg"],
   "idf.flashType": "UART",
-  "idf.port": "/dev/tty.usbmodem101",
+  "idf.port": "/dev/tty.usbmodem83201",
   "editor.defaultFormatter": "ms-vscode.cpptools"
 }

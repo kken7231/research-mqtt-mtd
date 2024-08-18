@@ -1,0 +1,4 @@
+user client
+topic write /sample/topic/pub
+topic read /sample/topic/sub
+topic readwrite /sample/topic/pubsub

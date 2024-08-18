@@ -1,1 +1,2 @@
-pushd ./certcreate; ./generate_certs.sh -c ../certs; popd
+pushd ./certcreate; ./generate_certs.sh -c ../certs; ./gen_server.sh -c ../certs -a server; popd
+# pushd ./certcreate; ./generate_certs.sh -c ../certs; ./gen_server.sh -c ../certs -a $(ipconfig getifaddr en1); popd

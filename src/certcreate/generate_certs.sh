@@ -16,10 +16,15 @@ while getopts "c:n:" opt; do
   esac
 done
 
-# Generate CA and Server certificates
-./gen_ca_server.sh -c "$CERTS_DIR"
+rm -rf "$CERTS_DIR"
+
+# Generate CA cetrificate
+./gen_ca.sh -c "$CERTS_DIR"
+
+# Generate Client cetrificate
+./gen_client.sh -c "$CERTS_DIR" -n "client"
 
 # Generate the specified number of client certificates
-for ((i = 0; i < NUM_CERTS; i++)); do
-  ./gen_client.sh -c "$CERTS_DIR"
-done
+# for ((i = 0; i < NUM_CERTS; i++)); do
+#   ./gen_client.sh -c "$CERTS_DIR"
+# done

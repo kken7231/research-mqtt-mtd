@@ -6,53 +6,25 @@ set -e
 # Directories
 CERTS_DIR="./certs"
 uuid_email=false
+CLIENT_NAME=""
 
 # Parse command-line arguments
-while getopts "c:u" opt; do
+while getopts "c:un:" opt; do
   case $opt in
     c) CERTS_DIR="$OPTARG" ;;
     u) uuid_email=true ;;
+    n) CLIENT_NAME="$OPTARG" ;;
     \?) echo "Invalid option -$OPTARG" >&2; exit 1 ;;
   esac
 done
 
+. ./gen_conf.sh
+
 # Directories
-CLIENT_CERTS_DIR="$CERTS_DIR/clients"
 mkdir -p "$CLIENT_CERTS_DIR"
 
-# Configuration Files
-if [ "$uuid_email" = true ]; then
-  CLIENT_CONFIG_TEMPLATE="./conf/client_template_uuid.conf"
-else
-  CLIENT_CONFIG_TEMPLATE="./conf/client_template_nouuid.conf"
-fi
-CLIENT_CONFIG="./conf/client.conf"
-
-# Generate sequence number
-SEQ=$(ls -l $CLIENT_CERTS_DIR | grep -E 'client[0-9]+.pem' | wc -l)
-SEQ=$((SEQ + 1))
-
-# CA File Paths (Assuming CA certificate and key already exist)
-CA_KEY="$CERTS_DIR/ca/ca.key"
-CA_CERT="$CERTS_DIR/ca/ca.pem"
-CA_PASSWORD="mqttca"
-
-# Client File Paths
-CLIENT_KEY="$CLIENT_CERTS_DIR/client$SEQ.key"
-CLIENT_CSR="$CLIENT_CERTS_DIR/client$SEQ.csr"
-CLIENT_CERT="$CLIENT_CERTS_DIR/client$SEQ.pem"
-if [ "$uuid_email" = true ]; then
-  CLIENT_UUID="$CLIENT_CERTS_DIR/client$SEQ.uuid"
-fi
-CLIENT_PASSWORD=""
-
-# Generate a UUID
-if [ "$uuid_email" = true ]; then
-  UUID=$(uuidgen)
-fi
-
-# Create a new server configuration file with the UUID email and SEQ DNS
-sed -e "s/{{SEQ}}/$SEQ/g" -e "s/{{UUID}}/$UUID/g" "$CLIENT_CONFIG_TEMPLATE" > "$CLIENT_CONFIG"
+# Create a new client configuration file with the UUID email and SEQ DNS
+sed -e "s/{{CLIENT_NAME}}/$CLIENT_NAME/g" -e "s/{{UUID}}/$UUID/g" "$CLIENT_CONFIG_TEMPLATE" > "$CLIENT_CONFIG"
 
 # Record UUID
 if [ "$uuid_email" = true ]; then
@@ -60,13 +32,13 @@ if [ "$uuid_email" = true ]; then
 fi
 
 # Generate Client key
-openssl ecparam -name prime256v1 -genkey -out "$CLIENT_KEY" # -pass pass:"$CLIENT_PASSWORD" -aes256
+openssl genpkey -algorithm $CLIENT_KEY_ALGO -out "$CLIENT_KEY" -pkeyopt rsa_keygen_bits:$CLIENT_KEY_LEN #-pass pass:"$CLIENT_PASSWORD"
 
 # Generate Client CSR
 openssl req -new -key "$CLIENT_KEY" -out "$CLIENT_CSR" -config "$CLIENT_CONFIG" -passin pass:"$CLIENT_PASSWORD"
 
 # Sign Client certificate with CA
-openssl x509 -req -in "$CLIENT_CSR" -CA "$CA_CERT" -CAkey "$CA_KEY" -CAcreateserial -out "$CLIENT_CERT" -days 365 -sha256 -extfile "$CLIENT_CONFIG" -extensions v3_req -passin pass:"$CA_PASSWORD"
+openssl x509 -req -in "$CLIENT_CSR" -CA "$CA_CERT" -CAkey "$CA_KEY" -CAcreateserial -out "$CLIENT_CERT" -days 365 -extfile "$CLIENT_CONFIG" -extensions v3_req -passin pass:"$CA_PASSWORD"
 
-echo "Client certificate generated successfully in $CLIENT_CERTS_DIR with sequence number $SEQ"
+echo "Client certificate generated successfully in $CLIENT_CERTS_DIR with name $CLIENT_NAME"
 echo "SANs: $(openssl x509 -in "$CLIENT_CERT" -noout -text | awk '/Subject Alternative Name:/ {getline; print}' | sed 's/^ *//;s/ *$//')"
