@@ -5,3 +5,5 @@ img
 *.tex
 
 # certs
+certs/clients
+certs/server

@@ -22,7 +22,7 @@ while getopts "c:un:a:" opt; do
 done
 
 if [ "$LOCAL_IPADDR" = "" ]; then
-  LOCAL_IPADDR=${CLIENT_NAME}
+  LOCAL_IPADDR="${CLIENT_NAME}.local"
 fi
 
 . $GIT_ROOT/certcreate/gen_conf.sh

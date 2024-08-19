@@ -6,7 +6,7 @@ set -e
 
 # Directories
 CERTS_DIR="./certs"
-LOCAL_IPADDR="server"
+LOCAL_IPADDR="server.local"
 
 # Parse command-line arguments
 while getopts "c:a:" opt; do

@@ -1,1 +1,2 @@
-pushd ../certcreate; rm -f ../certs/clients/client.*; ./gen_client.sh -c ../certs -n "client" -a "$(ipconfig getifaddr en0)"; popd
+GIT_ROOT=$(git rev-parse --show-toplevel)
+pushd ${GIT_ROOT}/certcreate; rm -f ../certs/clients/client.*; ./gen_client.sh -c ../certs -n "client" -a "client.local"; popd

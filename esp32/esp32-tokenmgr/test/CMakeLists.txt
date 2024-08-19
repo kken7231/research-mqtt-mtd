@@ -7,7 +7,7 @@ set(EXTRA_COMPONENT_DIRS "../components")
 # - when invoking CMake directly: cmake -D TEST_COMPONENTS="xxxxx" ..
 # - when using idf.py: idf.py -T xxxxx build
 set(TEST_COMPONENTS "tokenmgr" CACHE STRING "List of components to test")
-add_compile_options(-DINCLUDE_TIME_LOG)
+add_compile_options(-DCOMPILEROPT_INCLUDE_TIME_LOG)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(test)

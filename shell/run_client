@@ -1,5 +1,5 @@
-
 GIT_ROOT=$(git rev-parse --show-toplevel)
+pushd ${GIT_ROOT}/certcreate; rm -f ../certs/clients/client.*; ./gen_client.sh -c ../certs -n "client"; popd
 
 # Check if a client name is provided
 if [ -z "$1" ]; then

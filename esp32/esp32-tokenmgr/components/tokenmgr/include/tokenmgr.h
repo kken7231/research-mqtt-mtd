@@ -1,5 +1,6 @@
 #ifndef TOKENMGR_H
 #define TOKENMGR_H
+
 #include <string.h>
 #include <sys/time.h>
 #include <unistd.h>
@@ -11,6 +12,7 @@
 #include "esp_sntp.h"
 #include "esp_tls.h"
 #include "esp_wifi.h"
+#include "mdns.h"
 #include "mqtt_client.h"
 #include "nvs_flash.h"
 
@@ -21,6 +23,10 @@
 #define RANDOM_BYTES_LEN 6
 #define TOKEN_SIZE (TIMESTAMP_LEN + RANDOM_BYTES_LEN)
 #define TIME_REVOCATION (7 * 24 * 60 * 60)	// 1 week in seconds
+// Definition expected in config.h
+extern const char *ISSUER_HOST;
+// Definition expected in config.h
+extern const int ISSUER_PORT;
 
 typedef enum {
 	ACCESS_PUB = 1,

@@ -16,23 +16,11 @@ const esp_mqtt5_connection_property_config_t mqtt_connect_property = {
 static esp_netif_t *netif;
 
 static void app_init(void) {
-	esp_err_t ret = nvs_flash_init();
-	if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-		ESP_ERROR_CHECK(nvs_flash_erase());
-		ret = nvs_flash_init();
-	}
-	ESP_ERROR_CHECK(ret);
-
-	esp_log_level_set("wifi", ESP_LOG_WARN);
-
-	netif = wifi_init_sta();
-
-	reset_nvs_storage();
+	netif = comp_init();
 }
 
 static void app_deinit(void) {
-	if (netif != NULL)
-		esp_netif_destroy(netif);
+	comp_deinit(netif);
 }
 
 void app_main(void) {

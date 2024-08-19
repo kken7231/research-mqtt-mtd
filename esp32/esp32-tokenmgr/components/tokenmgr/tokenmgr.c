@@ -1,14 +1,11 @@
 #include "tokenmgr.h"
 
-#define ISSUER_HOST "192.168.11.16"
-#define ISSUER_PORT 18883
-
 static EventGroupHandle_t wifi_event_group, mqtt_plain_event_group, mqtt_tls_event_group;
 static esp_mqtt_client_handle_t plain_mqtt_client, tls_mqtt_client;
 static int wifi_retry_num = 0;
 static const char *TAG = "tokenmgr";
 
-#ifdef INCLUDE_TIME_LOG
+#ifdef COMPILEROPT_INCLUDE_TIME_LOG
 
 typedef enum {
 	TIME_RECORD_TYPE_UNDEFINED,
@@ -136,10 +133,6 @@ static esp_netif_t *wifi_init_sta(void) {
 	ESP_ERROR_CHECK(esp_event_loop_create_default());
 
 	esp_netif_t *netif = esp_netif_create_default_wifi_sta();
-	// esp_netif_dhcpc_stop(netif);
-	// esp_netif_ip_info_t ip_info;
-	// SET_IP_INFO(ip_info);
-	// esp_netif_set_ip_info(netif, &ip_info);
 
 	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 	ESP_ERROR_CHECK(esp_wifi_init(&cfg));
@@ -168,6 +161,10 @@ static esp_netif_t *wifi_init_sta(void) {
 		ESP_LOGE(TAG, "UNEXPECTED EVENT");
 		goto wifi_init_sta_err;
 	}
+
+	ESP_ERROR_CHECK(mdns_init());
+	ESP_ERROR_CHECK(mdns_hostname_set("client"));
+	ESP_LOGI(TAG, "mdns hostname set to client");
 
 	esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
 	config.start = false;
@@ -239,7 +236,7 @@ static esp_err_t mqtt_init(void) {
 	ESP_ERROR_CHECK(esp_mqtt5_client_set_connect_property(plain_mqtt_client, &mqtt_connect_property));
 	ESP_ERROR_CHECK(esp_mqtt_client_register_event(plain_mqtt_client, ESP_EVENT_ANY_ID, mqttplain_event_handler, NULL));
 	ESP_ERROR_CHECK(esp_mqtt_client_start(plain_mqtt_client));
-	ESP_LOGI(TAG, "esp_mqtt_client_start finished (plain).");
+	ESP_LOGI(TAG, "esp_mqtt_client_start triggered (plain).");
 
 	EventBits_t bits = xEventGroupWaitBits(mqtt_plain_event_group,
 										   MQTT_CONNECTED_BIT | MQTT_FAIL_BIT,
@@ -261,7 +258,6 @@ static esp_err_t mqtt_init(void) {
 			.address.uri = TLS_BROKER_URI,
 			.verification = {
 				.crt_bundle_attach = esp_crt_bundle_attach,
-				.common_name = "server",
 			},
 		},
 		.credentials = {
@@ -279,7 +275,7 @@ static esp_err_t mqtt_init(void) {
 	ESP_ERROR_CHECK(esp_mqtt5_client_set_connect_property(tls_mqtt_client, &mqtt_connect_property));
 	ESP_ERROR_CHECK(esp_mqtt_client_register_event(tls_mqtt_client, ESP_EVENT_ANY_ID, mqtttls_event_handler, NULL));
 	esp_mqtt_client_start(tls_mqtt_client);
-	ESP_LOGI(TAG, "esp_mqtt_client_start finished (tls).");
+	ESP_LOGI(TAG, "esp_mqtt_client_start triggered (tls).");
 
 	bits = xEventGroupWaitBits(mqtt_tls_event_group,
 							   MQTT_CONNECTED_BIT | MQTT_FAIL_BIT,
@@ -500,7 +496,6 @@ static esp_err_t fetch_tokens(fetch_request_t req, const char *topic, size_t top
 		.clientkey_bytes = client_key_end - client_key_start,
 		.tls_version = ESP_TLS_VER_TLS_1_3,
 		.ciphersuites_list = CIPHERSUITES_LIST,
-		.common_name = "server",
 	};
 	// if (cfg.cacert_buf == NULL || cfg.clientcert_buf == NULL || cfg.clientkey_buf == NULL) {
 	if (cfg.clientcert_buf == NULL || cfg.clientkey_buf == NULL) {
@@ -658,6 +653,7 @@ void comp_deinit(esp_netif_t *netif) {
 		esp_netif_sntp_deinit();
 		esp_netif_destroy(netif);
 	}
+	mdns_free();
 	LOG_TIME_FUNC_END();
 }
 esp_err_t get_token(const char *topic, fetch_request_t fetch_req, uint8_t *timestamp, uint8_t *random_bytes) {
