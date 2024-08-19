@@ -26,7 +26,7 @@ const (
 	SAMPLE_TOPIC_SUB    string = "/sample/topic/sub"
 	SAMPLE_TOPIC_PUBSUB string = "/sample/topic/pubsub"
 
-	ADDR_MQTT_INTERFACE string = "mqtt://server:1883"
+	ADDR_MQTT_INTERFACE string = "mqtt://192.168.11.11:1883"
 	// ADDR_MQTT_INTERFACE string = "mqtt://192.168.11.16:1883"
 
 	CA_CRT     string = "/mqttmtd/certs/ca/ca.pem"

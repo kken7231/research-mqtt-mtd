@@ -8,16 +8,22 @@ set -e
 CERTS_DIR="$GIT_ROOT/certs"
 uuid_email=false
 CLIENT_NAME=""
+LOCAL_IPADDR=""
 
 # Parse command-line arguments
-while getopts "c:un:" opt; do
+while getopts "c:un:a:" opt; do
   case $opt in
     c) CERTS_DIR="$OPTARG" ;;
     u) uuid_email=true ;;
     n) CLIENT_NAME="$OPTARG" ;;
+    a) LOCAL_IPADDR="$OPTARG" ;;
     \?) echo "Invalid option -$OPTARG" >&2; exit 1 ;;
   esac
 done
+
+if [ "$LOCAL_IPADDR" = "" ]; then
+  LOCAL_IPADDR=${CLIENT_NAME}
+fi
 
 . $GIT_ROOT/certcreate/gen_conf.sh
 
@@ -25,7 +31,7 @@ done
 mkdir -p "$CLIENT_CERTS_DIR"
 
 # Create a new client configuration file with the UUID email and SEQ DNS
-sed -e "s/{{CLIENT_NAME}}/$CLIENT_NAME/g" -e "s/{{UUID}}/$UUID/g" "$CLIENT_CONFIG_TEMPLATE" > "$CLIENT_CONFIG"
+sed -e "s/{{CLIENT_NAME}}/$CLIENT_NAME/g" -e "s/{{UUID}}/$UUID/g" -e "s/{{LOCAL_IPADDR}}/$LOCAL_IPADDR/g" "$CLIENT_CONFIG_TEMPLATE" > "$CLIENT_CONFIG"
 
 # Record UUID
 if [ "$uuid_email" = true ]; then

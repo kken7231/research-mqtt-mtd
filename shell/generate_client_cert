@@ -1,0 +1,1 @@
+pushd ../certcreate; rm -f ../certs/clients/client.*; ./gen_client.sh -c ../certs -n "client" -a "$(ipconfig getifaddr en0)"; popd

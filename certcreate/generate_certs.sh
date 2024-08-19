@@ -23,7 +23,7 @@ rm -rf "$CERTS_DIR"
 ./gen_ca.sh -c "$CERTS_DIR"
 
 # Generate Client cetrificate
-./gen_client.sh -c "$CERTS_DIR" -n "client"
+./gen_client.sh -c "$CERTS_DIR" -n "client" -a "$(ipconfig getifaddr en0)"
 
 # Generate the specified number of client certificates
 # for ((i = 0; i < NUM_CERTS; i++)); do

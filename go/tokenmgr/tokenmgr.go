@@ -39,8 +39,8 @@ type FetchRequest struct {
 const (
 	TOKENS_DIR = "/mqttmtd/tokens/"
 
-	RADDR_ISSUER     = "server:18883"
-	RADDR_MQTTBroker = "server:1883"
+	RADDR_ISSUER     = "192.168.11.11:18883"
+	RADDR_MQTTBroker = "192.168.11.11:1883"
 
 	TIMESTAMP_LEN    = 6
 	RANDOM_BYTES_LEN = 6
@@ -83,6 +83,7 @@ func fetchTokens(req FetchRequest, topic []byte, tokenFilePath string) ([]byte, 
 	config := &tls.Config{
 		Certificates: []tls.Certificate{cert},
 		RootCAs:      caCertPool,
+		ServerName:   "server",
 	}
 
 	conn, err := tls.Dial("tcp", RADDR_ISSUER, config)
