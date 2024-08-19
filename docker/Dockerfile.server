@@ -16,6 +16,7 @@ COPY --from=go-builder /mqttmtd/go/authserver/authserver       /mqttmtd/authserv
 # Copy configuration files and start script
 COPY --chmod=444 ./mosquitto_config/ /mosquitto/config/
 RUN chmod 0700 /mosquitto/config/acl.acl
+RUN chmod 0700 /mosquitto/config/dhparam.pem
 COPY --chmod=444 ./mqttmtd_config/   /mqttmtd/config/
 COPY --chmod=444 ./certs/ca/         /mqttmtd/certs/ca/
 COPY --chmod=444 ./certs/server/     /mqttmtd/certs/server/
