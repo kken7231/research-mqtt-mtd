@@ -5,5 +5,5 @@ COPY ./go/ /mqttmtd/go/
 COPY ./certs/ca /mqttmtd/certs/ca
 
 ARG CLIENT_NAME
-COPY certs/clients/$CLIENT_NAME.crt /mqttmtd/certs/client/$CLIENT_NAME.crt
-COPY certs/clients/$CLIENT_NAME.key /mqttmtd/certs/client/$CLIENT_NAME.key
+COPY ./certs/clients/$CLIENT_NAME.pem /mqttmtd/certs/client/$CLIENT_NAME.pem
+COPY ./certs/clients/$CLIENT_NAME.key /mqttmtd/certs/client/$CLIENT_NAME.key

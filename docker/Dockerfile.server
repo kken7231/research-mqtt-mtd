@@ -14,12 +14,13 @@ COPY --from=go-builder /mqttmtd/go/mqttinterface/mqttinterface /mqttmtd/mqttinte
 COPY --from=go-builder /mqttmtd/go/authserver/authserver       /mqttmtd/authserver
 
 # Copy configuration files and start script
-COPY --chmod=700 ./mosquitto_config/ /mosquitto/config/
-COPY --chmod=700 ./mosquitto_config/ /mqttmtd/config/
-COPY --chmod=700 ./certs/ca/         /mqttmtd/certs/ca/
-COPY --chmod=700 ./certs/server/     /mqttmtd/certs/server/
+COPY --chmod=444 ./mosquitto_config/ /mosquitto/config/
+RUN chmod 0700 /mosquitto/config/acl.acl
+COPY --chmod=444 ./mqttmtd_config/   /mqttmtd/config/
+COPY --chmod=444 ./certs/ca/         /mqttmtd/certs/ca/
+COPY --chmod=444 ./certs/server/     /mqttmtd/certs/server/
 
-COPY ./server_start.sh /mqttmtd/server_start.sh
+COPY ./docker/server_start.sh /mqttmtd/server_start.sh
 
 # Create logs directory
 RUN mkdir /mqttmtd/logs

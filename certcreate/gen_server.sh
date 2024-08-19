@@ -17,7 +17,7 @@ while getopts "c:a:" opt; do
   esac
 done
 
-. $GIT_ROOT/gen_conf.sh
+. $GIT_ROOT/certcreate/gen_conf.sh
 
 # Directories
 rm -rf "$SERVER_CERTS_DIR"

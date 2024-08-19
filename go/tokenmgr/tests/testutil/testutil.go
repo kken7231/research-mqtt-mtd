@@ -26,11 +26,12 @@ const (
 	SAMPLE_TOPIC_SUB    string = "/sample/topic/sub"
 	SAMPLE_TOPIC_PUBSUB string = "/sample/topic/pubsub"
 
-	ADDR_MQTT_INTERFACE string = "mqtt://192.168.11.16:1883"
+	ADDR_MQTT_INTERFACE string = "mqtt://server:1883"
+	// ADDR_MQTT_INTERFACE string = "mqtt://192.168.11.16:1883"
 
-	CA_CRT     string = "/mqttmtd/certs/ca/ca.crt"
-	CLIENT_CRT string = "/mqttmtd/certs/client/client1.crt"
-	CLIENT_KEY string = "/mqttmtd/certs/client/client1.key"
+	CA_CRT     string = "/mqttmtd/certs/ca/ca.pem"
+	CLIENT_CRT string = "/mqttmtd/certs/client/client.pem"
+	CLIENT_KEY string = "/mqttmtd/certs/client/client.key"
 
 	// CA_CRT     string = "/Users/kentarou/git/research-mqtt-mtd/src/certs/ca/ca.crt"
 	// CLIENT_CRT string = "/Users/kentarou/git/research-mqtt-mtd/src/certs/clients/client1.crt"
