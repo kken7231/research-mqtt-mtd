@@ -12,6 +12,7 @@
 #include "esp_sntp.h"
 #include "esp_tls.h"
 #include "esp_wifi.h"
+#include "mbedtls/base64.h"
 #include "mdns.h"
 #include "mqtt_client.h"
 #include "nvs_flash.h"
@@ -22,6 +23,7 @@
 #define TIMESTAMP_LEN 6
 #define RANDOM_BYTES_LEN 6
 #define TOKEN_SIZE (TIMESTAMP_LEN + RANDOM_BYTES_LEN)
+#define BASE64_ENCODED_TOKEN_SIZE ((TOKEN_SIZE + 2) / 3 * 4) + 1
 #define TIME_REVOCATION (7 * 24 * 60 * 60)	// 1 week in seconds
 // Definition expected in config.h
 extern const char *ISSUER_HOST;
@@ -44,6 +46,12 @@ typedef struct {
 	uint8_t *random_bytes;
 	uint8_t token_count;
 } token_store_t;
+
+typedef enum {
+	TOKENMGR_STATE_BEFORE_ONETIME_INIT,
+	TOKENMGR_STATE_UNINITIALIZED,
+	TOKENMGR_STATE_OPERTATIONAL,
+} tokenmgr_state_t;
 
 /*
 	Embedded client certificate and key
@@ -80,15 +88,21 @@ extern const char *PLAIN_BROKER_URI;
 extern const char *TLS_BROKER_URI;
 // Definition expected in the app
 extern const esp_mqtt5_connection_property_config_t mqtt_connect_property;
+typedef enum {
+	MQTT_CLIENT_PLAIN,
+	MQTT_CLIENT_TLS
+} mqtt_client_type_t;
 
 /*
 	Function Declarations
 */
-esp_netif_t *comp_init(void);
-void comp_deinit(esp_netif_t *);
+void tokenmgr_app_init(void);
+void tokenmgr_init(void);
+void tokenmgr_deinit(void);
 void print_time_record_summary(void);
 void reset_time_record_store(void);
 
-esp_err_t get_token(const char *, fetch_request_t, uint8_t *, uint8_t *);
-
+esp_err_t get_token(const char *, fetch_request_t, uint8_t[TIMESTAMP_LEN], uint8_t[RANDOM_BYTES_LEN]);
+esp_err_t b64encode_token(const uint8_t[TIMESTAMP_LEN], const uint8_t[RANDOM_BYTES_LEN], uint8_t[BASE64_ENCODED_TOKEN_SIZE]);
+esp_err_t mqtt_publish_qos0(mqtt_client_type_t, const char *, const char *, int);
 #endif

@@ -83,7 +83,7 @@ func fetchTokens(req FetchRequest, topic []byte, tokenFilePath string) ([]byte, 
 	config := &tls.Config{
 		Certificates: []tls.Certificate{cert},
 		RootCAs:      caCertPool,
-		ServerName:   "server",
+		ServerName:   "server.local",
 	}
 
 	conn, err := tls.Dial("tcp", RADDR_ISSUER, config)

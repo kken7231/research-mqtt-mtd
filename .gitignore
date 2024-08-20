@@ -7,3 +7,5 @@ img
 # certs
 certs/clients
 certs/server
+.mqttenv
+.mqttenvlogs

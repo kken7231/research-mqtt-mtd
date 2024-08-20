@@ -256,9 +256,9 @@ func clientToMqttHandler(buf []byte, incomingConn net.Conn, brokerConn net.Conn,
 		return
 	}
 
-	if fixedHdr.ControlPacketType == MqttControlPUBLISH {
-		shouldCloseSock = true
-	}
+	// if fixedHdr.ControlPacketType == MqttControlPUBLISH {
+	// 	shouldCloseSock = true
+	// }
 
 	return
 }

@@ -16,11 +16,12 @@ const esp_mqtt5_connection_property_config_t mqtt_connect_property = {
 static esp_netif_t *netif;
 
 static void app_init(void) {
-	netif = comp_init();
+	tokenmgr_app_init();
+	tokenmgr_init();
 }
 
 static void app_deinit(void) {
-	comp_deinit(netif);
+	tokenmgr_deinit();
 }
 
 void app_main(void) {

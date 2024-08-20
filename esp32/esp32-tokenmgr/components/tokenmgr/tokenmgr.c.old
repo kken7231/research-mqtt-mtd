@@ -6,8 +6,6 @@ static int wifi_retry_num = 0;
 static const char *TAG = "tokenmgr";
 static esp_netif_t *netif;
 static tokenmgr_state_t current_state = TOKENMGR_STATE_BEFORE_ONETIME_INIT;
-int permit_time_logging = 0;
-
 #define CHECK_CURSTATE_IF_OPERATIONAL(err, goto_label)           \
 	if (current_state != TOKENMGR_STATE_OPERTATIONAL) {          \
 		ESP_LOGE(TAG, "tokenmgr needs to be initialized first"); \
@@ -34,7 +32,7 @@ static int time_record_store_count = 0;
 #define HIER_INDENT 4
 
 static void log_time(time_record_type_t record_type, const char *label) {
-	if (current_state != TOKENMGR_STATE_OPERTATIONAL || permit_time_logging == 0) return;
+	if (current_state != TOKENMGR_STATE_OPERTATIONAL) return;
 	if (time_record_store_count < TIME_RECORD_STORE_MAX) {
 		time_record_store[time_record_store_count].record_type = record_type;
 		gettimeofday(&time_record_store[time_record_store_count].timestamp, NULL);
@@ -320,6 +318,154 @@ mqtt_init_finish:
 	return err;
 }
 
+static esp_err_t save_token_store_to_nvs() {
+	LOG_TIME_FUNC_START();
+	nvs_handle_t nvs_handle;
+	ESP_ERROR_CHECK(nvs_open("storage", NVS_READWRITE, &nvs_handle));
+
+	esp_err_t err = ESP_OK;
+
+	err = nvs_set_blob(nvs_handle, "timestamp", token_store.timestamp, TIMESTAMP_LEN);
+	if (err != ESP_OK) {
+		ESP_LOGE(TAG, "Failed to save timestamp: %s", esp_err_to_name(err));
+		goto err_save_token_store_to_nvs_withclose;
+	}
+
+	err = nvs_set_blob(nvs_handle, "random_bytes", token_store.random_bytes, token_store.token_count * RANDOM_BYTES_LEN);
+	if (err != ESP_OK) {
+		ESP_LOGE(TAG, "Failed to save random bytes: %s", esp_err_to_name(err));
+		goto err_save_token_store_to_nvs_withclose;
+	}
+
+	err = nvs_set_u8(nvs_handle, "token_count", token_store.token_count);
+	if (err != ESP_OK) {
+		ESP_LOGE(TAG, "Failed to save token count: %s", esp_err_to_name(err));
+		goto err_save_token_store_to_nvs_withclose;
+	}
+
+	err = nvs_commit(nvs_handle);
+	if (err != ESP_OK) {
+		ESP_LOGE(TAG, "Failed to commit NVS: %s", esp_err_to_name(err));
+		goto err_save_token_store_to_nvs_withclose;
+	}
+	ESP_LOGI(TAG, "save_token_store_to_nvs: success");
+
+err_save_token_store_to_nvs_withclose:
+	nvs_close(nvs_handle);
+	LOG_TIME_FUNC_END();
+	return err;
+}
+
+static esp_err_t load_token_store_from_nvs() {
+	LOG_TIME_FUNC_START();
+	nvs_handle_t nvs_handle;
+	esp_err_t err = ESP_OK;
+
+	err = nvs_open("storage", NVS_READONLY, &nvs_handle);
+	if (err == ESP_ERR_NVS_NOT_FOUND) {
+		token_store.token_count = 0;
+		LOG_TIME_FUNC_END();
+		return ESP_OK;
+	} else if (err != ESP_OK) {
+		ESP_LOGE(TAG, "Error (%s) opening NVS handle!", esp_err_to_name(err));
+		token_store.token_count = 0;
+		LOG_TIME_FUNC_END();
+		return err;
+	}
+
+	uint8_t token_count = 0;
+	err = nvs_get_u8(nvs_handle, "token_count", &token_count);
+	if (err != ESP_OK) {
+		ESP_LOGE(TAG, "Failed to load token count: %s", esp_err_to_name(err));
+		goto err_load_token_store_from_nvs_withreset;
+	} else if (token_count == 0)
+		goto success_load_token_store_from_nvs;
+
+	size_t timestamp_size = TIMESTAMP_LEN;
+	err = nvs_get_blob(nvs_handle, "timestamp", token_store.timestamp, &timestamp_size);
+	if (err != ESP_OK) {
+		ESP_LOGE(TAG, "Failed to load timestamp: %s", esp_err_to_name(err));
+		goto err_load_token_store_from_nvs_withreset;
+	}
+
+	size_t random_bytes_size = 0;
+	err = nvs_get_blob(nvs_handle, "random_bytes", NULL, &random_bytes_size);
+	if (err != ESP_OK) {
+		ESP_LOGE(TAG, "Failed to get size of random bytes: %s", esp_err_to_name(err));
+		goto err_load_token_store_from_nvs_withreset;
+	}
+
+	token_store.random_bytes = malloc(random_bytes_size);
+	if (!token_store.random_bytes) {
+		ESP_LOGE(TAG, "Failed to allocate memory for random bytes");
+		goto err_load_token_store_from_nvs_withreset;
+	}
+
+	err = nvs_get_blob(nvs_handle, "random_bytes", token_store.random_bytes, &random_bytes_size);
+	if (err != ESP_OK) {
+		ESP_LOGE(TAG, "Failed to load random bytes: %s", esp_err_to_name(err));
+		goto err_load_token_store_from_nvs_withreset;
+	}
+
+success_load_token_store_from_nvs:
+	token_store.token_count = token_count;
+	ESP_LOGI(TAG, "load_token_store_from_nvs: success");
+	nvs_close(nvs_handle);
+	LOG_TIME_FUNC_END();
+	return err;
+
+err_load_token_store_from_nvs_withreset:
+	token_store.token_count = 0;
+	if (token_store.random_bytes != NULL) {
+		free(token_store.random_bytes);
+		token_store.random_bytes = NULL;
+	}
+	nvs_close(nvs_handle);
+	save_token_store_to_nvs();
+	LOG_TIME_FUNC_END();
+	return err;
+}
+
+static esp_err_t reset_nvs_storage() {
+	LOG_TIME_FUNC_START();
+	nvs_handle_t nvs_handle;
+	esp_err_t err = nvs_open("storage", NVS_READWRITE, &nvs_handle);
+	if (err == ESP_ERR_NVS_NOT_FOUND) {
+		LOG_TIME_FUNC_END();
+		return ESP_OK;
+	}
+
+	err = nvs_set_blob(nvs_handle, "timestamp", token_store.timestamp, TIMESTAMP_LEN);
+	if (err != ESP_OK) {
+		ESP_LOGE(TAG, "Failed to save timestamp: %s", esp_err_to_name(err));
+		goto err_reset_nvs_storage_withclose;
+	}
+
+	err = nvs_set_blob(nvs_handle, "random_bytes", NULL, 0);
+	if (err != ESP_OK) {
+		ESP_LOGE(TAG, "Failed to save random bytes: %s", esp_err_to_name(err));
+		goto err_reset_nvs_storage_withclose;
+	}
+
+	err = nvs_set_u8(nvs_handle, "token_count", 0);
+	if (err != ESP_OK) {
+		ESP_LOGE(TAG, "Failed to save token count: %s", esp_err_to_name(err));
+		goto err_reset_nvs_storage_withclose;
+	}
+
+	err = nvs_commit(nvs_handle);
+	if (err != ESP_OK) {
+		ESP_LOGE(TAG, "Failed to commit NVS: %s", esp_err_to_name(err));
+		goto err_reset_nvs_storage_withclose;
+	}
+	ESP_LOGI(TAG, "reset_nvs_storage: success");
+
+err_reset_nvs_storage_withclose:
+	nvs_close(nvs_handle);
+	LOG_TIME_FUNC_END();
+	return err;
+}
+
 static esp_err_t conn_read(esp_tls_t *tls, uint8_t *dst, size_t len, uint32_t timeout_ms) {
 	// LOG_TIME_FUNC_START();
 	size_t read_len = 0;
@@ -394,43 +540,47 @@ static esp_err_t fetch_tokens(fetch_request_t req, const char *topic, size_t top
 		goto fetch_tokens_finish;
 	}
 
-	uint8_t *req_data = (uint8_t *)malloc(2 + topic_len);
-	req_data[0] = req.num_tokens / 4;
-	req_data[1] = topic_len;
-	if (req.access_type & ACCESS_PUB) req_data[0] |= 0x80;
-	if (req.access_type & ACCESS_SUB) req_data[0] |= 0x40;
-	memcpy(req_data + 2, topic, topic_len);
+	uint8_t info[2] = {req.num_tokens / 4, topic_len};
+	if (req.access_type & ACCESS_PUB) info[0] |= 0x80;
+	if (req.access_type & ACCESS_SUB) info[0] |= 0x40;
 
-	err = conn_write(tls, req_data, 2 + topic_len, 0);
-	free((void *)req_data);
+	err = conn_write(tls, info, sizeof(info), 0);
 	if (err != ESP_OK) {
-		ESP_LOGE(TAG, "Failed to conn_write info+topic");
+		ESP_LOGE(TAG, "Failed to conn_write info");
 		goto fetch_tokens_finish_destroytls;
 	}
-	ESP_LOGI(TAG, "conn_write info+topic success");
+	ESP_LOGI(TAG, "conn_write info success");
 
-	err = conn_read(tls, token_store.timestamp, TIMESTAMP_LEN, 0);
+	err = conn_write(tls, (const uint8_t *)topic, topic_len, 0);
+	if (err != ESP_OK) {
+		ESP_LOGE(TAG, "Failed to conn_write topic");
+		goto fetch_tokens_finish_destroytls;
+	}
+	ESP_LOGI(TAG, "conn_write topic success");
+
+	uint8_t ts[TIMESTAMP_LEN];
+	err = conn_read(tls, ts, TIMESTAMP_LEN, 0);
 	if (err != ESP_OK) {
 		ESP_LOGE(TAG, "Failed to conn_read timestamp");
 		goto fetch_tokens_finish_destroytls;
 	}
 	ESP_LOGI(TAG, "conn_read timestamp success");
 
-	// Allocate memory for random bytes in heap
-	token_store.random_bytes = malloc(req.num_tokens * RANDOM_BYTES_LEN);
-	if (!token_store.random_bytes) {
-		ESP_LOGE(TAG, "Failed to allocate memory for random bytes");
-		goto fetch_tokens_finish_destroytls;
-	}
-	err = conn_read(tls, token_store.random_bytes, req.num_tokens * RANDOM_BYTES_LEN, 0);
-	if (err != ESP_OK) {
-		ESP_LOGE(TAG, "Failed to conn_read random bytes");
-		free((void *)token_store.random_bytes);
-		goto fetch_tokens_finish_destroytls;
+	memcpy(token_store.timestamp, ts, TIMESTAMP_LEN);
+	token_store.random_bytes = realloc(token_store.random_bytes, req.num_tokens * RANDOM_BYTES_LEN);
+	token_store.token_count = req.num_tokens;
+
+	uint8_t rb[RANDOM_BYTES_LEN];
+	for (int i = 0; i < req.num_tokens; ++i) {
+		err = conn_read(tls, rb, RANDOM_BYTES_LEN, 0);
+		if (err != ESP_OK) {
+			ESP_LOGE(TAG, "Failed to conn_read random bytes");
+			goto fetch_tokens_finish_destroytls;
+		}
+		memcpy(&token_store.random_bytes[i * RANDOM_BYTES_LEN], rb, RANDOM_BYTES_LEN);
 	}
 	ESP_LOGI(TAG, "conn_read random bytes success");
-
-	token_store.token_count = req.num_tokens;
+	save_token_store_to_nvs();	// Save the token store to NVS after fetching tokens
 
 fetch_tokens_finish_destroytls:
 	if (tls != NULL)
@@ -467,10 +617,26 @@ static esp_err_t get_token_internal(const char *topic, fetch_request_t fetch_req
 	memcpy(random_bytes, token_store.random_bytes, RANDOM_BYTES_LEN);
 	memmove(token_store.random_bytes, token_store.random_bytes + RANDOM_BYTES_LEN, (token_store.token_count - 1) * RANDOM_BYTES_LEN);
 	token_store.token_count--;
+	err = save_token_store_to_nvs();
 
 get_token_internal_finish:
 	LOG_TIME_FUNC_END();
 	return err;
+}
+
+static void get_token_init(void) {
+	LOG_TIME_FUNC_START();
+	load_token_store_from_nvs();  // Load token store from NVS at startup
+	LOG_TIME_FUNC_END();
+}
+
+static void get_token_deinit(void) {
+	LOG_TIME_FUNC_START();
+	if (token_store.random_bytes != NULL) {
+		free(token_store.random_bytes);
+		token_store.random_bytes = NULL;
+	}
+	LOG_TIME_FUNC_END();
 }
 
 void tokenmgr_app_init(void) {
@@ -504,6 +670,7 @@ void tokenmgr_init(void) {
 			ESP_LOGE(TAG, "Mqtt initialization failed");
 			goto comp_initialize_finish;
 		}
+		reset_nvs_storage();
 
 		current_state = TOKENMGR_STATE_OPERTATIONAL;
 		ESP_LOGI(TAG, "tokenmgr initialized");
@@ -541,7 +708,9 @@ esp_err_t get_token(const char *topic, fetch_request_t fetch_req, uint8_t timest
 	LOG_TIME_FUNC_START();
 	esp_err_t ret = ESP_OK;
 	CHECK_CURSTATE_IF_OPERATIONAL(ret, get_token_finish);
+	get_token_init();
 	ret = get_token_internal(topic, fetch_req, timestamp, random_bytes);
+	get_token_deinit();
 get_token_finish:
 	LOG_TIME_FUNC_END();
 	return ret;

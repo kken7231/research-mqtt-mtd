@@ -5,14 +5,17 @@ import (
 )
 
 const (
-	DEFAULT_FILEPATH_ACL        = "/mqttmtd/config/acl.yml"
-	DEFAULT_FILEPATH_TOKENS_DIR = "/mqttmtd/tokens/"
+	MQTTENV_DIR = "/Users/kentarito/git/research-mqtt-mtd/.mqttenv"
+	// MQTTENV_DIR = "/" if linux/docker
 
-	CA_CRTFILE = "/mqttmtd/certs/ca/ca.pem"
-	CA_KEYFILE = "/mqttmtd/certs/ca/ca.key"
+	DEFAULT_FILEPATH_ACL        = MQTTENV_DIR + "/mqttmtd/config/acl.yml"
+	DEFAULT_FILEPATH_TOKENS_DIR = MQTTENV_DIR + "/mqttmtd/tokens/"
 
-	SERVER_CRTFILE = "/mqttmtd/certs/server/server.pem"
-	SERVER_KEYFILE = "/mqttmtd/certs/server/server.key"
+	CA_CRTFILE = MQTTENV_DIR + "/mqttmtd/certs/ca/ca.pem"
+	CA_KEYFILE = MQTTENV_DIR + "/mqttmtd/certs/ca/ca.key"
+
+	SERVER_CRTFILE = MQTTENV_DIR + "/mqttmtd/certs/server/server.pem"
+	SERVER_KEYFILE = MQTTENV_DIR + "/mqttmtd/certs/server/server.key"
 
 	LADDR_ISSUER     = ":18883"
 	LADDR_VERIFIER   = ":21883"

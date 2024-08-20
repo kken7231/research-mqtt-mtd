@@ -48,7 +48,9 @@
       "ip_addr.h": "c",
       "esp_netif_sntp.h": "c",
       "esp_sntp.h": "c",
-      "chrono": "c"
+      "chrono": "c",
+      "unity_internals.h": "c",
+      "time.h": "c"
     },
     "[c]": {
       "editor.defaultFormatter": "ms-vscode.cpptools"

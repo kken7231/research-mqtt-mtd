@@ -24,30 +24,59 @@ static const char *TAG = "tokenmgr_testapp";
 
 
 token_store_t token_store = {0};
+extern int permit_time_logging;
 const int CIPHERSUITES_LIST[] = {MBEDTLS_TLS1_3_AES_128_GCM_SHA256, 0};
 const esp_mqtt5_connection_property_config_t mqtt_connect_property = {
 	.session_expiry_interval = 10,
 	.maximum_packet_size = 1024,
 };
-static esp_netif_t *netif;
 
 void setUp(void) {
-	netif = comp_init();
+	tokenmgr_init();
 }
 
 void tearDown(void) {
-	comp_deinit(netif);
+	tokenmgr_deinit();
 }
 
 static void print_banner(const char *text);
 
 void app_main(void) {
-	print_banner("Executing one test by its name");
+	tokenmgr_app_init();
+
+	permit_time_logging = 1;
 	UNITY_BEGIN();
 	unity_run_test_by_name("Get a publish token");
 	UNITY_END();
 	print_time_record_summary();
 	reset_time_record_store();
+
+	// UNITY_BEGIN();
+	// unity_run_test_by_name("Base64 Encode of the token");
+	// UNITY_END();
+	// print_time_record_summary();
+	// reset_time_record_store();
+
+	// UNITY_BEGIN();
+	// unity_run_test_by_name("Send a plain publish");
+	// UNITY_END();
+	// print_time_record_summary();
+	// reset_time_record_store();
+
+	// UNITY_BEGIN();
+	// unity_run_test_by_name("Send a tls publish");
+	// UNITY_END();
+	// print_time_record_summary();
+	// reset_time_record_store();
+
+
+	// UNITY_BEGIN();
+	// unity_run_test_by_name("Send 32 plain publishes");
+	// UNITY_END();
+
+	// UNITY_BEGIN();
+	// unity_run_test_by_name("Send 32 tls publishes");
+	// UNITY_END();
 }
 
 static void print_banner(const char *text) {
