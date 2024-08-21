@@ -50,7 +50,9 @@
       "esp_sntp.h": "c",
       "chrono": "c",
       "unity_internals.h": "c",
-      "time.h": "c"
+      "time.h": "c",
+      "compare": "c",
+      "cstdint": "c"
     },
     "[c]": {
       "editor.defaultFormatter": "ms-vscode.cpptools"

@@ -44,12 +44,13 @@ static void print_banner(const char *text);
 void app_main(void) {
 	tokenmgr_app_init();
 
-	permit_time_logging = 1;
-	UNITY_BEGIN();
-	unity_run_test_by_name("Get a publish token");
-	UNITY_END();
-	print_time_record_summary();
-	reset_time_record_store();
+	// permit_time_logging = 1;
+
+	// UNITY_BEGIN();
+	// unity_run_test_by_name("Get a publish token");
+	// UNITY_END();
+	// print_time_record_summary();
+	// reset_time_record_store();
 
 	// UNITY_BEGIN();
 	// unity_run_test_by_name("Base64 Encode of the token");
@@ -70,13 +71,13 @@ void app_main(void) {
 	// reset_time_record_store();
 
 
-	// UNITY_BEGIN();
-	// unity_run_test_by_name("Send 32 plain publishes");
-	// UNITY_END();
+	UNITY_BEGIN();
+	unity_run_test_by_name("Send 32 plain publishes");
+	UNITY_END();
 
-	// UNITY_BEGIN();
-	// unity_run_test_by_name("Send 32 tls publishes");
-	// UNITY_END();
+	UNITY_BEGIN();
+	unity_run_test_by_name("Send 32 tls publishes");
+	UNITY_END();
 }
 
 static void print_banner(const char *text) {

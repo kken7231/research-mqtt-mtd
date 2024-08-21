@@ -22,18 +22,18 @@ GO_DIR="$GIT_ROOT/go"
 MQTTENV_DIR="$GIT_ROOT/.mqttenv"
 MQTTENVLOGS_DIR="$GIT_ROOT/.mqttenvlogs"
 sudo rm -rf "$MQTTENV_DIR"
-sudo rm -rf "$MQTTENVLOGS_DIR"
-mkdir -p "$MQTTENV_DIR" "$MQTTENV_DIR/mqttmtd" "$MQTTENV_DIR/mqttmtd/certs" "$MQTTENV_DIR/mosquitto" "$MQTTENVLOGS_DIR"
+rm -rf "$MQTTENVLOGS_DIR"
+mkdir -p "$MQTTENV_DIR" "$MQTTENV_DIR/mqttmtd" "$MQTTENV_DIR/mqttmtd/certs" "$MQTTENV_DIR/mqttmtd/tokens" "$MQTTENV_DIR/mosquitto" "$MQTTENVLOGS_DIR"
 
 pushd "$GO_DIR/mqttinterface"; go build -o "$MQTTENV_DIR/mqttmtd/mqttinterface" .; popd;
-pushd "$GO_DIR/authserver"; go build -o "$MQTTENV_DIR/mqttmtd/authserver" .; popd;
+pushd "$GO_DIR/authserver"; go build -tags onmemory -o "$MQTTENV_DIR/mqttmtd/authserver" .; popd;
 
 cp -r "$GIT_ROOT/mosquitto_config/" "$MQTTENV_DIR/mosquitto/config/"
 sed -e "s|{{MQTTENV_DIR}}|$MQTTENV_DIR|g" "$MQTTENV_DIR/mosquitto/config/mosquitto-tls_macos.conf" > "$MQTTENV_DIR/mosquitto/config/mosquitto-tls.conf"
 # chmod 0444 "$MQTTENV_DIR/mosquitto/config/."
 
-sudo chmod 0700 "$MQTTENV_DIR/mosquitto/config/acl.acl"
-sudo chmod 0700 "$MQTTENV_DIR/mosquitto/config/dhparam.pem"
+chmod 0700 "$MQTTENV_DIR/mosquitto/config/acl.acl"
+chmod 0700 "$MQTTENV_DIR/mosquitto/config/dhparam.pem"
 
 cp -r "$GIT_ROOT/mqttmtd_config/" "$MQTTENV_DIR/mqttmtd/config/"
 # chmod 0444 "$MQTTENV_DIR/mqttmtd/config/."

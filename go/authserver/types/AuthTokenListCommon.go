@@ -14,16 +14,6 @@ type AuthTokenList struct { // Auth Token List
 	last  *ATLEntry
 }
 
-type ATLEntry struct {
-	Timestamp          [1 + consts.TIMESTAMP_LEN]byte
-	RandomBytes        [consts.RANDOM_BYTES_LEN]byte
-	NumRemainingTokens byte
-	AccessType         AccessType
-	ClientName         []byte
-	Topic              []byte
-	next               *ATLEntry
-}
-
 func (atl *AuthTokenList) removeFirstEntry() bool {
 	if atl.first == nil {
 		return false
@@ -150,7 +140,7 @@ func (atl *AuthTokenList) LookupEntryWithToken(token []byte) (previous *ATLEntry
 			}
 			// revocation check
 			if entryTime > uint64(time.Now().Add(-1*consts.TIME_REVOCATION).UnixNano()) {
-				if bytes.Equal(entry.RandomBytes[:], token[consts.TIMESTAMP_LEN:consts.TOKEN_SIZE]) {
+				if bytes.Equal(entry.getCurrentRandomBytes(), token[consts.TIMESTAMP_LEN:consts.TOKEN_SIZE]) {
 					// found
 					return
 				}
@@ -161,47 +151,6 @@ func (atl *AuthTokenList) LookupEntryWithToken(token []byte) (previous *ATLEntry
 				continue
 			}
 		}
-
-		// for newlyCommon = 0; newlyCommon < len(timestampFrgmnt) && newlyCommon < len(tokenFrgmnt) && timestampFrgmnt[newlyCommon] != tokenFrgmnt[newlyCommon]; newlyCommon++ {
-		// }
-
-		// if numCommonBytes == 0 {
-		// 	// 2nd MSB maybe common
-		// 	if newlyCommon > 1 {
-		// 		numCommonBytes = newlyCommon - 1
-		// 		timestampFrgmnt = entry.Timestamp[1+(numCommonBytes-1):]
-		// 		tokenFrgmnt = token[(numCommonBytes - 1):consts.TIMESTAMP_LEN]
-		// 	}
-		// } else {
-		// 	// 2nd to (numCommonBytes+1)th MSBs are identical
-		// 	if newlyCommon == 0 {
-		// 		// Search ended with zero common with given MSB
-		// 		MSB++
-		// 		numCommonBytes = 0
-		// 		continue
-		// 	}
-
-		// 	numCommonBytes += newlyCommon - 1
-		// 	if numCommonBytes == consts.TIMESTAMP_LEN {
-		// 		var entryTime uint64 = 0
-		// 		for i := 0; i < 1+consts.TIMESTAMP_LEN; i++ {
-		// 			entryTime |= uint64(entry.Timestamp[i])
-		// 			entryTime <<= 8
-		// 		}
-		// 		if entryTime > uint64(time.Now().Add(-1*consts.TIME_REVOCATION).UnixNano()) {
-		// 			// found
-		// 			return
-		// 		} else {
-		// 			// Search ended with zero common with given MSB
-		// 			MSB++
-		// 			numCommonBytes = 0
-		// 			continue
-		// 		}
-		// 	} else {
-		// 		timestampFrgmnt = entry.Timestamp[1+(numCommonBytes-1):]
-		// 		tokenFrgmnt = token[(numCommonBytes - 1):consts.TIMESTAMP_LEN]
-		// 	}
-		// }
 	}
 	return
 }
