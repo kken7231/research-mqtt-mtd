@@ -15,7 +15,8 @@ trap cleanup EXIT
 
 GIT_ROOT="$(git rev-parse --show-toplevel)"
 
-pushd "$GIT_ROOT/certcreate"; rm -f "$GIT_ROOT/certs/server/server.*"; ./gen_server.sh -c "$GIT_ROOT/certs" -a $(ipconfig getifaddr en0); popd
+# pushd "$GIT_ROOT/certcreate"; rm -f "$GIT_ROOT/certs/server/server.*"; ./gen_server.sh -c "$GIT_ROOT/certs" -a $(ipconfig getifaddr en1); popd
+pushd "$GIT_ROOT/certcreate"; rm -f "$GIT_ROOT/certs/server/server.*"; ./gen_server.sh -c "$GIT_ROOT/certs" -a server.local; popd
 
 GO_DIR="$GIT_ROOT/go"
 MQTTENV_DIR="$GIT_ROOT/.mqttenv"
@@ -45,8 +46,8 @@ cp -r "$GIT_ROOT/certs/server/" "$MQTTENV_DIR/mqttmtd/certs/server/"
 
 # Start the MQTT server and log its output
 sudo scutil --set LocalHostName server 2>&1 | prepend_service_name "scutil        " >> "$MQTTENVLOGS_DIR/combined.log" &
-/opt/homebrew/opt/mosquitto/sbin/mosquitto -c "$MQTTENV_DIR/mosquitto/config/mosquitto.conf" 2>&1 | prepend_service_name "mosquitto     " >> "$MQTTENVLOGS_DIR/combined.log" &
-/opt/homebrew/opt/mosquitto/sbin/mosquitto -c "$MQTTENV_DIR/mosquitto/config/mosquitto-tls.conf" 2>&1 | prepend_service_name "mosquitto-tls " >> "$MQTTENVLOGS_DIR/combined.log" &
+/opt/homebrew/opt/mosquitto/sbin/mosquitto -v -c "$MQTTENV_DIR/mosquitto/config/mosquitto.conf" 2>&1 | prepend_service_name "mosquitto     " >> "$MQTTENVLOGS_DIR/combined.log" &
+/opt/homebrew/opt/mosquitto/sbin/mosquitto -v -c "$MQTTENV_DIR/mosquitto/config/mosquitto-tls.conf" 2>&1 | prepend_service_name "mosquitto-tls " >> "$MQTTENVLOGS_DIR/combined.log" &
 
 sleep 1
 

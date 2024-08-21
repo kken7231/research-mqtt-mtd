@@ -1,7 +1,7 @@
 #include "tokenmgr.h"
 
 static EventGroupHandle_t wifi_event_group, mqtt_plain_event_group, mqtt_tls_event_group;
-static esp_mqtt5_client_handle_t plain_mqtt_client, tls_mqtt_client;
+static esp_mqtt_client_handle_t plain_mqtt_client, tls_mqtt_client;
 static int wifi_retry_num = 0;
 static const char *TAG = "tokenmgr";
 static esp_netif_t *netif;
@@ -251,7 +251,6 @@ static esp_err_t mqtt_init(void) {
 	mqtt_plain_event_group = xEventGroupCreate();
 	plain_mqtt_client = esp_mqtt_client_init(&mqtt5_plain_cfg);
 	mqtt_client_type_t plain_client_type = MQTT_CLIENT_PLAIN;
-	ESP_ERROR_CHECK(esp_mqtt5_client_set_connect_property(plain_mqtt_client, &mqtt_connect_property));
 	ESP_ERROR_CHECK(esp_mqtt_client_register_event(plain_mqtt_client, ESP_EVENT_ANY_ID, mqtt_event_handler, (void *)&plain_client_type));
 	ESP_ERROR_CHECK(esp_mqtt_client_start(plain_mqtt_client));
 	ESP_LOGI(TAG, "esp_mqtt_client_start triggered (plain).");
@@ -292,9 +291,8 @@ static esp_err_t mqtt_init(void) {
 	mqtt_tls_event_group = xEventGroupCreate();
 	tls_mqtt_client = esp_mqtt_client_init(&mqtt5_tls_cfg);
 	mqtt_client_type_t tls_client_type = MQTT_CLIENT_TLS;
-	ESP_ERROR_CHECK(esp_mqtt5_client_set_connect_property(tls_mqtt_client, &mqtt_connect_property));
 	ESP_ERROR_CHECK(esp_mqtt_client_register_event(tls_mqtt_client, ESP_EVENT_ANY_ID, mqtt_event_handler, (void *)&tls_client_type));
-	esp_mqtt_client_start(tls_mqtt_client);
+	ESP_ERROR_CHECK(esp_mqtt_client_start(tls_mqtt_client));
 	ESP_LOGI(TAG, "esp_mqtt_client_start triggered (tls).");
 
 	bits = xEventGroupWaitBits(mqtt_tls_event_group,
