@@ -74,18 +74,11 @@ func tokenVerifierHandler(conn net.Conn, atl *types.AuthTokenList) {
 		common.SetLen(&buf, len(entry.Topic)+3)
 		binary.BigEndian.PutUint16(buf[1:], uint16(len(entry.Topic)))
 		copy(buf[3:], entry.Topic)
-		poppedToken, err := funcs.PopRandomBytesFromFile(entry.Timestamp)
+
+		err = popTokenAndRefreshToken(atl, previous, entry, &buf)
+
 		if err != nil {
 			fmt.Printf("verifier(%s): Failed token update with error: %v\n", remoteAddr, err)
-			atl.RemoveEntry(previous)
-			buf[0] = byte(types.VerfSuccessReloadNeeded)
-		} else if poppedToken == nil {
-			atl.RemoveEntry(previous)
-			buf[0] = byte(types.VerfSuccessReloadNeeded)
-		} else {
-			entry.RandomBytes = [6]byte(poppedToken)
-			entry.NumRemainingTokens--
-			buf[0] = byte(types.VerfSuccess)
 		}
 	}
 

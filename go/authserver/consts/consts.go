@@ -6,6 +6,7 @@ import (
 
 const (
 	MQTTENV_DIR = "/Users/kentarito/git/research-mqtt-mtd/.mqttenv"
+	// MQTTENV_DIR = "/Users/kentarou/git/research-mqtt-mtd/.mqttenv"
 	// MQTTENV_DIR = "/" if linux/docker
 
 	DEFAULT_FILEPATH_ACL        = MQTTENV_DIR + "/mqttmtd/config/acl.yml"

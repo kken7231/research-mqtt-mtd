@@ -69,12 +69,12 @@ TEST_CASE("Send a plain publish", "[pub]") {
 	TEST_ASSERT_FALSE(isZeroFilled(random_bytes, RANDOM_BYTES_LEN));
 	TEST_ASSERT_EQUAL_INT(ESP_OK, b64encode_token(timestamp, random_bytes, encoded_token));
 	TEST_ASSERT_FALSE(isZeroFilled(encoded_token, BASE64_ENCODED_TOKEN_SIZE));
-	TEST_ASSERT_EQUAL_INT(ESP_OK, mqtt_publish_qos0(MQTT_CLIENT_PLAIN, (const char*)encoded_token, "hello, world", -1));
+	TEST_ASSERT_EQUAL_INT(ESP_OK, mqtt_publish_qos0(MQTT_CLIENT_PLAIN, (const char*)encoded_token, "hello, world", 0));
 }
 
 TEST_CASE("Send a tls publish", "[pub]") {
 	const char* topic = TOPIC_PUB;
-	TEST_ASSERT_EQUAL_INT(ESP_OK, mqtt_publish_qos0(MQTT_CLIENT_TLS, topic, "hello, world", -1));
+	TEST_ASSERT_EQUAL_INT(ESP_OK, mqtt_publish_qos0(MQTT_CLIENT_TLS, topic, "hello, world", 0));
 }
 
 TEST_CASE("Send 32 plain publishes", "[pub]") {
@@ -93,7 +93,7 @@ TEST_CASE("Send 32 plain publishes", "[pub]") {
 		gettimeofday(&start_tv, NULL);
 		TEST_ASSERT_EQUAL_INT(ESP_OK, get_token(topic, fetch_req, timestamp, random_bytes));
 		TEST_ASSERT_EQUAL_INT(ESP_OK, b64encode_token(timestamp, random_bytes, encoded_token));
-		TEST_ASSERT_EQUAL_INT(ESP_OK, mqtt_publish_qos0(MQTT_CLIENT_PLAIN, (const char*)encoded_token, data, -1));
+		TEST_ASSERT_EQUAL_INT(ESP_OK, mqtt_publish_qos0(MQTT_CLIENT_PLAIN, (const char*)encoded_token, data, 0));
 		gettimeofday(&end_tv, NULL);
 		elapsed_sec = end_tv.tv_sec - start_tv.tv_sec;
 		elapsed_usec = end_tv.tv_usec - start_tv.tv_usec;
@@ -119,7 +119,7 @@ TEST_CASE("Send 32 tls publishes", "[pub]") {
 		data[13] = '0' + (i / 10);
 		data[14] = '0' + (i % 10);
 		gettimeofday(&start_tv, NULL);
-		TEST_ASSERT_EQUAL_INT(ESP_OK, mqtt_publish_qos0(MQTT_CLIENT_TLS, topic, data, -1));
+		TEST_ASSERT_EQUAL_INT(ESP_OK, mqtt_publish_qos0(MQTT_CLIENT_TLS, topic, data, 0));
 		gettimeofday(&end_tv, NULL);
 		elapsed_sec = end_tv.tv_sec - start_tv.tv_sec;
 		elapsed_usec = end_tv.tv_usec - start_tv.tv_usec;

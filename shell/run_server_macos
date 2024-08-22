@@ -15,24 +15,25 @@ trap cleanup EXIT
 
 GIT_ROOT="$(git rev-parse --show-toplevel)"
 
-pushd "$GIT_ROOT/certcreate"; rm -f "$GIT_ROOT/certs/server/server.*"; ./gen_server.sh -c "$GIT_ROOT/certs" -a $(ipconfig getifaddr en0); popd
+# pushd "$GIT_ROOT/certcreate"; rm -f "$GIT_ROOT/certs/server/server.*"; ./gen_server.sh -c "$GIT_ROOT/certs" -a $(ipconfig getifaddr en1); popd
+pushd "$GIT_ROOT/certcreate"; rm -f "$GIT_ROOT/certs/server/server.*"; ./gen_server.sh -c "$GIT_ROOT/certs" -a server.local; popd
 
 GO_DIR="$GIT_ROOT/go"
 MQTTENV_DIR="$GIT_ROOT/.mqttenv"
 MQTTENVLOGS_DIR="$GIT_ROOT/.mqttenvlogs"
 sudo rm -rf "$MQTTENV_DIR"
-sudo rm -rf "$MQTTENVLOGS_DIR"
-mkdir -p "$MQTTENV_DIR" "$MQTTENV_DIR/mqttmtd" "$MQTTENV_DIR/mqttmtd/certs" "$MQTTENV_DIR/mosquitto" "$MQTTENVLOGS_DIR"
+rm -rf "$MQTTENVLOGS_DIR"
+mkdir -p "$MQTTENV_DIR" "$MQTTENV_DIR/mqttmtd" "$MQTTENV_DIR/mqttmtd/certs" "$MQTTENV_DIR/mqttmtd/tokens" "$MQTTENV_DIR/mosquitto" "$MQTTENVLOGS_DIR"
 
 pushd "$GO_DIR/mqttinterface"; go build -o "$MQTTENV_DIR/mqttmtd/mqttinterface" .; popd;
-pushd "$GO_DIR/authserver"; go build -o "$MQTTENV_DIR/mqttmtd/authserver" .; popd;
+pushd "$GO_DIR/authserver"; go build -tags onmemory -o "$MQTTENV_DIR/mqttmtd/authserver" .; popd;
 
 cp -r "$GIT_ROOT/mosquitto_config/" "$MQTTENV_DIR/mosquitto/config/"
 sed -e "s|{{MQTTENV_DIR}}|$MQTTENV_DIR|g" "$MQTTENV_DIR/mosquitto/config/mosquitto-tls_macos.conf" > "$MQTTENV_DIR/mosquitto/config/mosquitto-tls.conf"
 # chmod 0444 "$MQTTENV_DIR/mosquitto/config/."
 
-sudo chmod 0700 "$MQTTENV_DIR/mosquitto/config/acl.acl"
-sudo chmod 0700 "$MQTTENV_DIR/mosquitto/config/dhparam.pem"
+chmod 0700 "$MQTTENV_DIR/mosquitto/config/acl.acl"
+chmod 0700 "$MQTTENV_DIR/mosquitto/config/dhparam.pem"
 
 cp -r "$GIT_ROOT/mqttmtd_config/" "$MQTTENV_DIR/mqttmtd/config/"
 # chmod 0444 "$MQTTENV_DIR/mqttmtd/config/."
@@ -45,8 +46,8 @@ cp -r "$GIT_ROOT/certs/server/" "$MQTTENV_DIR/mqttmtd/certs/server/"
 
 # Start the MQTT server and log its output
 sudo scutil --set LocalHostName server 2>&1 | prepend_service_name "scutil        " >> "$MQTTENVLOGS_DIR/combined.log" &
-/opt/homebrew/opt/mosquitto/sbin/mosquitto -c "$MQTTENV_DIR/mosquitto/config/mosquitto.conf" 2>&1 | prepend_service_name "mosquitto     " >> "$MQTTENVLOGS_DIR/combined.log" &
-/opt/homebrew/opt/mosquitto/sbin/mosquitto -c "$MQTTENV_DIR/mosquitto/config/mosquitto-tls.conf" 2>&1 | prepend_service_name "mosquitto-tls " >> "$MQTTENVLOGS_DIR/combined.log" &
+/opt/homebrew/opt/mosquitto/sbin/mosquitto -v -c "$MQTTENV_DIR/mosquitto/config/mosquitto.conf" 2>&1 | prepend_service_name "mosquitto     " >> "$MQTTENVLOGS_DIR/combined.log" &
+/opt/homebrew/opt/mosquitto/sbin/mosquitto -v -c "$MQTTENV_DIR/mosquitto/config/mosquitto-tls.conf" 2>&1 | prepend_service_name "mosquitto-tls " >> "$MQTTENVLOGS_DIR/combined.log" &
 
 sleep 1
 
