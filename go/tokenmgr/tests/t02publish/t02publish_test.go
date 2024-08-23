@@ -11,25 +11,25 @@ import (
 // go test -x -v
 func TestPublish_Single(t *testing.T) {
 	topic := testutil.SAMPLE_TOPIC_PUB
-	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessPub)
-	timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReq, true)
-	testutil.AutopahoPublish(t, timestamp, randomBytes, "TestPublish_Single")
+	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessPub, tokenmgr.PAYLOAD_CIPHER_NONE)
+	_, _, timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReq, true)
+	testutil.AutopahoPublish(t, timestamp, randomBytes, []byte("TestPublish_Single"))
 }
 
 func TestPublish_SubToken_Single(t *testing.T) {
 	topic := testutil.SAMPLE_TOPIC_SUB
-	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessSub)
-	timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReq, true)
-	testutil.AutopahoPublish(t, timestamp, randomBytes, "TestPublish_SubToken_Single")
+	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessSub, tokenmgr.PAYLOAD_CIPHER_NONE)
+	_, _, timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReq, true)
+	testutil.AutopahoPublish(t, timestamp, randomBytes, []byte("TestPublish_SubToken_Single"))
 }
 
 func TestPublish_Cycle(t *testing.T) {
 	topic := testutil.SAMPLE_TOPIC_PUB
-	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessPub)
+	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessPub, tokenmgr.PAYLOAD_CIPHER_NONE)
 	testutil.RemoveTokenFile(topic, *fetchReq)
 	for i := 0; i < int(fetchReq.NumTokens); i++ {
-		timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReq, true)
-		testutil.AutopahoPublish(t, timestamp, randomBytes, fmt.Sprintf("TestPublish_Cycle%d", i))
+		_, _, timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReq, true)
+		testutil.AutopahoPublish(t, timestamp, randomBytes, []byte(fmt.Sprintf("TestPublish_Cycle%d", i)))
 	}
 	testutil.RemoveTokenFile(topic, *fetchReq)
 }

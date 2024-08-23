@@ -7,6 +7,7 @@ import (
 	"go/authserver/consts"
 	"go/authserver/funcs"
 	"go/authserver/types"
+	"go/common"
 	"log"
 	"os"
 	"strings"
@@ -83,25 +84,30 @@ func tokenIssuerHandler(conn *tls.Conn, acl *types.AccessControlList, atl *types
 		return
 	}
 
-	// Data verification
+	// Token Issue Request
 	// [0]: Flag
 	//   bit 7: Pub Access Requested (0-false, 1-true)
 	//   bit 6: Sub Access Requested (0-false, 1-true)
-	//   bit 5-0: Requested number of tokens divided by 4 (max 252 tokens)
-	// [1]: Length of Topic Name/Filter
-	// [2:2+TopicLen]: Topic Name/Filter
-	buf := make([]byte, 2)
+	//   bit 5: Payload Encryption Key Requested (0-false, 1-true, only regards pub)
+	//   bit 4-0: Requested number of tokens divided by TOKEN_NUM_MULTIPLIER
+	// [1:3]: Payload Cipher Type (if requested)
+	// [1(3 if cipher on)]: Length of Topic Name/Filter
+	// [2:2+TopicLen(4:4+TopicLen if cipher on)]: Topic Name/Filter
+
+	buf := make([]byte, 1)
 	if _, err := funcs.ConnRead(conn, &buf, time.Millisecond*500); err != nil {
-		fmt.Printf("issuer(%s): Failed reading two bytes: %v\n", remoteAddr, err)
+		fmt.Printf("issuer(%s): Failed reading a heading byte: %v\n", remoteAddr, err)
 		return
 	}
 	var (
-		reqAccessTypeByte byte = 0
-		reqAccessType     types.AccessType
-		reqNumTokens      byte
-		reqTopicLen       byte
-		reqTopic          []byte
-		reqTopicStr       string
+		reqAccessTypeByte       byte = 0
+		reqAccessType           types.AccessType
+		reqPayloadCipherEnabled bool
+		reqPayloadCipherType    types.PayloadCipherType
+		reqNumTokens            uint16
+		reqTopicLen             byte
+		reqTopic                []byte
+		reqTopicStr             string
 	)
 	if buf[0]&0x80 != 0 {
 		reqAccessTypeByte |= byte(types.AccessPub)
@@ -114,12 +120,32 @@ func tokenIssuerHandler(conn *tls.Conn, acl *types.AccessControlList, atl *types
 		return
 	}
 	reqAccessType = types.AccessType(reqAccessTypeByte)
-	reqNumTokens = (buf[0] & 0x3F) * 4
+	reqPayloadCipherEnabled = buf[0]&0x20 != 0
+	reqNumTokens = uint16(buf[0]&0x1F) * consts.TOKEN_NUM_MULTIPLIER
 	if reqNumTokens == 0 {
 		fmt.Printf("issuer(%s): Using default number of tokens: %d\n", remoteAddr, consts.DEFAULT_NUM_TOKENS)
 		reqNumTokens = consts.DEFAULT_NUM_TOKENS
 	}
-	reqTopicLen = buf[1]
+
+	if reqPayloadCipherEnabled {
+		common.SetLen(&buf, 3)
+		if _, err := funcs.ConnRead(conn, &buf, time.Millisecond*500); err != nil {
+			fmt.Printf("issuer(%s): Failed reading the topic len: %v\n", remoteAddr, err)
+			return
+		}
+		reqPayloadCipherType = types.PayloadCipherType(uint16(buf[0])<<8 | uint16(buf[1]))
+		if !reqPayloadCipherType.IsValidCipherType() {
+			fmt.Printf("issuer(%s): Invalid cipher type: %d\n", remoteAddr, reqPayloadCipherType)
+			return
+		}
+		reqTopicLen = buf[2]
+	} else {
+		if _, err := funcs.ConnRead(conn, &buf, time.Millisecond*500); err != nil {
+			fmt.Printf("issuer(%s): Failed reading the topic len: %v\n", remoteAddr, err)
+			return
+		}
+		reqTopicLen = buf[0]
+	}
 	if reqTopicLen == 0 {
 		fmt.Printf("issuer(%s): Topic length cannot be 0\n", remoteAddr)
 		return
@@ -155,9 +181,15 @@ func tokenIssuerHandler(conn *tls.Conn, acl *types.AccessControlList, atl *types
 	acl.Unlock()
 
 	if grantedAccessType&reqAccessType == 0 {
-		fmt.Printf("issuer(%s): ClientName %s not permitted for accessType %s: granted=%s\n", remoteAddr, clientName, reqAccessType.String(), grantedAccessType.String())
+		fmt.Printf("issuer(%s): TopicName %s for ClientName %s not permitted for accessType %s: granted=%s\n", remoteAddr, reqTopicStr, clientName, reqAccessType.String(), grantedAccessType.String())
 		return
 	}
 
-	gatherTokenIngredients(atl, conn, clientName, reqAccessType, reqNumTokens, reqTopic, remoteAddr)
+	// Token Issuer Response
+	// [0]: result code (according to types.VerificationResponse)
+	// [1:1+keyLen]: Payload Encryption Key
+	// [1:1+TIMESTAMP_LEN(1+keyLen:1+keyLen+TIMESTAMP_LEN if cipher requested)]: timestamp
+	// [1+TIMESTAMP_LEN:(1+keyLen+TIMESTAMP_LEN: if cipher requested)]: random bytes
+
+	gatherTokenIngredients(atl, conn, clientName, reqAccessType, reqNumTokens, reqPayloadCipherType, reqTopic, remoteAddr)
 }

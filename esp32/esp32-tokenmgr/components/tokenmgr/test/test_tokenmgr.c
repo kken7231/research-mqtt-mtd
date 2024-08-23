@@ -25,8 +25,9 @@ static bool isZeroFilled(const uint8_t* arr, int arrlen) {
 
 TEST_CASE("Get a publish token", "[pub]") {
 	fetch_request_t fetch_req = {
-		.num_tokens = 8,
+		.num_tokens = 16,
 		.access_type = ACCESS_PUB,
+		.enchash_enabled = false,
 	};
 	const char* topic = "/sample/topic/pub";
 	uint8_t timestamp[TIMESTAMP_LEN] = {0}, random_bytes[RANDOM_BYTES_LEN] = {0};
@@ -39,8 +40,9 @@ TEST_CASE("Get a publish token", "[pub]") {
 
 TEST_CASE("Base64 Encode of the token", "[pub]") {
 	fetch_request_t fetch_req = {
-		.num_tokens = 8,
+		.num_tokens = 16,
 		.access_type = ACCESS_PUB,
+		.enchash_enabled = false,
 	};
 	const char* topic = "/sample/topic/pub";
 	uint8_t timestamp[TIMESTAMP_LEN] = {0}, random_bytes[RANDOM_BYTES_LEN] = {0}, encoded_token[BASE64_ENCODED_TOKEN_SIZE] = {0};
@@ -56,8 +58,9 @@ TEST_CASE("Base64 Encode of the token", "[pub]") {
 
 TEST_CASE("Send a plain publish", "[pub]") {
 	fetch_request_t fetch_req = {
-		.num_tokens = 8,
+		.num_tokens = 16,
 		.access_type = ACCESS_PUB,
+		.enchash_enabled = false,
 	};
 	const char* topic = TOPIC_PUB;
 	uint8_t timestamp[TIMESTAMP_LEN] = {0}, random_bytes[RANDOM_BYTES_LEN] = {0}, encoded_token[BASE64_ENCODED_TOKEN_SIZE] = {0};
@@ -79,8 +82,9 @@ TEST_CASE("Send a tls publish", "[pub]") {
 
 TEST_CASE("Send 32 plain publishes", "[pub]") {
 	fetch_request_t fetch_req = {
-		.num_tokens = 8,
+		.num_tokens = 16,
 		.access_type = ACCESS_PUB,
+		.enchash_enabled = false,
 	};
 	const char* topic = TOPIC_PUB;
 	char data[] = "hello, plain-00";

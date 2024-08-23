@@ -5,9 +5,10 @@ import (
 )
 
 const (
-	MQTTENV_DIR = "/Users/kentarito/git/research-mqtt-mtd/.mqttenv"
+	// MQTTENV_DIR points to the environment root. Can be set with -ldflags '-X MQTTENV_DIR=""'
+	// MQTTENV_DIR = "/Users/kentarito/git/research-mqtt-mtd/.mqttenv"
 	// MQTTENV_DIR = "/Users/kentarou/git/research-mqtt-mtd/.mqttenv"
-	// MQTTENV_DIR = "/" if linux/docker
+	MQTTENV_DIR = "/" // if linux/docker
 
 	DEFAULT_FILEPATH_ACL        = MQTTENV_DIR + "/mqttmtd/config/acl.yml"
 	DEFAULT_FILEPATH_TOKENS_DIR = MQTTENV_DIR + "/mqttmtd/tokens/"
@@ -22,11 +23,13 @@ const (
 	LADDR_VERIFIER   = ":21883"
 	LADDR_HTTPSERVER = ":8080"
 
-	DEFAULT_NUM_TOKENS = 5
+	DEFAULT_NUM_TOKENS = 16
 
 	TIMESTAMP_LEN    = 6
 	RANDOM_BYTES_LEN = 6
 	TOKEN_SIZE       = TIMESTAMP_LEN + RANDOM_BYTES_LEN
+
+	TOKEN_NUM_MULTIPLIER = 16
 
 	TIME_REVOCATION = time.Hour * 24 * 7
 )

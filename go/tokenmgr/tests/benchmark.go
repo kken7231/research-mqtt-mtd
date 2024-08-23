@@ -34,7 +34,7 @@ func main() {
 	flag.Set("test.benchtime", "1x")
 	flag.Parse()
 
-	testutil.SetNumTokens(byte(*numTokens))
+	testutil.SetNumTokens(uint16(*numTokens))
 	var benchmarkFuncs []func(*testing.B)
 	switch *test {
 	case 1:

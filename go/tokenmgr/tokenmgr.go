@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"log"
 	"net"
@@ -28,25 +29,53 @@ func (a AccessType) String() string {
 	return [...]string{"Pub", "Sub", "PubSub"}[a-1]
 }
 
+type PayloadCipherType uint16
+
+const (
+	// Referred to TLSv1.3 cipher suites
+
+	PAYLOAD_CIPHER_NONE                     PayloadCipherType = 0x0
+	PAYLOAD_CIPHER_AES_128_GCM_SHA256       PayloadCipherType = 0x1301
+	PAYLOAD_CIPHER_AES_256_GCM_SHA384       PayloadCipherType = 0x1302
+	PAYLOAD_CIPHER_CHACHA20_POLY1305_SHA256 PayloadCipherType = 0x1303
+	PAYLOAD_CIPHER_AES_128_CCM_SHA256       PayloadCipherType = 0x1304
+)
+
 type FetchRequest struct {
-	NumTokens  byte
-	AccessType AccessType
-	CaCrt      string
-	ClientCrt  string
-	ClientKey  string
+	NumTokens         uint16
+	AccessType        AccessType
+	CaCrt             string
+	ClientCrt         string
+	ClientKey         string
+	PayloadCipherType PayloadCipherType
+}
+
+func (p PayloadCipherType) IsValidCipherType() bool {
+	return p == PAYLOAD_CIPHER_AES_128_GCM_SHA256 ||
+		p == PAYLOAD_CIPHER_AES_256_GCM_SHA384 ||
+		p == PAYLOAD_CIPHER_CHACHA20_POLY1305_SHA256 ||
+		p == PAYLOAD_CIPHER_AES_128_CCM_SHA256
 }
 
 const (
 	TOKENS_DIR = "/mqttmtd/tokens/"
 
-	RADDR_ISSUER     = "192.168.11.11:18883"
-	RADDR_MQTTBroker = "192.168.11.11:1883"
+	// if server uses mDNS
+	// RADDR_ISSUER     = "server.local:18883"
+	// RADDR_MQTTBroker = "server.local:1883"
+	// else (like docker)
+	RADDR_ISSUER     = "server:18883"
+	RADDR_MQTTBroker = "server:1883"
 
 	TIMESTAMP_LEN    = 6
 	RANDOM_BYTES_LEN = 6
 	TOKEN_SIZE       = TIMESTAMP_LEN + RANDOM_BYTES_LEN
 
-	TIME_REVOCATION = time.Hour * 24 * 7
+	TOKEN_NUM_MULTIPLIER = 16
+	ENCKEY_BITLEN        = 128
+
+	TIME_REVOCATION     = time.Hour * 24 * 7
+	NONCE_BASE      int = 123456
 )
 
 func connRead(conn net.Conn, dst *[]byte, timeout time.Duration) (n int, err error) {
@@ -57,25 +86,25 @@ func connWrite(conn net.Conn, data []byte, timeout time.Duration) (n int, err er
 	return common.ConnWriteBase(conn, data, timeout)
 }
 
-func fetchTokens(req FetchRequest, topic []byte, tokenFilePath string) ([]byte, []byte, error) {
+func fetchTokens(req FetchRequest, topic []byte, tokenFilePath string) (encKey []byte, numTokensRemained int, timestamp []byte, randomBytes []byte, err error) {
 	if len(topic) > 0x7F {
-		return nil, nil, fmt.Errorf("topic must be less than 0x7F letters")
+		return nil, 0, nil, nil, fmt.Errorf("topic must be less than 0x7F letters")
 	}
 	if !utf8.Valid(topic) {
-		return nil, nil, fmt.Errorf("failed fetching: topic is not aligned with utf-8")
+		return nil, 0, nil, nil, fmt.Errorf("failed fetching: topic is not aligned with utf-8")
 	}
-	if req.NumTokens%4 != 0 || req.NumTokens < 4 || req.NumTokens > 0x3F*4 {
-		return nil, nil, fmt.Errorf("failed fetching: numTokens is inappropriate: %d", req.NumTokens)
+	if req.NumTokens%TOKEN_NUM_MULTIPLIER != 0 || req.NumTokens < TOKEN_NUM_MULTIPLIER || req.NumTokens > 0x1F*TOKEN_NUM_MULTIPLIER {
+		return nil, 0, nil, nil, fmt.Errorf("failed fetching: numTokens is inappropriate: %d", req.NumTokens)
 	}
 
 	cert, err := tls.LoadX509KeyPair(req.ClientCrt, req.ClientKey)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to load client certificate: %v", err)
+		return nil, 0, nil, nil, fmt.Errorf("failed to load client certificate: %v", err)
 	}
 
 	caCert, err := os.ReadFile(req.CaCrt)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to load ca certificate: %v", err)
+		return nil, 0, nil, nil, fmt.Errorf("failed to load ca certificate: %v", err)
 	}
 	caCertPool := x509.NewCertPool()
 	caCertPool.AppendCertsFromPEM(caCert)
@@ -88,7 +117,7 @@ func fetchTokens(req FetchRequest, topic []byte, tokenFilePath string) ([]byte, 
 
 	conn, err := tls.Dial("tcp", RADDR_ISSUER, config)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error connecting to mTLS server: %v", err)
+		return nil, 0, nil, nil, fmt.Errorf("error connecting to mTLS server: %v", err)
 	}
 	fmt.Println("Opened mTLS connection with ", conn.RemoteAddr().String())
 	defer func() {
@@ -103,7 +132,7 @@ func fetchTokens(req FetchRequest, topic []byte, tokenFilePath string) ([]byte, 
 
 	tokenFile, err = os.Create(tokenFilePath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed opening file to save tokens: %v", err)
+		return nil, 0, nil, nil, fmt.Errorf("failed opening file to save tokens: %v", err)
 	}
 	defer func() {
 		tokenFile.Close()
@@ -116,62 +145,108 @@ func fetchTokens(req FetchRequest, topic []byte, tokenFilePath string) ([]byte, 
 		}
 	}()
 
-	// Info
-	firstTwoBytes := []byte{byte(req.NumTokens / 4), byte(len(topic))}
+	firstByte := []byte{byte(req.NumTokens / TOKEN_NUM_MULTIPLIER)}
 	if req.AccessType == AccessPub || req.AccessType == AccessPubSub {
-		firstTwoBytes[0] |= 0x80
+		firstByte[0] |= 0x80
 	}
 	if req.AccessType == AccessSub || req.AccessType == AccessPubSub {
-		firstTwoBytes[0] |= 0x40
+		firstByte[0] |= 0x40
 	}
-	if _, err = connWrite(conn, firstTwoBytes, 0); err != nil {
-		return nil, nil, fmt.Errorf("error sending out request info: %v", err)
+	if req.PayloadCipherType.IsValidCipherType() {
+		firstByte[0] |= 0x20
 	}
+	if _, err = connWrite(conn, firstByte, 0); err != nil {
+		return nil, 0, nil, nil, fmt.Errorf("error sending out request info: %v", err)
+	}
+
+	if req.PayloadCipherType.IsValidCipherType() {
+		payloadEncKeyTypeAndTopicLen := make([]byte, 3)
+		binary.BigEndian.PutUint16(payloadEncKeyTypeAndTopicLen[:2], uint16(req.PayloadCipherType))
+		payloadEncKeyTypeAndTopicLen[2] = byte(len(topic))
+		if _, err = connWrite(conn, payloadEncKeyTypeAndTopicLen, 0); err != nil {
+			return nil, 0, nil, nil, fmt.Errorf("error sending payload enc keytype and topic len: %v", err)
+		}
+	} else {
+		if _, err = connWrite(conn, []byte{byte(len(topic))}, 0); err != nil {
+			return nil, 0, nil, nil, fmt.Errorf("error sending payload enc keytype and topic len: %v", err)
+		}
+	}
+
 	if _, err = connWrite(conn, topic, 0); err != nil {
-		return nil, nil, fmt.Errorf("error sending topic out: %v", err)
+		return nil, 0, nil, nil, fmt.Errorf("error sending topic out: %v", err)
+	}
+
+	// Encryption Key
+	if req.PayloadCipherType.IsValidCipherType() {
+		var keyByteLen int
+		switch req.PayloadCipherType {
+		case PAYLOAD_CIPHER_AES_128_GCM_SHA256:
+			fallthrough
+		case PAYLOAD_CIPHER_AES_128_CCM_SHA256:
+			keyByteLen = 16
+		case PAYLOAD_CIPHER_AES_256_GCM_SHA384:
+			fallthrough
+		case PAYLOAD_CIPHER_CHACHA20_POLY1305_SHA256:
+			keyByteLen = 32
+		}
+		encKey = make([]byte, keyByteLen)
+
+		n, err := connRead(conn, &encKey, 0)
+		if err != nil {
+			return nil, 0, nil, nil, fmt.Errorf("failed reading encryption key with error: %v", err)
+		} else if n != keyByteLen {
+			return nil, 0, nil, nil, fmt.Errorf("failed reading encryption key: length is inadequate")
+		}
+		if _, err = tokenFile.Write([]byte{0xFF, byte(req.PayloadCipherType >> 8), byte(req.PayloadCipherType & 0xFF)}); err != nil {
+			return nil, 0, nil, nil, fmt.Errorf("failed writing cipherFlag and cipherType: %v", err)
+		}
+		if _, err = tokenFile.Write(encKey); err != nil {
+			return nil, 0, nil, nil, fmt.Errorf("failed writing encryption key: %v", err)
+		}
+	} else {
+		if _, err = tokenFile.Write([]byte{0x00}); err != nil {
+			return nil, 0, nil, nil, fmt.Errorf("failed writing cipherFlag(none): %v", err)
+		}
 	}
 
 	// Timestamp
-	timestamp := make([]byte, TIMESTAMP_LEN)
+	timestamp = make([]byte, TIMESTAMP_LEN)
 	n, err := connRead(conn, &timestamp, 0)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed reading topic with error: %v", err)
+		return nil, 0, nil, nil, fmt.Errorf("failed reading topic with error: %v", err)
 	} else if n != int(TIMESTAMP_LEN) {
-		return nil, nil, fmt.Errorf("failed reading topic: length is inadequate")
+		return nil, 0, nil, nil, fmt.Errorf("failed reading topic: length is inadequate")
 	}
 	// CLIENT ONLY: write timestamp
 	if _, err = tokenFile.Write(timestamp); err != nil {
-		return nil, nil, fmt.Errorf("failed writing timestamp: %v", err)
+		return nil, 0, nil, nil, fmt.Errorf("failed writing timestamp: %v", err)
 	}
 
 	// Random Bytes
-	randomBytes := make([]byte, RANDOM_BYTES_LEN)
-	firstRandomBytes := make([]byte, RANDOM_BYTES_LEN)
 	var numTokensInt = int(req.NumTokens)
-	for i := 0; i < numTokensInt; i++ {
-		if _, err := connRead(conn, &randomBytes, time.Minute); err != nil {
-			return nil, nil, fmt.Errorf("error reading tokens: %v", err)
-		}
-
-		if i > 0 {
-			tokenFile.Write(randomBytes)
-		} else {
-			for j := 0; j < RANDOM_BYTES_LEN; j++ {
-				firstRandomBytes[j] = randomBytes[j]
-			}
-		}
+	randomBytesAll := make([]byte, RANDOM_BYTES_LEN*numTokensInt)
+	if _, err := connRead(conn, &randomBytesAll, time.Minute); err != nil {
+		return nil, 0, nil, nil, fmt.Errorf("error reading tokens: %v", err)
 	}
+	if _, err = tokenFile.Write(randomBytesAll[RANDOM_BYTES_LEN:]); err != nil {
+		return nil, 0, nil, nil, fmt.Errorf("failed writing random bytes: %v", err)
+	}
+	randomBytes = randomBytesAll[:RANDOM_BYTES_LEN]
+	numTokensRemained = int(req.NumTokens)
 	completed = true
-	return timestamp, firstRandomBytes, nil
+	return
 }
 
-func popRandomBytesFromFile(tokenFilePath string) ([]byte, []byte, error) {
-	return common.PopRandomBytesFromFileBase(tokenFilePath, TIMESTAMP_LEN, RANDOM_BYTES_LEN, true)
+func popRandomBytesFromFile(tokenFilePath string) (encKey []byte, numTokensRemained int, timestamp []byte, token []byte, err error) {
+	var numTokensInTheFile int
+	encKey, numTokensInTheFile, timestamp, token, err = common.PopRandomBytesFromFileBase(tokenFilePath, TIMESTAMP_LEN, RANDOM_BYTES_LEN, true, true)
+	numTokensRemained = numTokensInTheFile
+	return
 }
 
-func GetToken(topic string, fetchReq FetchRequest) ([]byte, []byte, error) {
-	if fetchReq.NumTokens < 4 || 0x3F*4 < fetchReq.NumTokens || fetchReq.NumTokens%4 != 0 {
-		log.Fatalln("Invalid number of token generation. It must be between [4, 0x3F*4] and multiples of 4")
+func GetToken(topic string, fetchReq FetchRequest) (encKey []byte, numTokensRemained int, timestamp []byte, token []byte, err error) {
+	if fetchReq.NumTokens < TOKEN_NUM_MULTIPLIER || 0x1F*TOKEN_NUM_MULTIPLIER < fetchReq.NumTokens || fetchReq.NumTokens%TOKEN_NUM_MULTIPLIER != 0 {
+		log.Fatalf("Invalid number of token generation. It must be between [%d, 0x1F*%d] and multiples of %d\n", TOKEN_NUM_MULTIPLIER, TOKEN_NUM_MULTIPLIER, TOKEN_NUM_MULTIPLIER)
 	}
 	topic = strings.TrimSpace(topic)
 
@@ -179,18 +254,18 @@ func GetToken(topic string, fetchReq FetchRequest) ([]byte, []byte, error) {
 		log.Fatalf("Failed creating Tokens directory at %s: %v", TOKENS_DIR, err)
 	}
 	tokenFilePath := TOKENS_DIR + fetchReq.AccessType.String() + base64.RawURLEncoding.EncodeToString(unsafe.Slice(unsafe.StringData(topic), len(topic)))
-	timestamp, token, err := popRandomBytesFromFile(tokenFilePath)
+	encKey, numTokensRemained, timestamp, token, err = popRandomBytesFromFile(tokenFilePath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error when popping random bytes from file: %v", err)
+		return nil, 0, nil, nil, fmt.Errorf("error when popping random bytes from file: %v", err)
 	}
 	if timestamp == nil || token == nil {
-		timestamp, token, err = fetchTokens(fetchReq, unsafe.Slice(unsafe.StringData(topic), len(topic)), tokenFilePath)
+		encKey, numTokensRemained, timestamp, token, err = fetchTokens(fetchReq, unsafe.Slice(unsafe.StringData(topic), len(topic)), tokenFilePath)
 		if err != nil {
-			return nil, nil, fmt.Errorf("error when fetching random bytes from server: %v", err)
+			return nil, 0, nil, nil, fmt.Errorf("error when fetching random bytes from server: %v", err)
 		}
 		if timestamp == nil || token == nil {
-			return nil, nil, fmt.Errorf("unexpectedly failed fetching tokens")
+			return nil, 0, nil, nil, fmt.Errorf("unexpectedly failed fetching tokens")
 		}
 	}
-	return timestamp, token, nil
+	return
 }

@@ -1,7 +1,5 @@
 {
-    "idf.port": "/dev/tty.usbmodem1101",
+    "idf.port": "/dev/tty.usbmodem83201",
     "cmake.sourceDirectory": "/Users/kentarou/git/research-mqtt-mtd/esp32/esp32-tokenmgr/main",
-    "go.toolsEnvVars": {
-        "GOFLAGS": "-tags=onmemory"
-    },
+    "go.buildTags": "",
 }

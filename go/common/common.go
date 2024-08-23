@@ -1,8 +1,10 @@
 package common
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"go/authserver/types"
 	"io"
 	"math"
 	"net"
@@ -149,11 +151,13 @@ func ConnCancellableWriteBase(conn net.Conn, data []byte, timeout time.Duration,
 	}
 }
 
-func PopRandomBytesFromFileBase(tokenFilePath string, timestampLen int, randomBytesLen int, fileStartsWithTimestamp bool) (timestamp []byte, randomBytes []byte, err error) {
+func PopRandomBytesFromFileBase(tokenFilePath string, timestampLen int, randomBytesLen int, needsEncKey bool, fileStartsWithTimestamp bool) (encKey []byte, numTokensInTheFile int, timestamp []byte, randomBytes []byte, err error) {
 	if _, err = os.Stat(tokenFilePath); err == nil {
 		var (
 			isAlreadyClosed bool = false
 			tokenFile       *os.File
+			cipherFlag      []byte
+			cipherTypeBytes []byte
 		)
 		tokenFile, err = os.Open(tokenFilePath)
 		if err != nil {
@@ -165,6 +169,48 @@ func PopRandomBytesFromFileBase(tokenFilePath string, timestampLen int, randomBy
 				tokenFile.Close()
 			}
 		}()
+
+		cipherFlag = make([]byte, 1)
+		if _, err = tokenFile.Read(cipherFlag); err != nil {
+			err = fmt.Errorf("failed getting encFlag: %v", err)
+			return
+		}
+		if cipherFlag[0] == 0xFF {
+			cipherTypeBytes = make([]byte, 2)
+			if _, err = tokenFile.Read(cipherTypeBytes); err != nil {
+				err = fmt.Errorf("failed getting encTypeBytes: %v", err)
+				return
+			}
+
+			cipherType := types.PayloadCipherType(binary.BigEndian.Uint16(cipherTypeBytes))
+			var keyByteLen int
+			switch cipherType {
+			case types.PAYLOAD_CIPHER_AES_128_GCM_SHA256:
+				fallthrough
+			case types.PAYLOAD_CIPHER_AES_128_CCM_SHA256:
+				keyByteLen = 16
+			case types.PAYLOAD_CIPHER_AES_256_GCM_SHA384:
+				fallthrough
+			case types.PAYLOAD_CIPHER_CHACHA20_POLY1305_SHA256:
+				keyByteLen = 32
+			default:
+				err = fmt.Errorf("failed getting encryption type: %v", err)
+				return
+			}
+
+			if needsEncKey {
+				encKey = make([]byte, keyByteLen)
+				if _, err = tokenFile.Read(encKey); err != nil {
+					err = fmt.Errorf("failed getting encryption key: %v", err)
+					return
+				}
+			} else {
+				if _, err = tokenFile.Seek(int64(keyByteLen), io.SeekCurrent); err != nil {
+					err = fmt.Errorf("failed skipping encryption key: %v", err)
+					return
+				}
+			}
+		}
 
 		if fileStartsWithTimestamp {
 			timestamp = make([]byte, timestampLen)
@@ -180,15 +226,30 @@ func PopRandomBytesFromFileBase(tokenFilePath string, timestampLen int, randomBy
 			return
 		}
 
-		buf := make([]byte, randomBytesLen)
-		if _, err = tokenFile.Read(buf); err != nil {
+		// Get the current position
+		var (
+			curPos   int64
+			fileSize int64
+		)
+		if curPos, err = tokenFile.Seek(0, io.SeekCurrent); err != nil {
+			err = fmt.Errorf("failed getting current position: %v", err)
+			return
+		}
+		if fileSize, err = tokenFile.Seek(0, io.SeekEnd); err != nil {
+			err = fmt.Errorf("failed getting file size: %v", err)
+			return
+		}
+		remainingBytes := int(fileSize - curPos)
+		numTokensInTheFile = int(remainingBytes) / randomBytesLen
+		_, err = tokenFile.Seek(curPos, io.SeekStart)
+		if err != nil {
+			err = fmt.Errorf("failed seeking back to original position: %v", err)
+			return
+		}
+
+		if remainingBytes < randomBytesLen {
 			// Remove file
-			if err == io.EOF {
-				err = nil
-				fmt.Printf("Removing file %s since only one token left\n", tokenFilePath)
-			} else {
-				err = fmt.Errorf("found error when reading tokenFile: %v", err)
-			}
+			fmt.Printf("Removing file %s since no token left in the file\n", tokenFilePath)
 			tokenFile.Close()
 			if oserr := os.Remove(tokenFilePath); oserr != nil {
 				err = fmt.Errorf("failed removing file %s: %v with preceding error? %v", tokenFilePath, oserr, err)
@@ -200,27 +261,70 @@ func PopRandomBytesFromFileBase(tokenFilePath string, timestampLen int, randomBy
 		} else {
 			tokenFilePathTmp := tokenFilePath + ".tmp"
 			created := false
-			err = func() error {
-				tokenFileTmp, err := os.Create(tokenFilePathTmp)
-				if _, err := tokenFileTmp.Write(timestamp); err != nil {
+			err = func() (err error) {
+				var tokenFileTmp *os.File
+				if tokenFileTmp, err = os.Create(tokenFilePathTmp); err != nil {
+					err = fmt.Errorf("failed creating tmp file %s: %v", tokenFilePathTmp, err)
+					tokenFileTmp.Close()
+					if oserr := os.Remove(tokenFilePathTmp); err != nil {
+						err = fmt.Errorf("failed removing tmp file %s: %v with preceding error %v", tokenFilePath, oserr, err)
+					}
+					return
+				}
+				if _, err = tokenFileTmp.Write(cipherFlag); err != nil {
+					err = fmt.Errorf("failed writing cipherFlag into tmp file %s: %v", tokenFilePathTmp, err)
+					tokenFileTmp.Close()
+					if oserr := os.Remove(tokenFilePathTmp); err != nil {
+						err = fmt.Errorf("failed removing tmp file %s: %v with preceding error %v", tokenFilePath, oserr, err)
+					}
+					return
+				}
+
+				if cipherFlag[0] == 0xFF {
+					if _, err = tokenFileTmp.Write(cipherTypeBytes); err != nil {
+						err = fmt.Errorf("failed writing cipherTypeBytes into tmp file %s: %v", tokenFilePathTmp, err)
+						tokenFileTmp.Close()
+						if oserr := os.Remove(tokenFilePathTmp); err != nil {
+							err = fmt.Errorf("failed removing tmp file %s: %v with preceding error %v", tokenFilePath, oserr, err)
+						}
+						return
+					}
+
+					if _, err = tokenFileTmp.Write(encKey); err != nil {
+						err = fmt.Errorf("failed writing encryption key into tmp file %s: %v", tokenFilePathTmp, err)
+						tokenFileTmp.Close()
+						if oserr := os.Remove(tokenFilePathTmp); err != nil {
+							err = fmt.Errorf("failed removing tmp file %s: %v with preceding error %v", tokenFilePath, oserr, err)
+						}
+						return
+					}
+				}
+
+				if _, err = tokenFileTmp.Write(timestamp); err != nil {
 					err = fmt.Errorf("failed writing timestamp into tmp file %s: %v", tokenFilePathTmp, err)
 					tokenFileTmp.Close()
 					if oserr := os.Remove(tokenFilePathTmp); err != nil {
 						err = fmt.Errorf("failed removing tmp file %s: %v with preceding error %v", tokenFilePath, oserr, err)
 					}
-					return err
+					return
 				}
 
-				for err == nil {
-					if _, err := tokenFileTmp.Write(buf); err != nil {
-						err = fmt.Errorf("failed writing random bytes into tmp file %s: %v", tokenFilePathTmp, err)
-						tokenFileTmp.Close()
-						if oserr := os.Remove(tokenFilePathTmp); oserr != nil {
-							err = fmt.Errorf("failed removing tmp file %s: %v with preceding error %v", tokenFilePath, oserr, err)
-						}
-						return err
+				buf := make([]byte, remainingBytes)
+				if _, err = tokenFile.Read(buf); err != nil {
+					err = fmt.Errorf("failed reading remaining random bytes %s: %v", tokenFilePathTmp, err)
+					tokenFileTmp.Close()
+					if oserr := os.Remove(tokenFilePathTmp); err != nil {
+						err = fmt.Errorf("failed removing tmp file %s: %v with preceding error %v", tokenFilePath, oserr, err)
 					}
-					_, err = tokenFile.Read(buf)
+					return
+				}
+				if _, err = tokenFileTmp.Write(buf); err != nil {
+					err = fmt.Errorf("failed writing random bytes into tmp file %s: %v", tokenFilePathTmp, err)
+					tokenFileTmp.Close()
+					if oserr := os.Remove(tokenFilePathTmp); oserr != nil {
+						err = fmt.Errorf("failed removing tmp file %s: %v with preceding error %v", tokenFilePath, oserr, err)
+					}
+					return
 				}
 				tokenFileTmp.Close()
 				created = true

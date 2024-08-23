@@ -2,6 +2,10 @@ package main
 
 import (
 	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
@@ -12,6 +16,8 @@ import (
 	"net"
 	"sync"
 	"time"
+
+	"golang.org/x/crypto/chacha20poly1305"
 )
 
 const (
@@ -19,7 +25,17 @@ const (
 	RADDR_VERIFIER      string = ":21883"
 	RADDR_MQTTBROKER    string = ":11883"
 	BUF_SIZE            int    = 1024
+
+	NONCE_BASE int = 123456
 )
+
+type VerificationResponse struct {
+	ResultCode           types.VerificationResponseCode
+	NumRemainingTokens   uint16
+	PayloadCipherType    types.PayloadCipherType
+	PayloadEncryptionKey []byte
+	TopicWithLen         []byte
+}
 
 func connCancellableReadByte(conn net.Conn, timeout time.Duration, done <-chan struct{}) (b byte, err error) {
 	dst := make([]byte, 1)
@@ -43,7 +59,7 @@ func connCancellableWrite(conn net.Conn, data []byte, timeout time.Duration, don
 	return common.ConnCancellableWriteBase(conn, data, timeout, done)
 }
 
-func sendPacketToVerifier(buf *[]byte, done <-chan struct{}) (err error) {
+func sendPacketToVerifier(buf []byte, done <-chan struct{}) (response VerificationResponse, err error) {
 	conn, err := net.Dial("tcp", RADDR_VERIFIER)
 	if err != nil {
 		fmt.Println("Error connecting To Verifier: ", err)
@@ -51,29 +67,183 @@ func sendPacketToVerifier(buf *[]byte, done <-chan struct{}) (err error) {
 	}
 	defer conn.Close()
 
-	if _, err = connCancellableWrite(conn, *buf, time.Second, done); err != nil {
+	if _, err = connCancellableWrite(conn, buf, time.Second, done); err != nil {
 		return
 	}
-	common.SetLen(buf, 1)
-	if _, err = connCancellableRead(conn, buf, time.Second, done); err != nil {
+
+	resultCodeBuf := make([]byte, 1)
+	if _, err = connCancellableRead(conn, &resultCodeBuf, time.Second, done); err != nil {
 		return
 	}
-	resultCode := (*buf)[0]
-	if resultCode == 0 || resultCode == 1 {
+	resultCode := resultCodeBuf[0]
+
+	if resultCode&0x80 == 0 {
+		// success
+		nTokensBuf := make([]byte, 2)
+		if _, err = connCancellableRead(conn, &nTokensBuf, time.Second, done); err != nil {
+			return
+		}
+
+		keyByteLen := 0
+		var cipherType types.PayloadCipherType
+		var encKey []byte
+		if resultCode&0x20 != 0 {
+			// with encryption
+			cipherTypeBytes := make([]byte, 2)
+			if _, err = connCancellableRead(conn, &cipherTypeBytes, time.Second, done); err != nil {
+				return
+			}
+			cipherType = types.PayloadCipherType(binary.BigEndian.Uint16(cipherTypeBytes))
+			switch cipherType {
+			case types.PAYLOAD_CIPHER_AES_128_GCM_SHA256:
+				fallthrough
+			case types.PAYLOAD_CIPHER_AES_128_CCM_SHA256:
+				keyByteLen = 16
+			case types.PAYLOAD_CIPHER_AES_256_GCM_SHA384:
+				fallthrough
+			case types.PAYLOAD_CIPHER_CHACHA20_POLY1305_SHA256:
+				keyByteLen = 32
+			default:
+				err = fmt.Errorf("Invalid Payload Cipher Type")
+				return
+			}
+
+			encKey := make([]byte, keyByteLen)
+			if _, err = connCancellableRead(conn, &encKey, time.Second, done); err != nil {
+				return
+			}
+		}
+
 		lenbuf := make([]byte, 2)
 		if _, err = connCancellableRead(conn, &lenbuf, time.Second, done); err != nil {
 			return
 		}
 
 		topicLen := int(binary.BigEndian.Uint16(lenbuf))
-		*buf = make([]byte, topicLen, 1+2+topicLen)
-		if _, err = connCancellableRead(conn, buf, time.Second, done); err != nil {
+		topicWithLen := make([]byte, 2+topicLen)
+		copy(topicWithLen[:2], lenbuf)
+		topic := topicWithLen[2:]
+		if _, err = connCancellableRead(conn, &topic, time.Second, done); err != nil {
 			return
 		}
-		common.SetLen(buf, 3+topicLen)
-		copy((*buf)[3:3+topicLen], (*buf)[:topicLen])
-		copy((*buf)[1:3], lenbuf)
-		(*buf)[0] = resultCode
+
+		if resultCode&0x20 != 0 {
+			response = VerificationResponse{
+				ResultCode:           types.VerificationResponseCode(resultCode),
+				NumRemainingTokens:   binary.BigEndian.Uint16(nTokensBuf),
+				PayloadCipherType:    cipherType,
+				PayloadEncryptionKey: encKey,
+				TopicWithLen:         topicWithLen,
+			}
+		} else {
+			response = VerificationResponse{
+				ResultCode:         types.VerificationResponseCode(resultCode),
+				NumRemainingTokens: binary.BigEndian.Uint16(nTokensBuf),
+				PayloadCipherType:  types.PAYLOAD_CIPHER_NONE,
+				TopicWithLen:       topicWithLen,
+			}
+		}
+	} else {
+		// fail
+		response = VerificationResponse{
+			ResultCode:         types.VerificationResponseCode(resultCode),
+			NumRemainingTokens: 0,
+			PayloadCipherType:  types.PAYLOAD_CIPHER_NONE,
+		}
+	}
+	return
+}
+
+func decryptPayload(payload []byte, verfResponse VerificationResponse) (decrypted []byte, err error) {
+	var (
+		hash         []byte
+		nonce        []byte
+		encrypted    []byte
+		hashComputed []byte
+	)
+	switch verfResponse.PayloadCipherType {
+	case types.PAYLOAD_CIPHER_AES_128_GCM_SHA256:
+		fallthrough
+	case types.PAYLOAD_CIPHER_CHACHA20_POLY1305_SHA256:
+		fallthrough
+	case types.PAYLOAD_CIPHER_AES_128_CCM_SHA256:
+		if len(payload) <= 32 {
+			return
+		}
+		hash = payload[:32]
+		encrypted = payload[32:]
+	case types.PAYLOAD_CIPHER_AES_256_GCM_SHA384:
+		if len(payload) <= 48 {
+			return
+		}
+		hash = payload[:48]
+		encrypted = payload[48:]
+	}
+
+	// Decryption
+	switch verfResponse.PayloadCipherType {
+	case types.PAYLOAD_CIPHER_AES_128_GCM_SHA256:
+		fallthrough
+	case types.PAYLOAD_CIPHER_AES_128_CCM_SHA256:
+		fallthrough
+	case types.PAYLOAD_CIPHER_AES_256_GCM_SHA384:
+		var (
+			block  cipher.Block
+			aesGCM cipher.AEAD
+		)
+		block, err = aes.NewCipher(verfResponse.PayloadEncryptionKey)
+		if err != nil {
+			err = fmt.Errorf("failed to create AES cipher block: %w", err)
+			return
+		}
+		aesGCM, err = cipher.NewGCM(block)
+		if err != nil {
+			err = fmt.Errorf("failed to create AES GCM mode: %w", err)
+			return
+		}
+		nonce = make([]byte, aesGCM.NonceSize())
+		binary.BigEndian.PutUint64(nonce, uint64(NONCE_BASE)+uint64(verfResponse.NumRemainingTokens))
+		decrypted, err = aesGCM.Open(nil, nonce, encrypted, nil)
+		if err != nil {
+			err = fmt.Errorf("failed to decrypt: %w", err)
+			return
+		}
+	case types.PAYLOAD_CIPHER_CHACHA20_POLY1305_SHA256:
+		var (
+			c20p1305 cipher.AEAD
+		)
+		c20p1305, err = chacha20poly1305.New(verfResponse.PayloadEncryptionKey)
+		if err != nil {
+			err = fmt.Errorf("failed to create CHACHA20_POLY1305 cipher: %w", err)
+			return
+		}
+		nonce = make([]byte, c20p1305.NonceSize())
+		binary.BigEndian.PutUint64(nonce, uint64(NONCE_BASE)+uint64(verfResponse.NumRemainingTokens))
+		decrypted, err = c20p1305.Open(nil, nonce, encrypted, nil)
+		if err != nil {
+			err = fmt.Errorf("failed to decrypt: %w", err)
+			return
+		}
+	}
+
+	// Hash
+	switch verfResponse.PayloadCipherType {
+	case types.PAYLOAD_CIPHER_AES_128_GCM_SHA256:
+		fallthrough
+	case types.PAYLOAD_CIPHER_CHACHA20_POLY1305_SHA256:
+		fallthrough
+	case types.PAYLOAD_CIPHER_AES_128_CCM_SHA256:
+		hash := sha256.New()
+		hash.Write([]byte(decrypted))
+		hashComputed = hash.Sum(nil)
+	case types.PAYLOAD_CIPHER_AES_256_GCM_SHA384:
+		hash := sha512.New384()
+		hash.Write([]byte(decrypted))
+		hashComputed = hash.Sum(nil)
+	}
+
+	if !bytes.Equal(hash, hashComputed) {
+		err = fmt.Errorf("hash Compare failed")
 	}
 	return
 }
@@ -146,7 +316,7 @@ func clientToMqttHandler(buf []byte, incomingConn net.Conn, brokerConn net.Conn,
 			return
 		}
 
-		verifyToken := func(buf *[]byte, accessType types.AccessType, topic []byte) (err error) {
+		verifyToken := func(buf *[]byte, accessType types.AccessType, topic []byte) (response VerificationResponse, err error) {
 			common.SetLen(buf, len(topic)+1)
 			if accessType == types.AccessPub {
 				(*buf)[0] = 0x80
@@ -163,23 +333,25 @@ func clientToMqttHandler(buf []byte, incomingConn net.Conn, brokerConn net.Conn,
 				return
 			default:
 			}
-			if err = sendPacketToVerifier(buf, done); err != nil {
+
+			if response, err = sendPacketToVerifier(*buf, done); err != nil {
 				return
 			}
-			if (*buf)[0] > 1 {
-				// failed, cyberdeception
+			if response.ResultCode&0x80 != 0 {
+				// failed/suspiciousFail
 				err = fmt.Errorf("cli2Mqtt(%s): verification failed", incomingAddr)
-				return
 			}
 			return
 		}
 
 		if fixedHdr.ControlPacketType == MqttControlPUBLISH {
 			var (
-				topicName    []byte
-				contentAfter []byte
+				topicName      []byte
+				contentBetween []byte
+				verfResponse   VerificationResponse
+				payload        []byte
 			)
-			topicName, contentAfter, err = getTopicNameFromPublish(buf)
+			topicName, contentBetween, payload, err = getTopicNameFromPublish(buf, (int(fixedHdr.Flags)>>1)&0x3)
 			if err != nil {
 				fmt.Printf("cli2Mqtt(%s): Failed getting topicName: %v\n", incomingAddr, err)
 				return
@@ -190,14 +362,25 @@ func clientToMqttHandler(buf []byte, incomingConn net.Conn, brokerConn net.Conn,
 				return
 			}
 
-			if err = verifyToken(&buf, types.AccessPub, topicName); err != nil {
+			if verfResponse, err = verifyToken(&buf, types.AccessPub, topicName); err != nil {
 				return
 			}
-			bb.Write(buf[1:])
-			bb.Write(contentAfter)
+
+			bb.Write(verfResponse.TopicWithLen)
+			bb.Write(contentBetween)
+			if verfResponse.PayloadCipherType.IsValidCipherType() {
+				var decrypted []byte
+				if decrypted, err = decryptPayload(payload, verfResponse); err != nil {
+					return
+				}
+				bb.Write(decrypted)
+			} else {
+				bb.Write(payload)
+			}
 		} else {
 			var (
 				topicFiltersWithOptions [][]byte
+				verfResponse            VerificationResponse
 				contentBefore           []byte
 				contentAfter            []byte
 			)
@@ -217,12 +400,13 @@ func clientToMqttHandler(buf []byte, incomingConn net.Conn, brokerConn net.Conn,
 					return
 				}
 
-				if err = verifyToken(&buf, types.AccessSub, topicFilter); err != nil {
+				if verfResponse, err = verifyToken(&buf, types.AccessSub, topicFilter); err != nil {
 					return
 				}
-				bb.Write(buf[1:])
+				bb.Write(verfResponse.TopicWithLen)
 				bb.WriteByte(topicFilterOption)
 			}
+
 			bb.Write(contentAfter)
 		}
 

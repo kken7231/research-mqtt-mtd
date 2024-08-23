@@ -18,6 +18,6 @@ func ConnWrite(conn net.Conn, data []byte, timeout time.Duration) (n int, err er
 
 func PopRandomBytesFromFile(timestamp [1 + consts.TIMESTAMP_LEN]byte) (randomBytes []byte, err error) {
 	tokenFilePath := consts.DEFAULT_FILEPATH_TOKENS_DIR + base64.RawURLEncoding.EncodeToString(timestamp[:])
-	_, randomBytes, err = common.PopRandomBytesFromFileBase(tokenFilePath, consts.TIMESTAMP_LEN, consts.RANDOM_BYTES_LEN, false)
+	_, _, _, randomBytes, err = common.PopRandomBytesFromFileBase(tokenFilePath, consts.TIMESTAMP_LEN, consts.RANDOM_BYTES_LEN, false, false)
 	return
 }

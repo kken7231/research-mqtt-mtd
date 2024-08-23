@@ -40,6 +40,27 @@ func decodeVariableByteIntegerFromConn(conn net.Conn, timeout time.Duration, don
 	return
 }
 
+func decodeVariableByteInteger(buf []byte) (value int, len int, err error) {
+	ended := false
+	var i int = 0
+	for i < 4 {
+		encodedByte := int(buf[i])
+		value += (encodedByte & 0x7F) << (7 * i)
+		i++
+		if encodedByte&0x80 == 0 {
+			ended = true
+			break
+		}
+	}
+	if !ended {
+		err = fmt.Errorf("decoding of a variable byte integer ended unexpectedly. i=%d", i)
+		value = 0
+		i = 0
+	}
+	len = i
+	return
+}
+
 type MQTTControlPacketType byte
 
 const (
@@ -125,25 +146,39 @@ func getFixedHeader(conn net.Conn, timeout time.Duration, done <-chan struct{}) 
 	return
 }
 
-func getTopicNameFromPublish(varHdrAndPayload []byte) (topicName []byte, contentAfter []byte, err error) {
+func getTopicNameFromPublish(varHdrAndPayload []byte, qos int) (topicName []byte, contentBetween []byte, payload []byte, err error) {
 	length := int(binary.BigEndian.Uint16(varHdrAndPayload[:2]))
 	if length > len(varHdrAndPayload)-2 {
-		err = fmt.Errorf("length not inadequate")
+		err = fmt.Errorf("length inadequate")
 		return
 	}
 	topicName = varHdrAndPayload[2 : 2+length]
-	contentAfter = varHdrAndPayload[2+length:]
+	identifierLen := 0
+	if qos > 0 {
+		identifierLen = 2
+	}
+	var (
+		propertiesLen    int
+		propertiesLenLen int
+	)
+	propertiesLen, propertiesLenLen, err = decodeVariableByteInteger(varHdrAndPayload[2+length+identifierLen:])
+	contentBetween = varHdrAndPayload[2+length : 2+length+identifierLen+propertiesLenLen+propertiesLen]
+	payload = varHdrAndPayload[2+length+identifierLen+propertiesLenLen+propertiesLen:]
 	return
 }
 
 func getTopicFiltersFromSubscribe(varHdrAndPayload []byte) (contentBefore []byte, topicFiltersWithOptions [][]byte, contentAfter []byte, err error) {
 	if 4 > len(varHdrAndPayload) {
-		err = fmt.Errorf("length not inadequate")
+		err = fmt.Errorf("length inadequate")
 		return
 	}
-	propertiesLen := varHdrAndPayload[2]
-	contentBefore = varHdrAndPayload[:3+int(propertiesLen)]
-	offset := 3 + int(propertiesLen)
+	var (
+		propertiesLen    int
+		propertiesLenLen int
+	)
+	propertiesLen, propertiesLenLen, err = decodeVariableByteInteger(varHdrAndPayload[2:])
+	contentBefore = varHdrAndPayload[:2+propertiesLenLen+propertiesLen]
+	offset := 2 + propertiesLenLen + propertiesLen
 	for offset < len(varHdrAndPayload) {
 		length := int(binary.BigEndian.Uint16(varHdrAndPayload[offset : offset+2]))
 		if offset+2+length+1 > len(varHdrAndPayload) {

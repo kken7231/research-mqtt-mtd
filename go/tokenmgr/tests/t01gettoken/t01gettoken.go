@@ -17,21 +17,21 @@ var Benchmarks = []func(*testing.B){
 
 func BenchmarkGetToken_Pub_Single(b *testing.B) {
 	topic := testutil.SAMPLE_TOPIC_PUB
-	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessPub)
+	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessPub, tokenmgr.PAYLOAD_CIPHER_NONE)
 	b.StopTimer()
 	testutil.GetTokenTest(b, topic, *fetchReq, true)
 }
 
 func BenchmarkGetToken_PubonSubTopic_Single(b *testing.B) {
 	topic := testutil.SAMPLE_TOPIC_SUB
-	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessPub)
+	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessPub, tokenmgr.PAYLOAD_CIPHER_NONE)
 	b.StopTimer()
 	testutil.GetTokenTest(b, topic, *fetchReq, false)
 }
 
 func BenchmarkGetToken_Pub_Cycle(b *testing.B) {
 	topic := testutil.SAMPLE_TOPIC_PUB
-	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessPub)
+	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessPub, tokenmgr.PAYLOAD_CIPHER_NONE)
 	b.StopTimer()
 	for i := 0; i < int(fetchReq.NumTokens); i++ {
 		testutil.GetTokenTest(b, topic, *fetchReq, true)
@@ -41,21 +41,21 @@ func BenchmarkGetToken_Pub_Cycle(b *testing.B) {
 
 func BenchmarkGetToken_Sub_Single(b *testing.B) {
 	topic := testutil.SAMPLE_TOPIC_SUB
-	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessSub)
+	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessSub, tokenmgr.PAYLOAD_CIPHER_NONE)
 	b.StopTimer()
 	testutil.GetTokenTest(b, topic, *fetchReq, true)
 }
 
 func BenchmarkGetToken_SubonPubTopic_Single(b *testing.B) {
 	topic := testutil.SAMPLE_TOPIC_PUB
-	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessSub)
+	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessSub, tokenmgr.PAYLOAD_CIPHER_NONE)
 	b.StopTimer()
 	testutil.GetTokenTest(b, topic, *fetchReq, false)
 }
 
 func BenchmarkGetToken_Sub_Cycle(b *testing.B) {
 	topic := testutil.SAMPLE_TOPIC_SUB
-	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessSub)
+	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessSub, tokenmgr.PAYLOAD_CIPHER_NONE)
 	b.StopTimer()
 	for i := 0; i < int(fetchReq.NumTokens); i++ {
 		testutil.GetTokenTest(b, topic, *fetchReq, true)

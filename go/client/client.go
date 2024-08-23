@@ -17,6 +17,8 @@ const (
 
 	DEFAULT_CLIENT_CRTFILE = "/mqttmtd/certs/client/client.crt"
 	DEFAULT_CLIENT_KEYFILE = "/mqttmtd/certs/client/client.key"
+
+	TOKEN_NUM_MULTIPLIER = 16
 )
 
 func formatNibbleToCappedAscii(nib byte) byte {
@@ -47,8 +49,8 @@ func main() {
 	// if returnOnlyToken {
 	// 	tokenmgr.DebugEnabled = false
 	// }
-	if ntokens < 4 || 0x3F*4 < ntokens || ntokens%4 != 0 {
-		log.Fatalln("Invalid number of token generation. It must be between [4, 0x3F*4] and multiples of 4")
+	if ntokens < TOKEN_NUM_MULTIPLIER || 0x1F*TOKEN_NUM_MULTIPLIER < ntokens || ntokens%TOKEN_NUM_MULTIPLIER != 0 {
+		log.Fatalf("Invalid number of token generation. It must be between [%d, 0x1F*%d] and multiples of %d\n", TOKEN_NUM_MULTIPLIER, TOKEN_NUM_MULTIPLIER, TOKEN_NUM_MULTIPLIER)
 	}
 	var reqAccessType tokenmgr.AccessType
 	switch requestAccessType {
@@ -66,13 +68,13 @@ func main() {
 	}
 
 	fetchReq := &tokenmgr.FetchRequest{
-		NumTokens:  byte(ntokens),
+		NumTokens:  uint16(ntokens),
 		AccessType: reqAccessType,
 		CaCrt:      cacrt,
 		ClientCrt:  clicrt,
 		ClientKey:  clikey,
 	}
-	timestamp, randomBytes, err := tokenmgr.GetToken(topic, *fetchReq)
+	_, _, timestamp, randomBytes, err := tokenmgr.GetToken(topic, *fetchReq)
 	if err != nil {
 		log.Fatal(err)
 	}

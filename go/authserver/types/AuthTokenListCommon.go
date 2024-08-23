@@ -14,6 +14,16 @@ type AuthTokenList struct { // Auth Token List
 	last  *ATLEntry
 }
 
+type ATLEntryCommon struct {
+	PayloadCipherType
+	Timestamp          [1 + consts.TIMESTAMP_LEN]byte
+	NumRemainingTokens uint16
+	AccessType         AccessType
+	ClientName         []byte
+	Topic              []byte
+	PayloadEncKey      []byte
+}
+
 func (atl *AuthTokenList) removeFirstEntry() bool {
 	if atl.first == nil {
 		return false
@@ -112,17 +122,11 @@ func (atl *AuthTokenList) LookupEntryWithToken(token []byte) (previous *ATLEntry
 	}
 
 	var (
-		// numCommonBytes  int = 0
-		// newlyCommon     int
-		// timestampFrgmnt []byte
-		// tokenFrgmnt     []byte
 		MSB byte
 	)
 	if atl.first == nil {
 		return
 	}
-	// timestampFrgmnt = atl.first.Timestamp[1:]
-	// tokenFrgmnt = token
 	MSB = atl.first.Timestamp[0]
 	for entry = atl.first; entry != nil; func() {
 		previous = entry

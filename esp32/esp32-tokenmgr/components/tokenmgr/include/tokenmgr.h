@@ -25,6 +25,7 @@
 #define TOKEN_SIZE (TIMESTAMP_LEN + RANDOM_BYTES_LEN)
 #define BASE64_ENCODED_TOKEN_SIZE ((TOKEN_SIZE + 2) / 3 * 4) + 1
 #define TIME_REVOCATION (7 * 24 * 60 * 60)	// 1 week in seconds
+#define TOKEN_NUM_MULTIPIER 16
 // Definition expected in config.h
 extern const char *ISSUER_HOST;
 // Definition expected in config.h
@@ -37,14 +38,18 @@ typedef enum {
 } access_type_t;
 
 typedef struct {
-	uint8_t num_tokens;
+	uint16_t num_tokens;
 	access_type_t access_type;
+	bool enchash_enabled;
 } fetch_request_t;
 
 typedef struct {
+	const char *topic;
 	uint8_t timestamp[TIMESTAMP_LEN];
 	uint8_t *random_bytes;
-	uint8_t token_count;
+	uint8_t *random_bytes_cur_pointer;
+	uint16_t token_count;
+	void *next;
 } token_store_t;
 
 typedef enum {
@@ -64,7 +69,6 @@ extern const uint8_t client_key_end[] asm("_binary_client_key_end");
 /*
 	Definition expected in the App
 */
-extern token_store_t token_store;
 extern const int CIPHERSUITES_LIST[];
 
 /*
@@ -87,7 +91,6 @@ extern const char *PLAIN_BROKER_URI;
 // Definition expected in config.h
 extern const char *TLS_BROKER_URI;
 // Definition expected in the app
-extern const esp_mqtt5_connection_property_config_t mqtt_connect_property;
 typedef enum {
 	MQTT_CLIENT_PLAIN,
 	MQTT_CLIENT_TLS

@@ -7,14 +7,10 @@ import (
 )
 
 type ATLEntry struct {
-	Timestamp          [1 + consts.TIMESTAMP_LEN]byte
-	RandomBytes        []byte
-	RandomBytesIndex   byte
-	NumRemainingTokens byte
-	AccessType         AccessType
-	ClientName         []byte
-	Topic              []byte
-	next               *ATLEntry
+	ATLEntryCommon
+	RandomBytes      []byte
+	RandomBytesIndex uint16
+	next             *ATLEntry
 }
 
 func (atlentry *ATLEntry) getCurrentRandomBytes() []byte {

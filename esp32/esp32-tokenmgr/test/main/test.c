@@ -23,13 +23,8 @@
 static const char *TAG = "tokenmgr_testapp";
 
 
-token_store_t token_store = {0};
 extern int permit_time_logging;
 const int CIPHERSUITES_LIST[] = {MBEDTLS_TLS1_3_AES_128_GCM_SHA256, 0};
-const esp_mqtt5_connection_property_config_t mqtt_connect_property = {
-	.session_expiry_interval = 10,
-	.maximum_packet_size = 1024,
-};
 
 void setUp(void) {
 	tokenmgr_init();

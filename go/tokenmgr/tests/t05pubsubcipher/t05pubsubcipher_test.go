@@ -11,8 +11,11 @@ import (
 
 // pushd ../../certcreate; ./generate_certs.sh -c ../certs; popd
 // // go test -x -v
-func TestPubSub_Single(t *testing.T) {
+func TestPubSubCipher_Single(t *testing.T) {
 	topic := testutil.SAMPLE_TOPIC_PUBSUB
+	cipherType := tokenmgr.PAYLOAD_CIPHER_AES_128_GCM_SHA256
+	fetchReqSub := testutil.PrepareFetchReq(tokenmgr.AccessSub, tokenmgr.PAYLOAD_CIPHER_NONE)
+	fetchReqPub := testutil.PrepareFetchReq(tokenmgr.AccessPub, cipherType)
 	expired := make(chan struct{})
 	subDone := make(chan struct{})
 	done := make(chan struct{})
@@ -20,16 +23,15 @@ func TestPubSub_Single(t *testing.T) {
 		var wg sync.WaitGroup
 		wg.Add(2)
 		go func() {
-			fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessSub, tokenmgr.PAYLOAD_CIPHER_NONE)
-			_, _, timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReq, true)
-			testutil.AutopahoSubscribe(t, timestamp, randomBytes, false, subDone, []byte("TestPubSub_Single"))
+			_, _, timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReqSub, true)
+			testutil.AutopahoSubscribe(t, timestamp, randomBytes, false, subDone, []byte("TestPubSubCipher_Single"))
 			wg.Done()
 		}()
 		go func() {
 			<-subDone
-			fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessPub, tokenmgr.PAYLOAD_CIPHER_NONE)
-			_, _, timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReq, true)
-			testutil.AutopahoPublish(t, timestamp, randomBytes, []byte("TestPubSub_Single"))
+			encKey, numTokensRemained, timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReqPub, true)
+			encryptedMsg := testutil.SealMessage(t, cipherType, encKey, uint16(numTokensRemained), []byte("TestPubSubCipher_Single"))
+			testutil.AutopahoPublish(t, timestamp, randomBytes, encryptedMsg)
 			wg.Done()
 		}()
 		wg.Wait()
@@ -46,10 +48,11 @@ func TestPubSub_Single(t *testing.T) {
 	}
 }
 
-func TestPubSub_Cycle(t *testing.T) {
+func TestPubSubCipher_Cycle(t *testing.T) {
 	topic := testutil.SAMPLE_TOPIC_PUBSUB
+	cipherType := tokenmgr.PAYLOAD_CIPHER_AES_128_GCM_SHA256
 	fetchReqSub := testutil.PrepareFetchReq(tokenmgr.AccessSub, tokenmgr.PAYLOAD_CIPHER_NONE)
-	fetchReqPub := testutil.PrepareFetchReq(tokenmgr.AccessPub, tokenmgr.PAYLOAD_CIPHER_NONE)
+	fetchReqPub := testutil.PrepareFetchReq(tokenmgr.AccessPub, cipherType)
 	testutil.RemoveTokenFile(topic, *fetchReqSub)
 	testutil.RemoveTokenFile(topic, *fetchReqPub)
 	for i := 0; i < int(fetchReqSub.NumTokens); i++ {
@@ -61,13 +64,14 @@ func TestPubSub_Cycle(t *testing.T) {
 			wg.Add(2)
 			go func() {
 				_, _, timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReqSub, true)
-				testutil.AutopahoSubscribe(t, timestamp, randomBytes, false, subDone, []byte(fmt.Sprintf("TestPubSub_Cycle%d", i)))
+				testutil.AutopahoSubscribe(t, timestamp, randomBytes, false, subDone, []byte(fmt.Sprintf("TestPubSubCipher_Cycle%d", i)))
 				wg.Done()
 			}()
 			go func() {
 				<-subDone
-				_, _, timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReqPub, true)
-				testutil.AutopahoPublish(t, timestamp, randomBytes, []byte(fmt.Sprintf("TestPubSub_Cycle%d", i)))
+				encKey, numTokensRemained, timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReqPub, true)
+				encryptedMsg := testutil.SealMessage(t, cipherType, encKey, uint16(numTokensRemained), []byte(fmt.Sprintf("TestPubSubCipher_Cycle%d", i)))
+				testutil.AutopahoPublish(t, timestamp, randomBytes, encryptedMsg)
 				wg.Done()
 			}()
 			wg.Wait()
@@ -87,24 +91,26 @@ func TestPubSub_Cycle(t *testing.T) {
 	testutil.RemoveTokenFile(topic, *fetchReqPub)
 }
 
-func TestPubSub_OneToken_Single(t *testing.T) {
+func TestPubSubCipher_OneToken_Single(t *testing.T) {
 	topic := testutil.SAMPLE_TOPIC_PUBSUB
+	cipherType := tokenmgr.PAYLOAD_CIPHER_AES_128_GCM_SHA256
 	expired := make(chan struct{})
 	subDone := make(chan struct{})
 	done := make(chan struct{})
-	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessPubSub, tokenmgr.PAYLOAD_CIPHER_NONE)
+	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessPubSub, cipherType)
 	go func() {
 		var wg sync.WaitGroup
 		wg.Add(2)
 		go func() {
 			_, _, timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReq, true)
-			testutil.AutopahoSubscribe(t, timestamp, randomBytes, false, subDone, []byte("TestPubSub_OneToken_Single"))
+			testutil.AutopahoSubscribe(t, timestamp, randomBytes, false, subDone, []byte("TestPubSubCipher_OneToken_Single"))
 			wg.Done()
 		}()
 		go func() {
 			<-subDone
-			_, _, timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReq, true)
-			testutil.AutopahoPublish(t, timestamp, randomBytes, []byte("TestPubSub_OneToken_Single"))
+			encKey, numTokensRemained, timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReq, true)
+			encryptedMsg := testutil.SealMessage(t, cipherType, encKey, uint16(numTokensRemained), []byte("TestPubSubCipher_OneToken_Single"))
+			testutil.AutopahoPublish(t, timestamp, randomBytes, encryptedMsg)
 			wg.Done()
 		}()
 		wg.Wait()
@@ -121,9 +127,10 @@ func TestPubSub_OneToken_Single(t *testing.T) {
 	}
 }
 
-func TestPubSub_OneToken_Cycle(t *testing.T) {
+func TestPubSubCipher_OneToken_Cycle(t *testing.T) {
 	topic := testutil.SAMPLE_TOPIC_PUBSUB
-	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessPubSub, tokenmgr.PAYLOAD_CIPHER_NONE)
+	cipherType := tokenmgr.PAYLOAD_CIPHER_AES_128_GCM_SHA256
+	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessPubSub, cipherType)
 	testutil.RemoveTokenFile(topic, *fetchReq)
 	for i := 0; i < int(fetchReq.NumTokens); i++ {
 		expired := make(chan struct{})
@@ -134,13 +141,14 @@ func TestPubSub_OneToken_Cycle(t *testing.T) {
 			wg.Add(2)
 			go func() {
 				_, _, timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReq, true)
-				testutil.AutopahoSubscribe(t, timestamp, randomBytes, false, subDone, []byte(fmt.Sprintf("TestPubSub_OneToken_Cycle%d", i)))
+				testutil.AutopahoSubscribe(t, timestamp, randomBytes, false, subDone, []byte(fmt.Sprintf("TestPubSubCipher_OneToken_Cycle%d", i)))
 				wg.Done()
 			}()
 			go func() {
 				<-subDone
-				_, _, timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReq, true)
-				testutil.AutopahoPublish(t, timestamp, randomBytes, []byte(fmt.Sprintf("TestPubSub_OneToken_Cycle%d", i)))
+				encKey, numTokensRemained, timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReq, true)
+				encryptedMsg := testutil.SealMessage(t, cipherType, encKey, uint16(numTokensRemained), []byte(fmt.Sprintf("TestPubSubCipher_OneToken_Cycle%d", i)))
+				testutil.AutopahoPublish(t, timestamp, randomBytes, encryptedMsg)
 				wg.Done()
 			}()
 			wg.Wait()

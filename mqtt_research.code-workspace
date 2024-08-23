@@ -8,6 +8,9 @@
     },
     {
       "path": "esp32/esp32-tokenmgr/test"
+    },
+    {
+      "path": "esp32/esp32-tokenmgr/benchmark"
     }
   ],
   "settings": {
