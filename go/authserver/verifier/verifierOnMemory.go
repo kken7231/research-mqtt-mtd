@@ -3,17 +3,30 @@
 package verifier
 
 import (
-	"go/authserver/types"
+	"mqttmtd/consts"
+	"mqttmtd/types"
 )
 
-func popTokenAndRefreshToken(atl *types.AuthTokenList, previous *types.ATLEntry, entry *types.ATLEntry, buf *[]byte) (err error) {
-	if entry.NumRemainingTokens == 0 {
-		atl.RemoveEntry(previous)
-		(*buf)[0] = byte(types.VerfSuccessReloadNeeded)
+func refreshCurrentValidRandomBytes(atl *types.AuthTokenList, entry *types.ATLEntry) (resultCode types.VerificationResultCode, err error) {
+	if entry.CurrentValidRandomBytesIdx+1 >= entry.RandomBytesLen {
+		atl.Lock()
+		atl.Remove(entry)
+		atl.Unlock()
+		if entry.PayloadCipherType.IsValidCipherType() {
+			resultCode = types.VerfSuccessEncKeyReloadNeeded
+		} else {
+			resultCode = types.VerfSuccessReloadNeeded
+		}
 	} else {
-		entry.RandomBytesIndex++
-		entry.NumRemainingTokens--
-		(*buf)[0] = byte(types.VerfSuccess)
+		atl.Lock()
+		entry.CurrentValidRandomBytesIdx++
+		entry.CurrentValidRandomBytes = entry.AllRandomBytes[entry.CurrentValidRandomBytesIdx*consts.RANDOM_BYTES_LEN : (entry.CurrentValidRandomBytesIdx+1)*consts.RANDOM_BYTES_LEN]
+		atl.Unlock()
+		if entry.PayloadCipherType.IsValidCipherType() {
+			resultCode = types.VerfSuccessEncKey
+		} else {
+			resultCode = types.VerfSuccess
+		}
 	}
 	return
 }

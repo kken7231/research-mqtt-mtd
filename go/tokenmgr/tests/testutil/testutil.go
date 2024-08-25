@@ -3,16 +3,12 @@ package testutil
 import (
 	"bytes"
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/sha256"
-	"crypto/sha512"
 	"encoding/base64"
-	"encoding/binary"
 	"fmt"
-	"go/common"
-	"go/tokenmgr"
-	"net"
+	"mqttmtd/config"
+	"mqttmtd/consts"
+	"mqttmtd/tokenmgr"
+	"mqttmtd/types"
 	"net/url"
 	"os"
 	"reflect"
@@ -24,7 +20,6 @@ import (
 
 	"github.com/eclipse/paho.golang/autopaho"
 	"github.com/eclipse/paho.golang/paho"
-	"golang.org/x/crypto/chacha20poly1305"
 )
 
 const (
@@ -37,13 +32,9 @@ const (
 	// else (like docker)
 	ADDR_MQTT_INTERFACE string = "mqtt://server:1883"
 
-	CA_CRT     string = "/mqttmtd/certs/ca/ca.pem"
-	CLIENT_CRT string = "/mqttmtd/certs/client/client.pem"
-	CLIENT_KEY string = "/mqttmtd/certs/client/client.key"
-
-	// CA_CRT     string = "/Users/kentarou/git/research-mqtt-mtd/src/certs/ca/ca.crt"
-	// CLIENT_CRT string = "/Users/kentarou/git/research-mqtt-mtd/src/certs/clients/client1.crt"
-	// CLIENT_KEY string = "/Users/kentarou/git/research-mqtt-mtd/src/certs/clients/client1.key"
+	// CONFIG_FILEPATH string = "/Users/kentarou/git/research-mqtt-mtd/go/config/client_conf.yml"
+	// CONFIG_FILEPATH string = "/Users/kentarou/git/research-mqtt-mtd/go/config/client_conf.yml"
+	CONFIG_FILEPATH string = "/mqttmtd/config/client_conf.yml"
 )
 
 var (
@@ -52,14 +43,6 @@ var (
 
 func SetNumTokens(numTokens uint16) {
 	NumTokens = numTokens
-}
-
-func ConnRead(conn net.Conn, dst *[]byte, timeout time.Duration) (n int, err error) {
-	return common.ConnReadBase(conn, dst, timeout)
-}
-
-func ConnWrite(conn net.Conn, data []byte, timeout time.Duration) (n int, err error) {
-	return common.ConnWriteBase(conn, data, timeout)
 }
 
 func Fatal(tb testing.TB, err error) {
@@ -151,93 +134,37 @@ func PrintResults(results map[string]*testing.BenchmarkResult) {
 	}
 }
 
-func PrepareFetchReq(accessType tokenmgr.AccessType, payloadEnc tokenmgr.PayloadCipherType) (fetchReq *tokenmgr.FetchRequest) {
+func PrepareFetchReq(accessTypeIsPub bool, cipherType types.PayloadCipherType) (fetchReq *tokenmgr.FetchRequest) {
 	fetchReq = &tokenmgr.FetchRequest{
 		NumTokens:         NumTokens,
-		AccessType:        accessType,
-		CaCrt:             CA_CRT,
-		ClientCrt:         CLIENT_CRT,
-		ClientKey:         CLIENT_KEY,
-		PayloadCipherType: payloadEnc,
+		AccessTypeIsPub:   accessTypeIsPub,
+		PayloadCipherType: cipherType,
 	}
 	return
 }
 
-func SealMessage(tb testing.TB, cipherType tokenmgr.PayloadCipherType, encKey []byte, numTokensRemained uint16, msg []byte) (sealed []byte) {
-	if b, ok := tb.(*testing.B); ok {
-		b.StartTimer()
-	}
-	var (
-		hashComputed []byte
-		nonce        []byte
-		encrypted    []byte
-	)
-	// Hash
-	switch cipherType {
-	case tokenmgr.PAYLOAD_CIPHER_AES_128_GCM_SHA256:
-		fallthrough
-	case tokenmgr.PAYLOAD_CIPHER_CHACHA20_POLY1305_SHA256:
-		fallthrough
-	case tokenmgr.PAYLOAD_CIPHER_AES_128_CCM_SHA256:
-		hash := sha256.New()
-		hash.Write([]byte(msg))
-		hashComputed = hash.Sum(nil)
-	case tokenmgr.PAYLOAD_CIPHER_AES_256_GCM_SHA384:
-		hash := sha512.New384()
-		hash.Write([]byte(msg))
-		hashComputed = hash.Sum(nil)
-	}
-
-	// Encryption
-	switch cipherType {
-	case tokenmgr.PAYLOAD_CIPHER_AES_128_GCM_SHA256:
-		fallthrough
-	case tokenmgr.PAYLOAD_CIPHER_AES_128_CCM_SHA256:
-		fallthrough
-	case tokenmgr.PAYLOAD_CIPHER_AES_256_GCM_SHA384:
-		var (
-			block  cipher.Block
-			aesGCM cipher.AEAD
-		)
-		block, err := aes.NewCipher(encKey)
-		if err != nil {
-			Fatal(tb, err)
-		}
-		aesGCM, err = cipher.NewGCM(block)
-		if err != nil {
-			Fatal(tb, err)
-		}
-		nonce = make([]byte, aesGCM.NonceSize())
-		binary.BigEndian.PutUint64(nonce, uint64(tokenmgr.NONCE_BASE)+uint64(numTokensRemained))
-		encrypted = aesGCM.Seal(nil, nonce, msg, nil)
-	case tokenmgr.PAYLOAD_CIPHER_CHACHA20_POLY1305_SHA256:
-		var (
-			c20p1305 cipher.AEAD
-		)
-		c20p1305, err := chacha20poly1305.New(encKey)
-		if err != nil {
-			Fatal(tb, err)
-		}
-		nonce = make([]byte, c20p1305.NonceSize())
-		binary.BigEndian.PutUint64(nonce, uint64(tokenmgr.NONCE_BASE)+uint64(numTokensRemained))
-		encrypted = c20p1305.Seal(nil, nonce, encrypted, nil)
-	}
-
-	sealed = make([]byte, len(hashComputed)+len(encrypted))
-	copy(sealed[:len(hashComputed)], hashComputed)
-	copy(sealed[len(hashComputed):], encrypted)
-	if b, ok := tb.(*testing.B); ok {
-		b.StopTimer()
+func sealMessage(tb testing.TB, cipherType types.PayloadCipherType, encKey []byte, tokenIndex uint16, msg []byte) (sealed []byte) {
+	var err error
+	if sealed, err = cipherType.SealMessage(msg, encKey, uint64(tokenIndex)); err != nil {
+		Fatal(tb, err)
 	}
 	return
 }
 
-func AutopahoPublish(tb testing.TB, timestamp []byte, randomBytes []byte, msg []byte) {
+func openMessage(tb testing.TB, cipherType types.PayloadCipherType, encKey []byte, pubSeqNum uint64, sealedMsg []byte) (opened []byte) {
+	var err error
+	if opened, err = cipherType.OpenMessage(sealedMsg, encKey, pubSeqNum); err != nil {
+		Fatal(tb, err)
+	}
+	return
+}
+
+func AutopahoPublish(tb testing.TB, token []byte, msg []byte, cipherType types.PayloadCipherType, encKey []byte, tokenIndex uint16) {
 	if b, ok := tb.(*testing.B); ok {
 		b.StartTimer()
 	}
-	b64Encoded := make([]byte, tokenmgr.TOKEN_SIZE/3*4)
-	base64.StdEncoding.Encode(b64Encoded, append(timestamp, randomBytes...))
+	b64Encoded := make([]byte, consts.TOKEN_SIZE/3*4)
+	base64.StdEncoding.Encode(b64Encoded, token)
 
 	if b, ok := tb.(*testing.B); ok {
 		b.StopTimer()
@@ -297,14 +224,28 @@ func AutopahoPublish(tb testing.TB, timestamp []byte, randomBytes []byte, msg []
 		return
 	}
 
-	// Publish a test message (use PublishViaQueue if you don't want to wait for a response)
-	if _, err = cm.Publish(ctx, &paho.Publish{
-		QoS:     0,
-		Topic:   string(b64Encoded),
-		Payload: msg,
-	}); err != nil {
-		if ctx.Err() == nil {
-			Fatal(tb, err)
+	// Publish a test message
+	if cipherType.IsValidCipherType() {
+		// Payload Cipher Enabled
+		if _, err = cm.Publish(ctx, &paho.Publish{
+			QoS:     0,
+			Topic:   string(b64Encoded),
+			Payload: sealMessage(tb, cipherType, encKey, tokenIndex, msg),
+		}); err != nil {
+			if ctx.Err() == nil {
+				Fatal(tb, err)
+			}
+		}
+	} else {
+		// Payload Cipher Disabled
+		if _, err = cm.Publish(ctx, &paho.Publish{
+			QoS:     0,
+			Topic:   string(b64Encoded),
+			Payload: msg,
+		}); err != nil {
+			if ctx.Err() == nil {
+				Fatal(tb, err)
+			}
 		}
 	}
 	fmt.Println("mqtt publish made")
@@ -313,12 +254,14 @@ func AutopahoPublish(tb testing.TB, timestamp []byte, randomBytes []byte, msg []
 	<-cm.Done() // Wait for clean shutdown (cancelling the context triggered the shutdown)
 }
 
-func AutopahoSubscribe(tb testing.TB, timestamp []byte, randomBytes []byte, isErrorExpected bool, subscribeChan chan struct{}, waitForPublish []byte) {
+func AutopahoSubscribe(tb testing.TB, token []byte, isErrorExpected bool, subscribeChan chan struct{}, waitForPublish []byte, cipherType types.PayloadCipherType, encKey []byte) {
+	var pubSeqNum uint64 = 0
+
 	if b, ok := tb.(*testing.B); ok {
 		b.StartTimer()
 	}
-	b64Encoded := make([]byte, tokenmgr.TOKEN_SIZE/3*4)
-	base64.StdEncoding.Encode(b64Encoded, append(timestamp, randomBytes...))
+	b64Encoded := make([]byte, consts.TOKEN_SIZE/3*4)
+	base64.StdEncoding.Encode(b64Encoded, token)
 
 	if b, ok := tb.(*testing.B); ok {
 		b.StopTimer()
@@ -339,6 +282,21 @@ func AutopahoSubscribe(tb testing.TB, timestamp []byte, randomBytes []byte, isEr
 		}
 	}
 	received := make(chan struct{})
+	onPublishReceivedFunc := func(pr paho.PublishReceived) (bool, error) {
+		if cipherType.IsValidCipherType() {
+			opened := openMessage(tb, cipherType, encKey, pubSeqNum, pr.Packet.Payload)
+			fmt.Printf("received sealed message on topic \"%s\"; body: %s (retain: %t)\n", pr.Packet.Topic, opened, pr.Packet.Retain)
+			if bytes.Equal(opened, waitForPublish) {
+				received <- struct{}{}
+			}
+		} else {
+			fmt.Printf("received message on topic \"%s\"; body: %s (retain: %t)\n", pr.Packet.Topic, pr.Packet.Payload, pr.Packet.Retain)
+			if bytes.Equal(pr.Packet.Payload, waitForPublish) {
+				received <- struct{}{}
+			}
+		}
+		return true, nil
+	}
 	cliCfg := autopaho.ClientConfig{
 		ServerUrls:                    []*url.URL{u},
 		KeepAlive:                     20,
@@ -347,15 +305,8 @@ func AutopahoSubscribe(tb testing.TB, timestamp []byte, randomBytes []byte, isEr
 		OnConnectionUp:                func(cm *autopaho.ConnectionManager, connAck *paho.Connack) { fmt.Println("mqtt connection up") },
 		OnConnectError:                func(err error) { fmt.Printf("error whilst attempting connection: %s\n", err) },
 		ClientConfig: paho.ClientConfig{
-			OnPublishReceived: []func(paho.PublishReceived) (bool, error){
-				func(pr paho.PublishReceived) (bool, error) {
-					fmt.Printf("received message on topic %s; body: %s (retain: %t)\n", pr.Packet.Topic, pr.Packet.Payload, pr.Packet.Retain)
-					if bytes.Equal(pr.Packet.Payload, waitForPublish) {
-						received <- struct{}{}
-					}
-					return true, nil
-				}},
-			OnClientError: onClientErrorFunc,
+			OnPublishReceived: []func(paho.PublishReceived) (bool, error){onPublishReceivedFunc},
+			OnClientError:     onClientErrorFunc,
 			OnServerDisconnect: func(d *paho.Disconnect) {
 				if d.Properties != nil {
 					fmt.Printf("server requested disconnect: %s\n", d.Properties.ReasonString)
@@ -390,7 +341,7 @@ func AutopahoSubscribe(tb testing.TB, timestamp []byte, randomBytes []byte, isEr
 	}
 
 	// Subscribe to topic
-	if _, err = cm.Subscribe(context.Background(), &paho.Subscribe{
+	if _, err = cm.Subscribe(ctx, &paho.Subscribe{
 		Subscriptions: []paho.SubscribeOptions{{
 			QoS:   0,
 			Topic: string(b64Encoded),
@@ -401,8 +352,9 @@ func AutopahoSubscribe(tb testing.TB, timestamp []byte, randomBytes []byte, isEr
 		}
 	} else if isErrorExpected {
 		Fatal(tb, err)
+	} else {
+		fmt.Println("mqtt subscription made")
 	}
-	fmt.Println("mqtt subscription made")
 	if subscribeChan != nil {
 		subscribeChan <- struct{}{}
 	}
@@ -418,26 +370,35 @@ func AutopahoSubscribe(tb testing.TB, timestamp []byte, randomBytes []byte, isEr
 	<-cm.Done() // Wait for clean shutdown (cancelling the context triggered the shutdown)
 }
 
-func RemoveTokenFile(topic string, fetchReq tokenmgr.FetchRequest) {
-	tokenFilePath := tokenmgr.TOKENS_DIR + fetchReq.AccessType.String() + base64.URLEncoding.EncodeToString(unsafe.Slice(unsafe.StringData(topic), len(topic)))
-	os.Remove(tokenFilePath)
-}
-
-func GetTokenTest(tb testing.TB, topic string, fetchReq tokenmgr.FetchRequest, expectSuccess bool) (encKey []byte, numTokensRemained int, timestamp []byte, randomBytes []byte) {
-	if _, err := os.Stat(fetchReq.CaCrt); err != nil {
-		Fatal(tb, err)
-	}
-	if _, err := os.Stat(fetchReq.ClientCrt); err != nil {
-		Fatal(tb, err)
-	}
-	if _, err := os.Stat(fetchReq.ClientKey); err != nil {
-		Fatal(tb, err)
-	}
-
+func LoadClientConfig(tb testing.TB) {
 	if b, ok := tb.(*testing.B); ok {
 		b.StartTimer()
 	}
-	encKey, numTokensRemained, timestamp, randomBytes, err := tokenmgr.GetToken(topic, fetchReq)
+	if err := config.LoadClientConfig(CONFIG_FILEPATH); err != nil {
+		Fatal(tb, err)
+	}
+	if b, ok := tb.(*testing.B); ok {
+		b.StopTimer()
+	}
+}
+
+func RemoveTokenFile(topic string, fetchReq tokenmgr.FetchRequest) {
+	var accessTypeStr string
+	if fetchReq.AccessTypeIsPub {
+		accessTypeStr = "PUB"
+	} else {
+		accessTypeStr = "SUB"
+	}
+	tokenFilePath := config.Client.FilePaths.TokensDirPath + accessTypeStr + base64.URLEncoding.EncodeToString(unsafe.Slice(unsafe.StringData(topic), len(topic)))
+	os.Remove(tokenFilePath)
+}
+
+func GetTokenTest(tb testing.TB, topic string, fetchReq tokenmgr.FetchRequest, expectSuccess bool) (encKey []byte, tokenIndex uint16, token []byte) {
+	if b, ok := tb.(*testing.B); ok {
+		b.StartTimer()
+	}
+	var err error
+	encKey, tokenIndex, token, err = tokenmgr.GetToken(topic, fetchReq)
 	if b, ok := tb.(*testing.B); ok {
 		b.StopTimer()
 	}
@@ -445,7 +406,7 @@ func GetTokenTest(tb testing.TB, topic string, fetchReq tokenmgr.FetchRequest, e
 		if err != nil {
 			Fatal(tb, err)
 		}
-		if len(timestamp) != tokenmgr.TIMESTAMP_LEN || len(randomBytes) != tokenmgr.RANDOM_BYTES_LEN {
+		if len(token) != consts.TOKEN_SIZE {
 			Fatal(tb, fmt.Errorf("length invalid"))
 		}
 		if (fetchReq.PayloadCipherType.IsValidCipherType() && encKey == nil) || (!fetchReq.PayloadCipherType.IsValidCipherType() && encKey != nil) {
@@ -453,8 +414,7 @@ func GetTokenTest(tb testing.TB, topic string, fetchReq tokenmgr.FetchRequest, e
 		}
 		return
 	} else {
-		if err == nil && len(timestamp) == tokenmgr.TIMESTAMP_LEN &&
-			len(randomBytes) == tokenmgr.RANDOM_BYTES_LEN &&
+		if err == nil && len(token) == consts.TOKEN_SIZE &&
 			((fetchReq.PayloadCipherType.IsValidCipherType() && encKey != nil) || (!fetchReq.PayloadCipherType.IsValidCipherType() && encKey == nil)) {
 			Fatal(tb, fmt.Errorf("no error observed"))
 		}

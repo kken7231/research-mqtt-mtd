@@ -2,8 +2,8 @@ package t02publish
 
 import (
 	"fmt"
-	"go/tokenmgr"
-	"go/tokenmgr/tests/testutil"
+	"mqttmtd/tokenmgr/tests/testutil"
+	"mqttmtd/types"
 	"testing"
 )
 
@@ -15,28 +15,31 @@ var Benchmarks = []func(*testing.B){
 
 func BenchmarkPublish_Single(b *testing.B) {
 	topic := testutil.SAMPLE_TOPIC_PUB
-	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessPub, tokenmgr.PAYLOAD_CIPHER_NONE)
+	testutil.LoadClientConfig(b)
+	fetchReq := testutil.PrepareFetchReq(true, types.PAYLOAD_CIPHER_NONE)
 	b.StopTimer()
-	_, _, timestamp, randomBytes := testutil.GetTokenTest(b, topic, *fetchReq, true)
-	testutil.AutopahoPublish(b, timestamp, randomBytes, []byte("BenchmarkPublish_Single"))
+	_, _, token := testutil.GetTokenTest(b, topic, *fetchReq, true)
+	testutil.AutopahoPublish(b, token, []byte("BenchmarkPublish_Single"), types.PAYLOAD_CIPHER_NONE, nil, 0)
 }
 
 func BenchmarkPublish_SubToken_Single(b *testing.B) {
 	topic := testutil.SAMPLE_TOPIC_SUB
-	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessSub, tokenmgr.PAYLOAD_CIPHER_NONE)
+	testutil.LoadClientConfig(b)
+	fetchReq := testutil.PrepareFetchReq(false, types.PAYLOAD_CIPHER_NONE)
 	b.StopTimer()
-	_, _, timestamp, randomBytes := testutil.GetTokenTest(b, topic, *fetchReq, true)
-	testutil.AutopahoPublish(b, timestamp, randomBytes, []byte("BenchmarkPublish_SubToken_Single"))
+	_, _, token := testutil.GetTokenTest(b, topic, *fetchReq, true)
+	testutil.AutopahoPublish(b, token, []byte("BenchmarkPublish_SubToken_Single"), types.PAYLOAD_CIPHER_NONE, nil, 0)
 }
 
 func BenchmarkPublish_Cycle(b *testing.B) {
 	topic := testutil.SAMPLE_TOPIC_PUB
-	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessPub, tokenmgr.PAYLOAD_CIPHER_NONE)
+	testutil.LoadClientConfig(b)
+	fetchReq := testutil.PrepareFetchReq(true, types.PAYLOAD_CIPHER_NONE)
 	b.StopTimer()
 	testutil.RemoveTokenFile(topic, *fetchReq)
 	for i := 0; i < int(fetchReq.NumTokens); i++ {
-		_, _, timestamp, randomBytes := testutil.GetTokenTest(b, topic, *fetchReq, true)
-		testutil.AutopahoPublish(b, timestamp, randomBytes, []byte(fmt.Sprintf("BenchmarkPublish_Cycle%d", i)))
+		_, _, token := testutil.GetTokenTest(b, topic, *fetchReq, true)
+		testutil.AutopahoPublish(b, token, []byte(fmt.Sprintf("BenchmarkPublish_Cycle%d", i)), types.PAYLOAD_CIPHER_NONE, nil, 0)
 	}
 	testutil.RemoveTokenFile(topic, *fetchReq)
 }

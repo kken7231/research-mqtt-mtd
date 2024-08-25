@@ -2,8 +2,8 @@ package t04pubsub
 
 import (
 	"fmt"
-	"go/tokenmgr"
-	"go/tokenmgr/tests/testutil"
+	"mqttmtd/tokenmgr/tests/testutil"
+	"mqttmtd/types"
 	"sync"
 	"testing"
 	"time"
@@ -16,20 +16,21 @@ func TestPubSub_Single(t *testing.T) {
 	expired := make(chan struct{})
 	subDone := make(chan struct{})
 	done := make(chan struct{})
+	testutil.LoadClientConfig(t)
+	fetchReqSub := testutil.PrepareFetchReq(false, types.PAYLOAD_CIPHER_NONE)
+	fetchReqPub := testutil.PrepareFetchReq(true, types.PAYLOAD_CIPHER_NONE)
 	go func() {
 		var wg sync.WaitGroup
 		wg.Add(2)
 		go func() {
-			fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessSub, tokenmgr.PAYLOAD_CIPHER_NONE)
-			_, _, timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReq, true)
-			testutil.AutopahoSubscribe(t, timestamp, randomBytes, false, subDone, []byte("TestPubSub_Single"))
+			_, _, token := testutil.GetTokenTest(t, topic, *fetchReqSub, true)
+			testutil.AutopahoSubscribe(t, token, false, subDone, []byte("TestPubSub_Single"), types.PAYLOAD_CIPHER_NONE, nil)
 			wg.Done()
 		}()
 		go func() {
 			<-subDone
-			fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessPub, tokenmgr.PAYLOAD_CIPHER_NONE)
-			_, _, timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReq, true)
-			testutil.AutopahoPublish(t, timestamp, randomBytes, []byte("TestPubSub_Single"))
+			_, _, token := testutil.GetTokenTest(t, topic, *fetchReqPub, true)
+			testutil.AutopahoPublish(t, token, []byte("TestPubSub_Single"), types.PAYLOAD_CIPHER_NONE, nil, 0)
 			wg.Done()
 		}()
 		wg.Wait()
@@ -48,8 +49,9 @@ func TestPubSub_Single(t *testing.T) {
 
 func TestPubSub_Cycle(t *testing.T) {
 	topic := testutil.SAMPLE_TOPIC_PUBSUB
-	fetchReqSub := testutil.PrepareFetchReq(tokenmgr.AccessSub, tokenmgr.PAYLOAD_CIPHER_NONE)
-	fetchReqPub := testutil.PrepareFetchReq(tokenmgr.AccessPub, tokenmgr.PAYLOAD_CIPHER_NONE)
+	testutil.LoadClientConfig(t)
+	fetchReqSub := testutil.PrepareFetchReq(false, types.PAYLOAD_CIPHER_NONE)
+	fetchReqPub := testutil.PrepareFetchReq(true, types.PAYLOAD_CIPHER_NONE)
 	testutil.RemoveTokenFile(topic, *fetchReqSub)
 	testutil.RemoveTokenFile(topic, *fetchReqPub)
 	for i := 0; i < int(fetchReqSub.NumTokens); i++ {
@@ -60,14 +62,14 @@ func TestPubSub_Cycle(t *testing.T) {
 			var wg sync.WaitGroup
 			wg.Add(2)
 			go func() {
-				_, _, timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReqSub, true)
-				testutil.AutopahoSubscribe(t, timestamp, randomBytes, false, subDone, []byte(fmt.Sprintf("TestPubSub_Cycle%d", i)))
+				_, _, token := testutil.GetTokenTest(t, topic, *fetchReqSub, true)
+				testutil.AutopahoSubscribe(t, token, false, subDone, []byte(fmt.Sprintf("TestPubSub_Cycle%d", i)), types.PAYLOAD_CIPHER_NONE, nil)
 				wg.Done()
 			}()
 			go func() {
 				<-subDone
-				_, _, timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReqPub, true)
-				testutil.AutopahoPublish(t, timestamp, randomBytes, []byte(fmt.Sprintf("TestPubSub_Cycle%d", i)))
+				_, _, token := testutil.GetTokenTest(t, topic, *fetchReqPub, true)
+				testutil.AutopahoPublish(t, token, []byte(fmt.Sprintf("TestPubSub_Cycle%d", i)), types.PAYLOAD_CIPHER_NONE, nil, 0)
 				wg.Done()
 			}()
 			wg.Wait()
@@ -85,76 +87,4 @@ func TestPubSub_Cycle(t *testing.T) {
 	}
 	testutil.RemoveTokenFile(topic, *fetchReqSub)
 	testutil.RemoveTokenFile(topic, *fetchReqPub)
-}
-
-func TestPubSub_OneToken_Single(t *testing.T) {
-	topic := testutil.SAMPLE_TOPIC_PUBSUB
-	expired := make(chan struct{})
-	subDone := make(chan struct{})
-	done := make(chan struct{})
-	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessPubSub, tokenmgr.PAYLOAD_CIPHER_NONE)
-	go func() {
-		var wg sync.WaitGroup
-		wg.Add(2)
-		go func() {
-			_, _, timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReq, true)
-			testutil.AutopahoSubscribe(t, timestamp, randomBytes, false, subDone, []byte("TestPubSub_OneToken_Single"))
-			wg.Done()
-		}()
-		go func() {
-			<-subDone
-			_, _, timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReq, true)
-			testutil.AutopahoPublish(t, timestamp, randomBytes, []byte("TestPubSub_OneToken_Single"))
-			wg.Done()
-		}()
-		wg.Wait()
-		done <- struct{}{}
-	}()
-	go func() {
-		time.Sleep(time.Second * 10)
-		expired <- struct{}{}
-	}()
-	select {
-	case <-expired:
-		t.Fatal()
-	case <-done:
-	}
-}
-
-func TestPubSub_OneToken_Cycle(t *testing.T) {
-	topic := testutil.SAMPLE_TOPIC_PUBSUB
-	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessPubSub, tokenmgr.PAYLOAD_CIPHER_NONE)
-	testutil.RemoveTokenFile(topic, *fetchReq)
-	for i := 0; i < int(fetchReq.NumTokens); i++ {
-		expired := make(chan struct{})
-		subDone := make(chan struct{})
-		done := make(chan struct{})
-		go func() {
-			var wg sync.WaitGroup
-			wg.Add(2)
-			go func() {
-				_, _, timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReq, true)
-				testutil.AutopahoSubscribe(t, timestamp, randomBytes, false, subDone, []byte(fmt.Sprintf("TestPubSub_OneToken_Cycle%d", i)))
-				wg.Done()
-			}()
-			go func() {
-				<-subDone
-				_, _, timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReq, true)
-				testutil.AutopahoPublish(t, timestamp, randomBytes, []byte(fmt.Sprintf("TestPubSub_OneToken_Cycle%d", i)))
-				wg.Done()
-			}()
-			wg.Wait()
-			done <- struct{}{}
-		}()
-		go func() {
-			time.Sleep(time.Second * 10)
-			expired <- struct{}{}
-		}()
-		select {
-		case <-expired:
-			t.Fatal()
-		case <-done:
-		}
-	}
-	testutil.RemoveTokenFile(topic, *fetchReq)
 }

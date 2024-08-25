@@ -7,7 +7,9 @@ import (
 	"log"
 	"unsafe"
 
-	"go/tokenmgr"
+	"mqttmtd/consts"
+	"mqttmtd/tokenmgr"
+	"mqttmtd/types"
 )
 
 const (
@@ -39,11 +41,8 @@ func main() {
 	returnOnlyToken := *flag.Bool("tokenonly", false, "Prints only the token if true, otherwise prints all")
 	b64 := *flag.Bool("b64", false, "Prints Base64-encoded token, otherwise hex")
 	ntokens := *flag.Int("ntokens", -1, "Number of tokens to be generated")
-	requestAccessType := *flag.String("reqtype", "", "PUB for pub, SUB for sub, PUBSUB for both")
+	requestAccessType := *flag.String("reqtype", "", "PUB for pub, SUB for sub")
 	topic := *flag.String("topic", "", "MQTT topic name")
-	cacrt := *flag.String("cacrt", DEFAULT_CA_CRTFILE, "CA .crt file")
-	clicrt := *flag.String("clicrt", DEFAULT_CLIENT_CRTFILE, "Client .crt file")
-	clikey := *flag.String("clikey", DEFAULT_CLIENT_KEYFILE, "Client .key file")
 	flag.Parse()
 
 	// if returnOnlyToken {
@@ -52,14 +51,12 @@ func main() {
 	if ntokens < TOKEN_NUM_MULTIPLIER || 0x1F*TOKEN_NUM_MULTIPLIER < ntokens || ntokens%TOKEN_NUM_MULTIPLIER != 0 {
 		log.Fatalf("Invalid number of token generation. It must be between [%d, 0x1F*%d] and multiples of %d\n", TOKEN_NUM_MULTIPLIER, TOKEN_NUM_MULTIPLIER, TOKEN_NUM_MULTIPLIER)
 	}
-	var reqAccessType tokenmgr.AccessType
+	var reqAccessType bool
 	switch requestAccessType {
 	case "PUB":
-		reqAccessType = tokenmgr.AccessPub
+		reqAccessType = true
 	case "SUB":
-		reqAccessType = tokenmgr.AccessSub
-	case "PUBSUB":
-		reqAccessType = tokenmgr.AccessPubSub
+		reqAccessType = false
 	default:
 		log.Fatalln("Invalid access type requested. It must be either PUB, SUB or PUBSUB.")
 	}
@@ -68,25 +65,20 @@ func main() {
 	}
 
 	fetchReq := &tokenmgr.FetchRequest{
-		NumTokens:  uint16(ntokens),
-		AccessType: reqAccessType,
-		CaCrt:      cacrt,
-		ClientCrt:  clicrt,
-		ClientKey:  clikey,
+		NumTokens:         uint16(ntokens),
+		AccessTypeIsPub:   reqAccessType,
+		PayloadCipherType: types.PAYLOAD_CIPHER_NONE,
 	}
-	_, _, timestamp, randomBytes, err := tokenmgr.GetToken(topic, *fetchReq)
+	_, _, token, err := tokenmgr.GetToken(topic, *fetchReq)
 	if err != nil {
 		log.Fatal(err)
 	}
-	token := make([]byte, tokenmgr.TIMESTAMP_LEN+tokenmgr.RANDOM_BYTES_LEN)
-	copy(token, timestamp)
-	copy(token[tokenmgr.TIMESTAMP_LEN:], randomBytes)
 
 	var tokenStr string
 	if b64 {
 		tokenStr = base64.RawURLEncoding.EncodeToString(token)
 	} else {
-		tokenStrBytes := make([]byte, (tokenmgr.TIMESTAMP_LEN+tokenmgr.RANDOM_BYTES_LEN)*2)
+		tokenStrBytes := make([]byte, (consts.TIMESTAMP_LEN+consts.RANDOM_BYTES_LEN)*2)
 		var buf [2]byte
 		for i, b := range token {
 			formatByteToCappedAsciis(b, buf)

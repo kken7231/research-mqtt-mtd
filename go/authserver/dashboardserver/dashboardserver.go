@@ -3,9 +3,9 @@ package dashboardserver
 import (
 	"encoding/hex"
 	"fmt"
-	"go/authserver/consts"
-	"go/authserver/types"
 	"html/template"
+	"mqttmtd/config"
+	"mqttmtd/types"
 	"net/http"
 	"sort"
 	"strconv"
@@ -89,8 +89,8 @@ func Run(acl *types.AccessControlList, atl *types.AuthTokenList) {
 	myAcl = acl
 	myAtl = atl
 	http.HandleFunc("/", httpServerHandler)
-	fmt.Println("Starting dashboard server at ", consts.LADDR_HTTPSERVER)
-	if err := http.ListenAndServe(consts.LADDR_HTTPSERVER, nil); err != nil {
+	fmt.Println("Starting dashboard server at port ", config.Server.Ports.Dashboard)
+	if err := http.ListenAndServe(fmt.Sprintf(":%d", config.Server.Ports.Dashboard), nil); err != nil {
 		fmt.Println("Error starting server: ", err)
 	}
 }
@@ -137,13 +137,19 @@ func httpServerHandler(w http.ResponseWriter, req *http.Request) {
 		atlTbl.Headers = []string{"INDEX", "TIMESTAMP", "RANDOM_BYTES", "NUM_REMAINING_TOKENS", "CLIENT_NAME", "ACCESS_TYPE", "TOPIC"}
 		atlTbl.Rows = [][]string{}
 		myAtl.ForEachEntry(func(i int, entry *types.ATLEntry) {
+			var accessTypeStr string
+			if entry.AccessTypeIsPub {
+				accessTypeStr = "Pub"
+			} else {
+				accessTypeStr = "Sub"
+			}
 			newRow := []string{
 				strconv.FormatInt(int64(i)+1, 10),
 				hex.EncodeToString(entry.Timestamp[:]),
-				hex.EncodeToString(entry.RandomBytes[:]),
-				strconv.FormatInt(int64(entry.NumRemainingTokens), 10),
+				hex.EncodeToString(entry.AllRandomBytes[:]),
+				strconv.FormatInt(int64(entry.CurrentValidRandomBytesIdx), 10),
 				unsafe.String(unsafe.SliceData(entry.ClientName), len(entry.ClientName)),
-				entry.AccessType.String(),
+				accessTypeStr,
 				unsafe.String(unsafe.SliceData(entry.Topic), len(entry.Topic)),
 			}
 			atlTbl.Rows = append(atlTbl.Rows, newRow)

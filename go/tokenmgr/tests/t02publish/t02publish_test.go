@@ -2,8 +2,8 @@ package t02publish
 
 import (
 	"fmt"
-	"go/tokenmgr"
-	"go/tokenmgr/tests/testutil"
+	"mqttmtd/tokenmgr/tests/testutil"
+	"mqttmtd/types"
 	"testing"
 )
 
@@ -11,25 +11,28 @@ import (
 // go test -x -v
 func TestPublish_Single(t *testing.T) {
 	topic := testutil.SAMPLE_TOPIC_PUB
-	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessPub, tokenmgr.PAYLOAD_CIPHER_NONE)
-	_, _, timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReq, true)
-	testutil.AutopahoPublish(t, timestamp, randomBytes, []byte("TestPublish_Single"))
+	testutil.LoadClientConfig(t)
+	fetchReq := testutil.PrepareFetchReq(true, types.PAYLOAD_CIPHER_NONE)
+	_, _, token := testutil.GetTokenTest(t, topic, *fetchReq, true)
+	testutil.AutopahoPublish(t, token, []byte("TestPublish_Single"), types.PAYLOAD_CIPHER_NONE, nil, 0)
 }
 
 func TestPublish_SubToken_Single(t *testing.T) {
 	topic := testutil.SAMPLE_TOPIC_SUB
-	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessSub, tokenmgr.PAYLOAD_CIPHER_NONE)
-	_, _, timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReq, true)
-	testutil.AutopahoPublish(t, timestamp, randomBytes, []byte("TestPublish_SubToken_Single"))
+	testutil.LoadClientConfig(t)
+	fetchReq := testutil.PrepareFetchReq(false, types.PAYLOAD_CIPHER_NONE)
+	_, _, token := testutil.GetTokenTest(t, topic, *fetchReq, true)
+	testutil.AutopahoPublish(t, token, []byte("TestPublish_SubToken_Single"), types.PAYLOAD_CIPHER_NONE, nil, 0)
 }
 
 func TestPublish_Cycle(t *testing.T) {
 	topic := testutil.SAMPLE_TOPIC_PUB
-	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessPub, tokenmgr.PAYLOAD_CIPHER_NONE)
+	testutil.LoadClientConfig(t)
+	fetchReq := testutil.PrepareFetchReq(true, types.PAYLOAD_CIPHER_NONE)
 	testutil.RemoveTokenFile(topic, *fetchReq)
 	for i := 0; i < int(fetchReq.NumTokens); i++ {
-		_, _, timestamp, randomBytes := testutil.GetTokenTest(t, topic, *fetchReq, true)
-		testutil.AutopahoPublish(t, timestamp, randomBytes, []byte(fmt.Sprintf("TestPublish_Cycle%d", i)))
+		_, _, token := testutil.GetTokenTest(t, topic, *fetchReq, true)
+		testutil.AutopahoPublish(t, token, []byte(fmt.Sprintf("TestPublish_Cycle%d", i)), types.PAYLOAD_CIPHER_NONE, nil, 0)
 	}
 	testutil.RemoveTokenFile(topic, *fetchReq)
 }

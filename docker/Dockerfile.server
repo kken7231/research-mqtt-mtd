@@ -18,6 +18,7 @@ COPY --chmod=444 ./mosquitto_config/ /mosquitto/config/
 RUN chmod 0700 /mosquitto/config/acl.acl
 RUN chmod 0700 /mosquitto/config/dhparam.pem
 COPY --chmod=444 ./mqttmtd_config/   /mqttmtd/config/
+RUN mv /mqttmtd/config/server_conf_docker.yml /mqttmtd/config/server_conf.yml 
 COPY --chmod=444 ./certs/ca/         /mqttmtd/certs/ca/
 COPY --chmod=444 ./certs/server/     /mqttmtd/certs/server/
 

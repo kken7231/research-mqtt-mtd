@@ -36,6 +36,7 @@ chmod 0700 "$MQTTENV_DIR/mosquitto/config/acl.acl"
 chmod 0700 "$MQTTENV_DIR/mosquitto/config/dhparam.pem"
 
 cp -r "$GIT_ROOT/mqttmtd_config/" "$MQTTENV_DIR/mqttmtd/config/"
+sed -e "s|{{MQTTENV_DIR}}|$MQTTENV_DIR|g" "$MQTTENV_DIR/mqttmtd/config/server_conf_nondocker_template.yml" > "$MQTTENV_DIR/mosquitto/config/server_conf.yml"
 # chmod 0444 "$MQTTENV_DIR/mqttmtd/config/."
 
 cp -r "$GIT_ROOT/certs/ca/" "$MQTTENV_DIR/mqttmtd/certs/ca/"
@@ -52,10 +53,10 @@ sudo scutil --set LocalHostName server 2>&1 | prepend_service_name "scutil      
 sleep 1
 
 # Start the auth server and log its output
-"$MQTTENV_DIR/mqttmtd/authserver" 2>&1 | prepend_service_name "authserver    " >> "$MQTTENVLOGS_DIR/combined.log" &
+"$MQTTENV_DIR/mqttmtd/authserver" -conf "$MQTTENV_DIR/mosquitto/config/server_conf.yml" 2>&1 | prepend_service_name "authserver    " >> "$MQTTENVLOGS_DIR/combined.log" &
 
 # Start the MQTT interface and log its output
-"$MQTTENV_DIR/mqttmtd/mqttinterface" 2>&1 | prepend_service_name "mqttinterface " >> "$MQTTENVLOGS_DIR/combined.log" &
+"$MQTTENV_DIR/mqttmtd/mqttinterface" -conf "$MQTTENV_DIR/mosquitto/config/server_conf.yml" 2>&1 | prepend_service_name "mqttinterface " >> "$MQTTENVLOGS_DIR/combined.log" &
 
 # Tail the combined log file to keep the container running and display the logs
 tail -f "$MQTTENVLOGS_DIR/combined.log"

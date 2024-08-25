@@ -1,26 +1,27 @@
 package main
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
-	"go/common"
+	"mqttmtd/funcs"
 	"net"
 	"time"
 )
 
-func decodeVariableByteIntegerFromConn(conn net.Conn, timeout time.Duration, done <-chan struct{}) (value int, len int, err error) {
+func decodeVariableByteIntegerFromConn(ctx context.Context, conn net.Conn, timeout time.Duration) (value int, len int, err error) {
 	ended := false
 	var i int = 0
 	buf := make([]byte, 1)
 	for i < 4 {
 		select {
-		case <-done:
-			err = fmt.Errorf("interrupted by chan")
-			return
+		case <-ctx.Done():
+			err = fmt.Errorf("decodeVariableByteIntegerFromConn interrupted by context cancel")
+			goto decodeVariableByteIntegerFromConnError
 		default:
 		}
-		if _, err = common.ConnCancellableReadBase(conn, &buf, timeout, done); err != nil {
-			return
+		if _, err = funcs.ConnRead(ctx, conn, buf, timeout); err != nil {
+			goto decodeVariableByteIntegerFromConnError
 		} else {
 			encodedByte := int(buf[0])
 			value += (encodedByte & 0x7F) << (7 * i)
@@ -33,17 +34,25 @@ func decodeVariableByteIntegerFromConn(conn net.Conn, timeout time.Duration, don
 	}
 	if !ended {
 		err = fmt.Errorf("decoding of a variable byte integer ended unexpectedly. i=%d", i)
-		value = 0
-		i = 0
+		goto decodeVariableByteIntegerFromConnError
 	}
 	len = i
 	return
+
+decodeVariableByteIntegerFromConnError:
+	value = 0
+	len = 0
+	return
 }
 
-func decodeVariableByteInteger(buf []byte) (value int, len int, err error) {
+func decodeVariableByteInteger(buf []byte) (value int, length int, err error) {
 	ended := false
 	var i int = 0
 	for i < 4 {
+		if i > len(buf)-1 {
+			err = fmt.Errorf("decoding of a variable byte integer ended because buf len too short. i=%d", i)
+			goto decodeVariableByteIntegerError
+		}
 		encodedByte := int(buf[i])
 		value += (encodedByte & 0x7F) << (7 * i)
 		i++
@@ -54,10 +63,14 @@ func decodeVariableByteInteger(buf []byte) (value int, len int, err error) {
 	}
 	if !ended {
 		err = fmt.Errorf("decoding of a variable byte integer ended unexpectedly. i=%d", i)
-		value = 0
-		i = 0
+		goto decodeVariableByteIntegerError
 	}
-	len = i
+	length = i
+	return
+
+decodeVariableByteIntegerError:
+	value = 0
+	length = 0
 	return
 }
 
@@ -128,16 +141,23 @@ type FixedHeader struct {
 	RemainingLength   int
 }
 
-func getFixedHeader(conn net.Conn, timeout time.Duration, done <-chan struct{}) (fixedHeader *FixedHeader, err error) {
+func getFixedHeader(ctx context.Context, conn net.Conn, timeout time.Duration) (fixedHeader *FixedHeader, err error) {
 	fixedHeader = &FixedHeader{}
-	var firstByte byte
-	if firstByte, err = connCancellableReadByte(conn, timeout, done); err != nil {
+	var (
+		n   int
+		buf []byte = make([]byte, 1)
+	)
+	if n, err = funcs.ConnRead(ctx, conn, buf, timeout); err != nil {
 		return
 	}
-	fixedHeader.ControlPacketType = MQTTControlPacketType(firstByte >> 4)
-	fixedHeader.Flags = firstByte & 0xF
+	if n != 1 {
+		err = fmt.Errorf("fixedHeader read nothing")
+		return
+	}
+	fixedHeader.ControlPacketType = MQTTControlPacketType(buf[0] >> 4)
+	fixedHeader.Flags = buf[0] & 0xF
 
-	remainingLength, remainingLengthLen, err := decodeVariableByteIntegerFromConn(conn, timeout, done)
+	remainingLength, remainingLengthLen, err := decodeVariableByteIntegerFromConn(ctx, conn, timeout)
 	if err != nil {
 		return
 	}

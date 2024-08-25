@@ -7,8 +7,8 @@ import (
 const (
 	// MQTTENV_DIR points to the environment root. Can be set with -ldflags '-X MQTTENV_DIR=""'
 	// MQTTENV_DIR = "/Users/kentarito/git/research-mqtt-mtd/.mqttenv"
-	// MQTTENV_DIR = "/Users/kentarou/git/research-mqtt-mtd/.mqttenv"
-	MQTTENV_DIR = "/" // if linux/docker
+	MQTTENV_DIR = "/Users/kentarou/git/research-mqtt-mtd/.mqttenv"
+	// MQTTENV_DIR = "/" // if linux/docker
 
 	DEFAULT_FILEPATH_ACL        = MQTTENV_DIR + "/mqttmtd/config/acl.yml"
 	DEFAULT_FILEPATH_TOKENS_DIR = MQTTENV_DIR + "/mqttmtd/tokens/"
