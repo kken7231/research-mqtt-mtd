@@ -21,8 +21,8 @@ const long gmtOffset_sec = 3600 * 9;  // GMT offset for Japan Standard Time (JST
 const int daylightOffset_sec = 0;
 
 // MQTT broker details
-const char* mqtt_broker = "192.168.11.16";
-const char* topic = "watts_data";
+const char* mqtt_broker = "192.168.11.31";
+const char* topic = "cli/watts";
 const int mqtt_port = 31883;
 
 char buffer[100];
@@ -84,6 +84,8 @@ void loop() {
       sprintf(buffer, "{\"ts\":%lu,\"cur\":%f,\"vol\":%f,\"pow\":%f}", (unsigned long)now, cur, vol, pow);
       Serial.println(buffer);
       client.publish(topic, buffer);
+
+      client.loop();
     }
   }
 }

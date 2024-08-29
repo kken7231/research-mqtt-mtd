@@ -18,17 +18,12 @@ import (
 )
 
 const (
-	LADDR_MQTTINTERFACE string = ":1883"
-	RADDR_VERIFIER      string = ":21883"
-	RADDR_MQTTBROKER    string = ":11883"
-	BUF_SIZE            int    = 1024
-
-	NONCE_BASE int = 123456
+	BUF_SIZE int = 1024
 )
 
 func run() {
-	fmt.Println("Starting mqtt interface server at ", LADDR_MQTTINTERFACE)
-	listener, err := net.Listen("tcp", LADDR_MQTTINTERFACE)
+	fmt.Printf("Starting mqtt interface server at port %d\n", config.Server.Ports.MqttInterface)
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Server.Ports.MqttInterface))
 	if err != nil {
 		fmt.Println("Failed to start plain listener: ", err)
 		return
@@ -46,7 +41,7 @@ func run() {
 }
 
 func communicateWithVerifier(ctx context.Context, verifierRequest types.VerifierRequest) (response types.VerifierResponse, err error) {
-	conn, err := net.Dial("tcp", RADDR_VERIFIER)
+	conn, err := net.Dial("tcp", fmt.Sprintf(":%d", config.Server.Ports.MqttInterface))
 	if err != nil {
 		fmt.Println("Error connecting To Verifier: ", err)
 		return
@@ -170,6 +165,7 @@ func clientToMqttHandler(ctx context.Context, buf []byte, incomingConn net.Conn,
 			}
 			bb.Write(contentBefore)
 
+			// TODO: disable multiple filters for now
 			for _, filterWithOption := range topicFiltersWithOptions {
 				topicFilter := filterWithOption[:len(filterWithOption)-1]
 				topicFilterOption := filterWithOption[len(filterWithOption)-1]
@@ -352,7 +348,7 @@ func mqttInterfaceHandler(incomingConn net.Conn) {
 		fmt.Printf("Closed connection with %s (client)\n", addr)
 	}()
 
-	brokerConn, err := net.Dial("tcp", RADDR_MQTTBROKER)
+	brokerConn, err := net.Dial("tcp", fmt.Sprintf(":%d", config.Server.Ports.MqttServer))
 	if err != nil {
 		fmt.Printf("Error connecting To MQTT Broker: %v\n", err)
 		return

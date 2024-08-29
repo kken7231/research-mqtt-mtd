@@ -19,9 +19,11 @@ type ServerConfig struct {
 	} `yaml:"filepaths"`
 
 	Ports struct {
-		Issuer    int `yaml:"issuer"`
-		Verifier  int `yaml:"verifier"`
-		Dashboard int `yaml:"dashboard"`
+		Issuer        int `yaml:"issuer"`
+		Verifier      int `yaml:"verifier"`
+		MqttInterface int `yaml:"mqttinterface"`
+		MqttServer    int `yaml:"mqttserver"`
+		Dashboard     int `yaml:"dashboard"`
 	} `yaml:"ports"`
 
 	Certs struct {

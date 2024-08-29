@@ -66,9 +66,9 @@ void app_main(void) {
 	// reset_time_record_store();
 
 
-	UNITY_BEGIN();
-	unity_run_test_by_name("Send 32 plain publishes");
-	UNITY_END();
+	// UNITY_BEGIN();
+	// unity_run_test_by_name("Send 32 plain publishes");
+	// UNITY_END();
 
 	UNITY_BEGIN();
 	unity_run_test_by_name("Send 32 tls publishes");

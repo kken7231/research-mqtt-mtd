@@ -6,6 +6,8 @@ services:
     ports:
       - "31883:31883"
       - "9001:9001"
+    depends_on:
+      - db
 
   python-service:
     build: ./python-service
@@ -13,6 +15,7 @@ services:
       - ./db:/db
     depends_on:
       - mosquitto
+      - db
 
   grafana:
     image: grafana/grafana

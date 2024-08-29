@@ -9,6 +9,8 @@ filepaths:
 ports:
   issuer: 18883
   verifier: 21883
+  mqttinterface: 1883
+  mqttinterface: 11883
   dashboard: 8080
 
 certs:
