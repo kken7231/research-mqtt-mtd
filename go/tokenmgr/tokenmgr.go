@@ -20,9 +20,9 @@ import (
 )
 
 type FetchRequest struct {
-	NumTokens         uint16
-	AccessTypeIsPub   bool
-	PayloadCipherType types.PayloadCipherType
+	NumTokens       uint16
+	AccessTypeIsPub bool
+	PayloadAEADType types.PayloadAEADType
 }
 
 func saveTokenInfo(issuerRequest types.IssuerRequest, issuerResponse types.IssuerResponse, tokenFilePath string) (err error) {
@@ -47,13 +47,13 @@ func saveTokenInfo(issuerRequest types.IssuerRequest, issuerResponse types.Issue
 		}
 	}()
 
-	// Payload Cipher
+	// Payload AEAD
 	buf := make([]byte, 2)
-	binary.BigEndian.PutUint16(buf, uint16(issuerRequest.PayloadCipherType))
-	if _, err = tokenFile.Write(buf); err != nil {
-		return fmt.Errorf("failed writing cipherFlag: %v", err)
+	buf[0] = byte(issuerRequest.PayloadAEADType)
+	if _, err = tokenFile.Write(buf[:1]); err != nil {
+		return fmt.Errorf("failed writing aead type: %v", err)
 	}
-	if issuerRequest.PayloadCipherType.IsValidCipherType() {
+	if issuerRequest.PayloadAEADType.IsEncryptionEnabled() {
 		// Encryption Key
 		if _, err = tokenFile.Write(issuerResponse.EncryptionKey); err != nil {
 			return fmt.Errorf("failed writing encryption key: %v", err)
@@ -88,8 +88,8 @@ func popTokenInfo(tokenFilePath string) (encKey []byte, tokenIndex uint16, token
 		closeNotNeeded  bool = false
 		tempFileRenamed bool = false
 
-		cipherType      types.PayloadCipherType
-		cipherTypeBytes []byte
+		aeadType        types.PayloadAEADType
+		aeadTypeBytes   []byte
 		tokenIndexBytes []byte
 		randomBytes     []byte
 	)
@@ -111,29 +111,29 @@ func popTokenInfo(tokenFilePath string) (encKey []byte, tokenIndex uint16, token
 			}
 		}
 	}()
-	// Payload Cipher
-	cipherTypeBytes = make([]byte, 2)
-	if n, err = tokenFile.Read(cipherTypeBytes); err != nil {
-		err = fmt.Errorf("failed writing cipherFlag: %v", err)
+	// Payload AEAD
+	aeadTypeBytes = make([]byte, 1)
+	if n, err = tokenFile.Read(aeadTypeBytes); err != nil {
+		err = fmt.Errorf("failed writing aead type: %v", err)
 		goto popTokenInfoErr
-	} else if n != 2 {
-		err = fmt.Errorf("failed reading cipherFlag, length too short")
+	} else if n != 1 {
+		err = fmt.Errorf("failed reading aead type, length too short")
 		goto popTokenInfoErr
 	}
-	cipherType = types.PayloadCipherType(binary.BigEndian.Uint16(cipherTypeBytes))
-	if cipherType.IsValidCipherType() {
+	aeadType = types.PayloadAEADType(aeadTypeBytes[0])
+	if aeadType.IsEncryptionEnabled() {
 		// Encryption Key
-		encKey = make([]byte, cipherType.GetKeyLen())
+		encKey = make([]byte, aeadType.GetKeyLen())
 		if n, err = tokenFile.Read(encKey); err != nil {
 			err = fmt.Errorf("failed reading encKey: %v", err)
 			goto popTokenInfoErr
-		} else if n != 2 {
+		} else if n != aeadType.GetKeyLen() {
 			err = fmt.Errorf("failed reading encKey, length too short")
 			goto popTokenInfoErr
 		}
 
 		// Token Index
-		tokenIndexBytes := make([]byte, 2)
+		tokenIndexBytes = make([]byte, 2)
 		if n, err = tokenFile.Read(tokenIndexBytes); err != nil {
 			err = fmt.Errorf("failed reading tokenIndex: %v", err)
 			goto popTokenInfoErr
@@ -199,12 +199,12 @@ func popTokenInfo(tokenFilePath string) (encKey []byte, tokenIndex uint16, token
 		}
 	}()
 
-	// Payload Cipher
-	if _, err = tokenTempFile.Write(cipherTypeBytes); err != nil {
-		err = fmt.Errorf("failed writing cipherType to temp: %v", err)
+	// Payload AEAD
+	if _, err = tokenTempFile.Write(aeadTypeBytes); err != nil {
+		err = fmt.Errorf("failed writing aead to temp: %v", err)
 		goto popTokenInfoErr
 	}
-	if cipherType.IsValidCipherType() {
+	if aeadType.IsEncryptionEnabled() {
 		// Encryption Key
 		if _, err = tokenTempFile.Write(encKey); err != nil {
 			err = fmt.Errorf("failed writing encryption key to temp: %v", err)
@@ -303,9 +303,9 @@ func fetchTokens(req FetchRequest, topic []byte, tokenFilePath string) (err erro
 	// Send Issue Request
 	request := types.IssuerRequest{
 		AccessTypeIsPub:                   req.AccessTypeIsPub,
-		PayloadCipherRequested:            req.PayloadCipherType.IsValidCipherType(),
+		PayloadAEADRequested:              req.PayloadAEADType.IsEncryptionEnabled(),
 		NumberOfTokensDividedByMultiplier: byte(req.NumTokens / consts.TOKEN_NUM_MULTIPLIER),
-		PayloadCipherType:                 req.PayloadCipherType,
+		PayloadAEADType:                   req.PayloadAEADType,
 		Topic:                             topic,
 	}
 	err = funcs.SendIssuerRequest(context.TODO(), conn, config.Client.SocketTimeout.External, request)
@@ -341,7 +341,7 @@ func GetToken(topic string, fetchReq FetchRequest) (encKey []byte, tokenIndex ui
 	} else {
 		accessTypeStr = "SUB"
 	}
-	tokenFilePath := config.Client.FilePaths.TokensDirPath + accessTypeStr + base64.RawURLEncoding.EncodeToString(unsafe.Slice(unsafe.StringData(topic), len(topic)))
+	tokenFilePath := config.Client.FilePaths.TokensDirPath + accessTypeStr + base64.URLEncoding.EncodeToString(unsafe.Slice(unsafe.StringData(topic), len(topic)))
 	if _, err = os.Stat(tokenFilePath); err != nil {
 		// fetch needed
 		err = fetchTokens(fetchReq, unsafe.Slice(unsafe.StringData(topic), len(topic)), tokenFilePath)

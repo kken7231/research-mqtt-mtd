@@ -13,14 +13,14 @@ import (
 func SendIssuerRequest(ctx context.Context, conn net.Conn, timeout time.Duration, issuerRequest types.IssuerRequest) error {
 	// Prepare the buffer for the entire message
 	topicLen := len(issuerRequest.Topic)
-	buf := make([]byte, 1+2+2+topicLen)
+	buf := make([]byte, 1+1+2+topicLen)
 
 	// Set the flag
 	buf[0] = 0
 	if issuerRequest.AccessTypeIsPub {
 		buf[0] |= consts.BIT_7
 	}
-	if issuerRequest.PayloadCipherRequested {
+	if issuerRequest.PayloadAEADRequested {
 		buf[0] |= consts.BIT_6
 	}
 	if issuerRequest.NumberOfTokensDividedByMultiplier < 1 || issuerRequest.NumberOfTokensDividedByMultiplier > 0x1F {
@@ -30,10 +30,10 @@ func SendIssuerRequest(ctx context.Context, conn net.Conn, timeout time.Duration
 
 	offset := 1
 
-	// Payload Cipher Type
-	if issuerRequest.PayloadCipherRequested {
-		binary.BigEndian.PutUint16(buf[offset:], uint16(issuerRequest.PayloadCipherType))
-		offset += 2
+	// Payload AEAD Type
+	if issuerRequest.PayloadAEADRequested {
+		buf[offset] = byte(issuerRequest.PayloadAEADType)
+		offset += 1
 	}
 
 	// Topic
@@ -57,16 +57,16 @@ func ParseIssuerRequest(ctx context.Context, conn net.Conn, timeout time.Duratio
 
 	request := types.IssuerRequest{
 		AccessTypeIsPub:                   (flag & consts.BIT_7) != 0,
-		PayloadCipherRequested:            (flag & consts.BIT_6) != 0,
+		PayloadAEADRequested:              (flag & consts.BIT_6) != 0,
 		NumberOfTokensDividedByMultiplier: flag & 0x1F,
 	}
 
-	// Read Payload Cipher Type if requested
-	if request.PayloadCipherRequested {
-		if n, err := ConnRead(ctx, conn, buf, timeout); err != nil || n != 2 {
-			return request, fmt.Errorf("failed reading payload cipher type field of an issuer request")
+	// Read Payload AEAD Type if requested
+	if request.PayloadAEADRequested {
+		if n, err := ConnRead(ctx, conn, buf[:1], timeout); err != nil || n != 1 {
+			return request, fmt.Errorf("failed reading payload AEAD type field of an issuer request")
 		}
-		request.PayloadCipherType = types.PayloadCipherType(binary.BigEndian.Uint16(buf))
+		request.PayloadAEADType = types.PayloadAEADType(buf[0])
 	}
 
 	// Read the topic length
@@ -112,8 +112,8 @@ func SendIssuerResponse(ctx context.Context, conn net.Conn, timeout time.Duratio
 
 func ParseIssuerResponse(ctx context.Context, conn net.Conn, timeout time.Duration, request types.IssuerRequest) (types.IssuerResponse, error) {
 	keyLen := 0
-	if request.PayloadCipherRequested {
-		keyLen = request.PayloadCipherType.GetKeyLen()
+	if request.PayloadAEADRequested {
+		keyLen = request.PayloadAEADType.GetKeyLen()
 	}
 
 	totalLen := keyLen + consts.TIMESTAMP_LEN + int(request.NumberOfTokensDividedByMultiplier)*consts.TOKEN_NUM_MULTIPLIER*consts.RANDOM_BYTES_LEN
@@ -177,9 +177,8 @@ func SendVerifierResponse(ctx context.Context, conn net.Conn, timeout time.Durat
 		binary.BigEndian.PutUint16(tmp, verifierResponse.TokenIndex)
 		buf = append(buf, tmp...)
 
-		// Payload Cipher Type
-		binary.BigEndian.PutUint16(tmp, uint16(verifierResponse.PayloadCipherType))
-		buf = append(buf, tmp...)
+		// Payload AEAD Type
+		buf = append(buf, byte(verifierResponse.PayloadAEADType))
 
 		// Encryption Key
 		buf = append(buf, verifierResponse.EncryptionKey...)
@@ -209,19 +208,19 @@ func ParseVerifierResponse(ctx context.Context, conn net.Conn, timeout time.Dura
 	response.ResultCode = types.VerificationResultCode(buf[0])
 
 	if response.ResultCode.IsSuccessEncKey() {
-		// Read Token Index and Payload Cipher Type
+		// Read Token Index and Payload AEAD Type
 		if n, err := ConnRead(ctx, conn, buf, timeout); err != nil || n != 2 {
 			return response, fmt.Errorf("failed reading Token Index field of a verifier response")
 		}
 		response.TokenIndex = binary.BigEndian.Uint16(buf)
 
-		if n, err := ConnRead(ctx, conn, buf, timeout); err != nil || n != 2 {
-			return response, fmt.Errorf("failed reading Payload Cipher Type field of a verifier response")
+		if n, err := ConnRead(ctx, conn, buf[:1], timeout); err != nil || n != 1 {
+			return response, fmt.Errorf("failed reading Payload AEAD Type field of a verifier response")
 		}
-		response.PayloadCipherType = types.PayloadCipherType(binary.BigEndian.Uint16(buf))
+		response.PayloadAEADType = types.PayloadAEADType(buf[0])
 
 		// Read Encryption Key
-		keyLen := response.PayloadCipherType.GetKeyLen()
+		keyLen := response.PayloadAEADType.GetKeyLen()
 		response.EncryptionKey = make([]byte, keyLen)
 		if n, err := ConnRead(ctx, conn, response.EncryptionKey, timeout); err != nil || n != keyLen {
 			return response, fmt.Errorf("failed reading Encryption Key field of a verifier response")

@@ -11,27 +11,27 @@ import (
 func TestSubscribe_Single(t *testing.T) {
 	topic := testutil.SAMPLE_TOPIC_SUB
 	testutil.LoadClientConfig(t)
-	fetchReq := testutil.PrepareFetchReq(false, types.PAYLOAD_CIPHER_NONE)
+	fetchReq := testutil.PrepareFetchReq(false, types.PAYLOAD_AEAD_NONE)
 	_, _, token := testutil.GetTokenTest(t, topic, *fetchReq, true)
-	testutil.AutopahoSubscribe(t, token, false, nil, []byte{}, types.PAYLOAD_CIPHER_NONE, nil)
+	testutil.AutopahoSubscribe(t, token, false, nil, []byte{}, types.PAYLOAD_AEAD_NONE, nil)
 }
 
 func TestSubscribe_PubToken_Single(t *testing.T) {
 	topic := testutil.SAMPLE_TOPIC_PUB
 	testutil.LoadClientConfig(t)
-	fetchReq := testutil.PrepareFetchReq(true, types.PAYLOAD_CIPHER_NONE)
+	fetchReq := testutil.PrepareFetchReq(true, types.PAYLOAD_AEAD_NONE)
 	_, _, token := testutil.GetTokenTest(t, topic, *fetchReq, true)
-	testutil.AutopahoSubscribe(t, token, true, nil, []byte{}, types.PAYLOAD_CIPHER_NONE, nil)
+	testutil.AutopahoSubscribe(t, token, true, nil, []byte{}, types.PAYLOAD_AEAD_NONE, nil)
 }
 
 func TestSubscribe_Cycle(t *testing.T) {
 	topic := testutil.SAMPLE_TOPIC_SUB
 	testutil.LoadClientConfig(t)
-	fetchReq := testutil.PrepareFetchReq(false, types.PAYLOAD_CIPHER_NONE)
+	fetchReq := testutil.PrepareFetchReq(false, types.PAYLOAD_AEAD_NONE)
 	testutil.RemoveTokenFile(topic, *fetchReq)
 	for i := 0; i < int(fetchReq.NumTokens); i++ {
 		_, _, token := testutil.GetTokenTest(t, topic, *fetchReq, true)
-		testutil.AutopahoSubscribe(t, token, false, nil, []byte{}, types.PAYLOAD_CIPHER_NONE, nil)
+		testutil.AutopahoSubscribe(t, token, false, nil, []byte{}, types.PAYLOAD_AEAD_NONE, nil)
 	}
 	testutil.RemoveTokenFile(topic, *fetchReq)
 }

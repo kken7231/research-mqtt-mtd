@@ -134,37 +134,37 @@ func PrintResults(results map[string]*testing.BenchmarkResult) {
 	}
 }
 
-func PrepareFetchReq(accessTypeIsPub bool, cipherType types.PayloadCipherType) (fetchReq *tokenmgr.FetchRequest) {
+func PrepareFetchReq(accessTypeIsPub bool, aeadType types.PayloadAEADType) (fetchReq *tokenmgr.FetchRequest) {
 	fetchReq = &tokenmgr.FetchRequest{
-		NumTokens:         NumTokens,
-		AccessTypeIsPub:   accessTypeIsPub,
-		PayloadCipherType: cipherType,
+		NumTokens:       NumTokens,
+		AccessTypeIsPub: accessTypeIsPub,
+		PayloadAEADType: aeadType,
 	}
 	return
 }
 
-func sealMessage(tb testing.TB, cipherType types.PayloadCipherType, encKey []byte, tokenIndex uint16, msg []byte) (sealed []byte) {
+func sealMessage(tb testing.TB, aeadType types.PayloadAEADType, encKey []byte, tokenIndex uint16, msg []byte) (sealed []byte) {
 	var err error
-	if sealed, err = cipherType.SealMessage(msg, encKey, uint64(tokenIndex)); err != nil {
+	if sealed, err = aeadType.SealMessage(msg, encKey, uint64(tokenIndex)); err != nil {
 		Fatal(tb, err)
 	}
 	return
 }
 
-func openMessage(tb testing.TB, cipherType types.PayloadCipherType, encKey []byte, pubSeqNum uint64, sealedMsg []byte) (opened []byte) {
+func openMessage(tb testing.TB, aeadType types.PayloadAEADType, encKey []byte, pubSeqNum uint64, sealedMsg []byte) (opened []byte) {
 	var err error
-	if opened, err = cipherType.OpenMessage(sealedMsg, encKey, pubSeqNum); err != nil {
+	if opened, err = aeadType.OpenMessage(sealedMsg, encKey, pubSeqNum); err != nil {
 		Fatal(tb, err)
 	}
 	return
 }
 
-func AutopahoPublish(tb testing.TB, token []byte, msg []byte, cipherType types.PayloadCipherType, encKey []byte, tokenIndex uint16) {
+func AutopahoPublish(tb testing.TB, token []byte, msg []byte, aeadType types.PayloadAEADType, encKey []byte, tokenIndex uint16) {
 	if b, ok := tb.(*testing.B); ok {
 		b.StartTimer()
 	}
 	b64Encoded := make([]byte, consts.TOKEN_SIZE/3*4)
-	base64.StdEncoding.Encode(b64Encoded, token)
+	base64.URLEncoding.Encode(b64Encoded, token)
 
 	if b, ok := tb.(*testing.B); ok {
 		b.StopTimer()
@@ -225,19 +225,19 @@ func AutopahoPublish(tb testing.TB, token []byte, msg []byte, cipherType types.P
 	}
 
 	// Publish a test message
-	if cipherType.IsValidCipherType() {
-		// Payload Cipher Enabled
+	if aeadType.IsEncryptionEnabled() {
+		// Payload AEAD Encryption Enabled
 		if _, err = cm.Publish(ctx, &paho.Publish{
 			QoS:     0,
 			Topic:   string(b64Encoded),
-			Payload: sealMessage(tb, cipherType, encKey, tokenIndex, msg),
+			Payload: sealMessage(tb, aeadType, encKey, tokenIndex, msg),
 		}); err != nil {
 			if ctx.Err() == nil {
 				Fatal(tb, err)
 			}
 		}
 	} else {
-		// Payload Cipher Disabled
+		// Payload AEAD Encryption Disabled
 		if _, err = cm.Publish(ctx, &paho.Publish{
 			QoS:     0,
 			Topic:   string(b64Encoded),
@@ -254,14 +254,14 @@ func AutopahoPublish(tb testing.TB, token []byte, msg []byte, cipherType types.P
 	<-cm.Done() // Wait for clean shutdown (cancelling the context triggered the shutdown)
 }
 
-func AutopahoSubscribe(tb testing.TB, token []byte, isErrorExpected bool, subscribeChan chan struct{}, waitForPublish []byte, cipherType types.PayloadCipherType, encKey []byte) {
+func AutopahoSubscribe(tb testing.TB, token []byte, isErrorExpected bool, subscribeChan chan struct{}, waitForPublish []byte, aeadType types.PayloadAEADType, encKey []byte) {
 	var pubSeqNum uint64 = 0
 
 	if b, ok := tb.(*testing.B); ok {
 		b.StartTimer()
 	}
 	b64Encoded := make([]byte, consts.TOKEN_SIZE/3*4)
-	base64.StdEncoding.Encode(b64Encoded, token)
+	base64.URLEncoding.Encode(b64Encoded, token)
 
 	if b, ok := tb.(*testing.B); ok {
 		b.StopTimer()
@@ -283,8 +283,8 @@ func AutopahoSubscribe(tb testing.TB, token []byte, isErrorExpected bool, subscr
 	}
 	received := make(chan struct{})
 	onPublishReceivedFunc := func(pr paho.PublishReceived) (bool, error) {
-		if cipherType.IsValidCipherType() {
-			opened := openMessage(tb, cipherType, encKey, pubSeqNum, pr.Packet.Payload)
+		if aeadType.IsEncryptionEnabled() {
+			opened := openMessage(tb, aeadType, encKey, pubSeqNum, pr.Packet.Payload)
 			fmt.Printf("received sealed message on topic \"%s\"; body: %s (retain: %t)\n", pr.Packet.Topic, opened, pr.Packet.Retain)
 			if bytes.Equal(opened, waitForPublish) {
 				received <- struct{}{}
@@ -409,13 +409,13 @@ func GetTokenTest(tb testing.TB, topic string, fetchReq tokenmgr.FetchRequest, e
 		if len(token) != consts.TOKEN_SIZE {
 			Fatal(tb, fmt.Errorf("length invalid"))
 		}
-		if (fetchReq.PayloadCipherType.IsValidCipherType() && encKey == nil) || (!fetchReq.PayloadCipherType.IsValidCipherType() && encKey != nil) {
+		if (fetchReq.PayloadAEADType.IsEncryptionEnabled() && encKey == nil) || (!fetchReq.PayloadAEADType.IsEncryptionEnabled() && encKey != nil) {
 			Fatal(tb, fmt.Errorf("enc invalid"))
 		}
 		return
 	} else {
 		if err == nil && len(token) == consts.TOKEN_SIZE &&
-			((fetchReq.PayloadCipherType.IsValidCipherType() && encKey != nil) || (!fetchReq.PayloadCipherType.IsValidCipherType() && encKey == nil)) {
+			((fetchReq.PayloadAEADType.IsEncryptionEnabled() && encKey != nil) || (!fetchReq.PayloadAEADType.IsEncryptionEnabled() && encKey == nil)) {
 			Fatal(tb, fmt.Errorf("no error observed"))
 		}
 		return

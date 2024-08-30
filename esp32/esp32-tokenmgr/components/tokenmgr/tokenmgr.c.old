@@ -1,11 +1,18 @@
 #include "tokenmgr.h"
 
 static EventGroupHandle_t wifi_event_group, mqtt_plain_event_group, mqtt_tls_event_group;
-static esp_mqtt5_client_handle_t plain_mqtt_client, tls_mqtt_client;
+static esp_mqtt_client_handle_t plain_mqtt_client, tls_mqtt_client;
 static int wifi_retry_num = 0;
 static const char *TAG = "tokenmgr";
 static esp_netif_t *netif;
 static tokenmgr_state_t current_state = TOKENMGR_STATE_BEFORE_ONETIME_INIT;
+
+int permit_time_logging = 0;
+static token_storage_t tokens_storage = {
+	.head = NULL,
+	.tail = NULL,
+};
+
 #define CHECK_CURSTATE_IF_OPERATIONAL(err, goto_label)           \
 	if (current_state != TOKENMGR_STATE_OPERTATIONAL) {          \
 		ESP_LOGE(TAG, "tokenmgr needs to be initialized first"); \
@@ -32,7 +39,7 @@ static int time_record_store_count = 0;
 #define HIER_INDENT 4
 
 static void log_time(time_record_type_t record_type, const char *label) {
-	if (current_state != TOKENMGR_STATE_OPERTATIONAL) return;
+	if (current_state != TOKENMGR_STATE_OPERTATIONAL || permit_time_logging == 0) return;
 	if (time_record_store_count < TIME_RECORD_STORE_MAX) {
 		time_record_store[time_record_store_count].record_type = record_type;
 		gettimeofday(&time_record_store[time_record_store_count].timestamp, NULL);
@@ -131,6 +138,110 @@ void print_time_record_summary(void) {};
 void reset_time_record_store(void) {};
 #endif
 
+static bool is_encryption_enabled(payload_aead_type_t pct) {
+	return pct == PAYLOAD_AEAD_AES_128_GCM;
+	// || pct == PAYLOAD_AEAD_AES_256
+	// || pct == PAYLOAD_AEAD_CHACHA20_POLY1305;
+}
+
+static bool get_key_len(payload_aead_type_t pct) {
+	switch (pct) {
+		case PAYLOAD_AEAD_AES_128_GCM:
+			return 16;
+			// case PAYLOAD_AEAD_AES_256:
+			// case PAYLOAD_AEAD_CHACHA20_POLY1305:
+			// 	return 32;
+		default:
+			return 0;
+	}
+}
+
+static bool get_nonce_len(payload_aead_type_t pct) {
+	switch (pct) {
+		case PAYLOAD_AEAD_AES_128_GCM:
+			// case PAYLOAD_AEAD_AES_256:
+			// case PAYLOAD_AEAD_CHACHA20_POLY1305:
+			return 12;
+		default:
+			return 0;
+	}
+}
+
+static void init_token_store(token_store_t *ts) {
+	LOG_TIME_FUNC_START();
+	if (ts->all_random_data)
+		free((void *)(ts->all_random_data));
+	ts->all_random_data = NULL;
+	ts->cur_random_data = NULL;
+	ts->cur_token_idx = 0;
+	ts->token_count = 0;
+
+	if (ts->payload_enc_key)
+		free((void *)(ts->payload_enc_key));
+	ts->payload_enc_key = NULL;
+	ts->payload_aead_type = PAYLOAD_AEAD_NONE;
+	LOG_TIME_FUNC_END();
+}
+
+static token_store_t *new_token_store() {
+	LOG_TIME_FUNC_START();
+	token_store_t store = {
+		.all_random_data = NULL,
+		.payload_enc_key = NULL,
+	};
+	init_token_store(&store);
+	LOG_TIME_FUNC_END();
+	return &store;
+}
+
+static esp_err_t pop_token_from_token_store(token_store_t *ts, payload_aead_type_t *payload_aead_type, uint8_t *encKey, uint8_t *token) {
+	LOG_TIME_FUNC_START();
+	int counter = 0;
+	printf("%s counter %d\n", __func__, counter++);
+	*payload_aead_type = ts->payload_aead_type;
+	printf("%s counter %d\n", __func__, counter++);
+	if (is_encryption_enabled(ts->payload_aead_type)) {
+		int keylen = get_key_len(ts->payload_aead_type);
+		encKey = (uint8_t *)malloc(keylen);
+		if (!encKey) {
+			ESP_LOGE(TAG, "Failed to allocate memory for encKey");
+			LOG_TIME_FUNC_END();
+			return ESP_ERR_NO_MEM;
+		}
+		memcpy(encKey, ts->payload_enc_key, keylen);
+	}
+	printf("%s counter %d\n", __func__, counter++);
+	memcpy(token, ts->timestamp, TIMESTAMP_LEN);
+	printf("%s counter %d\n", __func__, counter++);
+	memcpy(token + TIMESTAMP_LEN, ts->cur_random_data, RANDOM_BYTES_LEN);
+	printf("%s counter %d\n", __func__, counter++);
+
+	ts->cur_random_data += RANDOM_BYTES_LEN;
+	printf("%s counter %d\n", __func__, counter++);
+	ts->cur_token_idx++;
+	printf("%s counter %d\n", __func__, counter++);
+	LOG_TIME_FUNC_END();
+	return ESP_OK;
+}
+
+static void append_store(token_storage_t *storage, token_store_t *new_node) {
+	LOG_TIME_FUNC_START();
+	if (storage->tail == NULL) {
+		// List is empty, new node becomes the head and tail
+		storage->head = new_node;
+		storage->tail = new_node;
+		new_node->prev = NULL;
+		new_node->next = NULL;
+	} else {
+		// Add the new node to the end of the list
+		storage->tail->next = new_node;
+		new_node->prev = storage->tail;
+		new_node->next = NULL;
+		storage->tail = new_node;
+	}
+	LOG_TIME_FUNC_END();
+}
+
 static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
 	if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START)
 		esp_wifi_connect();
@@ -222,250 +333,6 @@ wifi_init_sta_finish:
 	return netif;
 }
 
-static void mqtt_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
-	mqtt_client_type_t *client_type = (mqtt_client_type_t *)arg;
-	const char *client_type_label = (*client_type == MQTT_CLIENT_PLAIN) ? "plain" : "tls";
-	const EventGroupHandle_t client_group = (*client_type == MQTT_CLIENT_PLAIN) ? mqtt_plain_event_group : mqtt_tls_event_group;
-	if (event_id == MQTT_EVENT_CONNECTED) {
-		ESP_LOGI(TAG, "MQTT (%s) connected", client_type_label);
-		xEventGroupSetBits(client_group, MQTT_CONNECTED_BIT);
-	} else if (event_id != MQTT_EVENT_BEFORE_CONNECT) {
-		ESP_LOGE(TAG, "MQTT (%s) event other than connected: %ld", client_type_label, event_id);
-		xEventGroupSetBits(client_group, MQTT_FAIL_BIT);
-	}
-}
-
-static esp_err_t mqtt_init(void) {
-	LOG_TIME_FUNC_START();
-	esp_err_t err = ESP_OK;
-
-	// plain connection
-	esp_mqtt_client_config_t mqtt5_plain_cfg = {
-		.broker.address.uri = PLAIN_BROKER_URI,
-		.credentials.client_id = "esp32-plain-cli",
-		.session.protocol_ver = MQTT_PROTOCOL_V_5,
-		.network.disable_auto_reconnect = true,
-	};
-	mqtt_plain_event_group = xEventGroupCreate();
-	plain_mqtt_client = esp_mqtt_client_init(&mqtt5_plain_cfg);
-	mqtt_client_type_t plain_client_type = MQTT_CLIENT_PLAIN;
-	ESP_ERROR_CHECK(esp_mqtt5_client_set_connect_property(plain_mqtt_client, &mqtt_connect_property));
-	ESP_ERROR_CHECK(esp_mqtt_client_register_event(plain_mqtt_client, ESP_EVENT_ANY_ID, mqtt_event_handler, (void *)&plain_client_type));
-	ESP_ERROR_CHECK(esp_mqtt_client_start(plain_mqtt_client));
-	ESP_LOGI(TAG, "esp_mqtt_client_start triggered (plain).");
-
-	EventBits_t bits = xEventGroupWaitBits(mqtt_plain_event_group,
-										   MQTT_CONNECTED_BIT | MQTT_FAIL_BIT,
-										   pdFALSE, pdFALSE, portMAX_DELAY);
-	ESP_ERROR_CHECK(esp_mqtt_client_unregister_event(plain_mqtt_client, ESP_EVENT_ANY_ID, mqtt_event_handler));
-	if (bits & MQTT_CONNECTED_BIT)
-		ESP_LOGI(TAG, "MQTTv5 (plain) connected");
-	else {
-		err = ESP_FAIL;
-		if (bits & MQTT_FAIL_BIT)
-			ESP_LOGE(TAG, "MQTTv5 (plain) connection failed");
-		else
-			ESP_LOGE(TAG, "UNEXPECTED EVENT");
-		goto mqtt_init_finish;
-	}
-
-	// tls connection
-	esp_mqtt_client_config_t mqtt5_tls_cfg = {
-		.broker = {
-			.address.uri = TLS_BROKER_URI,
-			.verification = {
-				.crt_bundle_attach = esp_crt_bundle_attach,
-			},
-		},
-		.credentials = {
-			.client_id = "esp32-tls-cli",
-			.authentication = {
-				.certificate = (const char *)client_crt_start,
-				.key = (const char *)client_key_start,
-			},
-		},
-		.session.protocol_ver = MQTT_PROTOCOL_V_5,
-		.network.disable_auto_reconnect = true,
-	};
-	mqtt_tls_event_group = xEventGroupCreate();
-	tls_mqtt_client = esp_mqtt_client_init(&mqtt5_tls_cfg);
-	mqtt_client_type_t tls_client_type = MQTT_CLIENT_TLS;
-	ESP_ERROR_CHECK(esp_mqtt5_client_set_connect_property(tls_mqtt_client, &mqtt_connect_property));
-	ESP_ERROR_CHECK(esp_mqtt_client_register_event(tls_mqtt_client, ESP_EVENT_ANY_ID, mqtt_event_handler, (void *)&tls_client_type));
-	esp_mqtt_client_start(tls_mqtt_client);
-	ESP_LOGI(TAG, "esp_mqtt_client_start triggered (tls).");
-
-	bits = xEventGroupWaitBits(mqtt_tls_event_group,
-							   MQTT_CONNECTED_BIT | MQTT_FAIL_BIT,
-							   pdFALSE, pdFALSE, portMAX_DELAY);
-	ESP_ERROR_CHECK(esp_mqtt_client_unregister_event(tls_mqtt_client, ESP_EVENT_ANY_ID, mqtt_event_handler));
-	if (bits & MQTT_CONNECTED_BIT)
-		ESP_LOGI(TAG, "MQTTv5 (tls) connected");
-	else {
-		err = ESP_FAIL;
-		if (bits & MQTT_FAIL_BIT)
-			ESP_LOGE(TAG, "MQTTv5 (tls) connection failed");
-		else
-			ESP_LOGE(TAG, "UNEXPECTED EVENT");
-
-		if (plain_mqtt_client != NULL)
-			esp_mqtt_client_destroy(plain_mqtt_client);
-		goto mqtt_init_finish;
-	}
-
-mqtt_init_finish:
-	LOG_TIME_FUNC_END();
-	return err;
-}
-
-static esp_err_t save_token_store_to_nvs() {
-	LOG_TIME_FUNC_START();
-	nvs_handle_t nvs_handle;
-	ESP_ERROR_CHECK(nvs_open("storage", NVS_READWRITE, &nvs_handle));
-
-	esp_err_t err = ESP_OK;
-
-	err = nvs_set_blob(nvs_handle, "timestamp", token_store.timestamp, TIMESTAMP_LEN);
-	if (err != ESP_OK) {
-		ESP_LOGE(TAG, "Failed to save timestamp: %s", esp_err_to_name(err));
-		goto err_save_token_store_to_nvs_withclose;
-	}
-
-	err = nvs_set_blob(nvs_handle, "random_bytes", token_store.random_bytes, token_store.token_count * RANDOM_BYTES_LEN);
-	if (err != ESP_OK) {
-		ESP_LOGE(TAG, "Failed to save random bytes: %s", esp_err_to_name(err));
-		goto err_save_token_store_to_nvs_withclose;
-	}
-
-	err = nvs_set_u8(nvs_handle, "token_count", token_store.token_count);
-	if (err != ESP_OK) {
-		ESP_LOGE(TAG, "Failed to save token count: %s", esp_err_to_name(err));
-		goto err_save_token_store_to_nvs_withclose;
-	}
-
-	err = nvs_commit(nvs_handle);
-	if (err != ESP_OK) {
-		ESP_LOGE(TAG, "Failed to commit NVS: %s", esp_err_to_name(err));
-		goto err_save_token_store_to_nvs_withclose;
-	}
-	ESP_LOGI(TAG, "save_token_store_to_nvs: success");
-
-err_save_token_store_to_nvs_withclose:
-	nvs_close(nvs_handle);
-	LOG_TIME_FUNC_END();
-	return err;
-}
-
-static esp_err_t load_token_store_from_nvs() {
-	LOG_TIME_FUNC_START();
-	nvs_handle_t nvs_handle;
-	esp_err_t err = ESP_OK;
-
-	err = nvs_open("storage", NVS_READONLY, &nvs_handle);
-	if (err == ESP_ERR_NVS_NOT_FOUND) {
-		token_store.token_count = 0;
-		LOG_TIME_FUNC_END();
-		return ESP_OK;
-	} else if (err != ESP_OK) {
-		ESP_LOGE(TAG, "Error (%s) opening NVS handle!", esp_err_to_name(err));
-		token_store.token_count = 0;
-		LOG_TIME_FUNC_END();
-		return err;
-	}
-
-	uint8_t token_count = 0;
-	err = nvs_get_u8(nvs_handle, "token_count", &token_count);
-	if (err != ESP_OK) {
-		ESP_LOGE(TAG, "Failed to load token count: %s", esp_err_to_name(err));
-		goto err_load_token_store_from_nvs_withreset;
-	} else if (token_count == 0)
-		goto success_load_token_store_from_nvs;
-
-	size_t timestamp_size = TIMESTAMP_LEN;
-	err = nvs_get_blob(nvs_handle, "timestamp", token_store.timestamp, &timestamp_size);
-	if (err != ESP_OK) {
-		ESP_LOGE(TAG, "Failed to load timestamp: %s", esp_err_to_name(err));
-		goto err_load_token_store_from_nvs_withreset;
-	}
-
-	size_t random_bytes_size = 0;
-	err = nvs_get_blob(nvs_handle, "random_bytes", NULL, &random_bytes_size);
-	if (err != ESP_OK) {
-		ESP_LOGE(TAG, "Failed to get size of random bytes: %s", esp_err_to_name(err));
-		goto err_load_token_store_from_nvs_withreset;
-	}
-
-	token_store.random_bytes = malloc(random_bytes_size);
-	if (!token_store.random_bytes) {
-		ESP_LOGE(TAG, "Failed to allocate memory for random bytes");
-		goto err_load_token_store_from_nvs_withreset;
-	}
-
-	err = nvs_get_blob(nvs_handle, "random_bytes", token_store.random_bytes, &random_bytes_size);
-	if (err != ESP_OK) {
-		ESP_LOGE(TAG, "Failed to load random bytes: %s", esp_err_to_name(err));
-		goto err_load_token_store_from_nvs_withreset;
-	}
-
-success_load_token_store_from_nvs:
-	token_store.token_count = token_count;
-	ESP_LOGI(TAG, "load_token_store_from_nvs: success");
-	nvs_close(nvs_handle);
-	LOG_TIME_FUNC_END();
-	return err;
-
-err_load_token_store_from_nvs_withreset:
-	token_store.token_count = 0;
-	if (token_store.random_bytes != NULL) {
-		free(token_store.random_bytes);
-		token_store.random_bytes = NULL;
-	}
-	nvs_close(nvs_handle);
-	save_token_store_to_nvs();
-	LOG_TIME_FUNC_END();
-	return err;
-}
-
-static esp_err_t reset_nvs_storage() {
-	LOG_TIME_FUNC_START();
-	nvs_handle_t nvs_handle;
-	esp_err_t err = nvs_open("storage", NVS_READWRITE, &nvs_handle);
-	if (err == ESP_ERR_NVS_NOT_FOUND) {
-		LOG_TIME_FUNC_END();
-		return ESP_OK;
-	}
-
-	err = nvs_set_blob(nvs_handle, "timestamp", token_store.timestamp, TIMESTAMP_LEN);
-	if (err != ESP_OK) {
-		ESP_LOGE(TAG, "Failed to save timestamp: %s", esp_err_to_name(err));
-		goto err_reset_nvs_storage_withclose;
-	}
-
-	err = nvs_set_blob(nvs_handle, "random_bytes", NULL, 0);
-	if (err != ESP_OK) {
-		ESP_LOGE(TAG, "Failed to save random bytes: %s", esp_err_to_name(err));
-		goto err_reset_nvs_storage_withclose;
-	}
-
-	err = nvs_set_u8(nvs_handle, "token_count", 0);
-	if (err != ESP_OK) {
-		ESP_LOGE(TAG, "Failed to save token count: %s", esp_err_to_name(err));
-		goto err_reset_nvs_storage_withclose;
-	}
-
-	err = nvs_commit(nvs_handle);
-	if (err != ESP_OK) {
-		ESP_LOGE(TAG, "Failed to commit NVS: %s", esp_err_to_name(err));
-		goto err_reset_nvs_storage_withclose;
-	}
-	ESP_LOGI(TAG, "reset_nvs_storage: success");
-
-err_reset_nvs_storage_withclose:
-	nvs_close(nvs_handle);
-	LOG_TIME_FUNC_END();
-	return err;
-}
-
 static esp_err_t conn_read(esp_tls_t *tls, uint8_t *dst, size_t len, uint32_t timeout_ms) {
 	// LOG_TIME_FUNC_START();
 	size_t read_len = 0;
@@ -498,7 +365,101 @@ static esp_err_t conn_write(esp_tls_t *tls, const uint8_t *data, size_t len, uin
 	return ESP_OK;
 }
 
-static esp_err_t fetch_tokens(fetch_request_t req, const char *topic, size_t topic_len) {
+static esp_err_t send_issuer_request(esp_tls_t *tls, fetch_request_properties_t req, const char *topic, size_t topic_len) {
+	LOG_TIME_FUNC_START();
+	// Prepare the buffer for the entire message
+	uint8_t *buf = (uint8_t *)malloc(1 + 1 + 2 + topic_len);
+	if (!buf) {
+		ESP_LOGE(TAG, "Failed to allocate memory for issuer_request");
+		LOG_TIME_FUNC_END();
+		return ESP_ERR_NO_MEM;
+	}
+
+	esp_err_t err = ESP_OK;
+
+	// Set the flag
+	buf[0] = 0;
+	if (req.access_type_is_pub) {
+		buf[0] |= 0x80;	 // BIT_7
+	}
+	if (is_encryption_enabled(req.payload_aead_type)) {
+		buf[0] |= 0x40;	 // BIT_6
+	}
+	if (req.num_tokens_divided_by_multiplier < 1 || req.num_tokens_divided_by_multiplier > 0x1F) {
+		ESP_LOGE(TAG, "field NumberOfTokens is not in the range of [1, 0x1F]");
+		err = ESP_ERR_INVALID_ARG;
+		goto send_issuer_request_finish;
+	}
+	buf[0] |= req.num_tokens_divided_by_multiplier;
+
+	int offset = 1;
+
+	// Payload Cipher Type
+	if (is_encryption_enabled(req.payload_aead_type)) {
+		buf[offset++] = (uint8_t)(req.payload_aead_type);
+	}
+
+	// Topic
+	buf[offset++] = (uint8_t)(topic_len >> 8);
+	buf[offset++] = (uint8_t)(topic_len & 0xFF);
+	memcpy(buf + offset, topic, topic_len);
+	offset += topic_len;
+
+	// Write the data to connection
+	err = conn_write(tls, buf, offset, 0);
+
+send_issuer_request_finish:
+	free((void *)buf);
+	LOG_TIME_FUNC_END();
+	return err;
+}
+
+static esp_err_t read_issuer_response(esp_tls_t *tls, fetch_request_properties_t req, uint8_t *encryption_key, uint8_t *timestamp, uint8_t *all_random_bytes) {
+	LOG_TIME_FUNC_START();
+	int keyLen = get_key_len(req.payload_aead_type);
+	int all_random_bytes_len = (int)(req.num_tokens_divided_by_multiplier) * TOKEN_NUM_MULTIPLIER * RANDOM_BYTES_LEN;
+	uint8_t *buf = (uint8_t *)malloc((int)(req.num_tokens_divided_by_multiplier) * TOKEN_NUM_MULTIPLIER * RANDOM_BYTES_LEN);
+	if (!buf) {
+		ESP_LOGE(TAG, "Failed to allocate memory for issuer_response");
+		LOG_TIME_FUNC_END();
+		return ESP_ERR_NO_MEM;
+	}
+	esp_err_t err = ESP_OK;
+
+	// Read all the data from the connection
+	if (keyLen > 0) {
+		encryption_key = (uint8_t *)malloc(keyLen);
+		err = conn_read(tls, encryption_key, keyLen, 0);
+		if (err != ESP_OK) {
+			ESP_LOGE(TAG, "Failed to conn_read encryption_key from issuer");
+			goto read_issuer_response_err;
+		}
+	}
+
+	err = conn_read(tls, timestamp, TIMESTAMP_LEN, 0);
+	if (err != ESP_OK) {
+		ESP_LOGE(TAG, "Failed to conn_read timestamp from issuer");
+		goto read_issuer_response_err;
+	}
+
+	all_random_bytes = buf;
+	err = conn_read(tls, all_random_bytes, all_random_bytes_len, 0);
+	if (err != ESP_OK) {
+		ESP_LOGE(TAG, "Failed to conn_read random bytes from issuer");
+		goto read_issuer_response_err;
+	}
+	LOG_TIME_FUNC_END();
+	return ESP_OK;
+
+read_issuer_response_err:
+	if (encryption_key) free((void *)encryption_key);
+	if (timestamp) free((void *)encryption_key);
+	if (buf) free((void *)buf);	 // equivalent to all_random_bytes
+	LOG_TIME_FUNC_END();
+	return err;
+}
+
+static esp_err_t fetch_tokens(fetch_request_properties_t req, const char *topic, const size_t topic_len) {
 	LOG_TIME_FUNC_START();
 	esp_err_t err = ESP_OK;
 	if (topic_len > 0x7F) {
@@ -517,7 +478,7 @@ static esp_err_t fetch_tokens(fetch_request_t req, const char *topic, size_t top
 		.ciphersuites_list = CIPHERSUITES_LIST,
 	};
 	// if (cfg.cacert_buf == NULL || cfg.clientcert_buf == NULL || cfg.clientkey_buf == NULL) {
-	if (cfg.clientcert_buf == NULL || cfg.clientkey_buf == NULL) {
+	if (!cfg.clientcert_buf || !cfg.clientkey_buf) {
 		ESP_LOGE(TAG, "Certificate or key buffer is NULL");
 		err = ESP_FAIL;
 		goto fetch_tokens_finish;
@@ -529,7 +490,7 @@ static esp_err_t fetch_tokens(fetch_request_t req, const char *topic, size_t top
 		goto fetch_tokens_finish;
 	}
 	esp_tls_t *tls = esp_tls_init();
-	if (tls == NULL) {
+	if (!tls) {
 		ESP_LOGE(TAG, "Failed to allocate esp_tls_t");
 		err = ESP_FAIL;
 		goto fetch_tokens_finish;
@@ -537,64 +498,60 @@ static esp_err_t fetch_tokens(fetch_request_t req, const char *topic, size_t top
 	if (esp_tls_conn_new_sync(ISSUER_HOST, strlen(ISSUER_HOST), ISSUER_PORT, &cfg, tls) < 0) {
 		ESP_LOGE(TAG, "Failed to open TLS connection");
 		err = ESP_FAIL;
-		goto fetch_tokens_finish;
-	}
-
-	uint8_t info[2] = {req.num_tokens / 4, topic_len};
-	if (req.access_type & ACCESS_PUB) info[0] |= 0x80;
-	if (req.access_type & ACCESS_SUB) info[0] |= 0x40;
-
-	err = conn_write(tls, info, sizeof(info), 0);
-	if (err != ESP_OK) {
-		ESP_LOGE(TAG, "Failed to conn_write info");
 		goto fetch_tokens_finish_destroytls;
 	}
-	ESP_LOGI(TAG, "conn_write info success");
 
-	err = conn_write(tls, (const uint8_t *)topic, topic_len, 0);
+	// Issuer Request
+	err = send_issuer_request(tls, req, topic, topic_len);
 	if (err != ESP_OK) {
-		ESP_LOGE(TAG, "Failed to conn_write topic");
+		ESP_LOGE(TAG, "Failed to write issuer_request");
 		goto fetch_tokens_finish_destroytls;
 	}
-	ESP_LOGI(TAG, "conn_write topic success");
+	ESP_LOGI(TAG, "writing issuer_request success");
 
-	uint8_t ts[TIMESTAMP_LEN];
-	err = conn_read(tls, ts, TIMESTAMP_LEN, 0);
-	if (err != ESP_OK) {
-		ESP_LOGE(TAG, "Failed to conn_read timestamp");
-		goto fetch_tokens_finish_destroytls;
-	}
-	ESP_LOGI(TAG, "conn_read timestamp success");
-
-	memcpy(token_store.timestamp, ts, TIMESTAMP_LEN);
-	token_store.random_bytes = realloc(token_store.random_bytes, req.num_tokens * RANDOM_BYTES_LEN);
-	token_store.token_count = req.num_tokens;
-
-	uint8_t rb[RANDOM_BYTES_LEN];
-	for (int i = 0; i < req.num_tokens; ++i) {
-		err = conn_read(tls, rb, RANDOM_BYTES_LEN, 0);
-		if (err != ESP_OK) {
-			ESP_LOGE(TAG, "Failed to conn_read random bytes");
-			goto fetch_tokens_finish_destroytls;
+	// Check the store
+	token_store_t *target_token_store = tokens_storage.head;
+	while (target_token_store) {
+		if (strcmp(topic, target_token_store->topic) == 0 && (req.access_type_is_pub == target_token_store->access_type_is_pub)) {
+			// found
+			init_token_store(target_token_store);
+			break;
 		}
-		memcpy(&token_store.random_bytes[i * RANDOM_BYTES_LEN], rb, RANDOM_BYTES_LEN);
+		target_token_store = (token_store_t *)target_token_store->next;
 	}
-	ESP_LOGI(TAG, "conn_read random bytes success");
-	save_token_store_to_nvs();	// Save the token store to NVS after fetching tokens
+	if (!target_token_store) {
+		// not found
+		target_token_store = new_token_store();
+		append_store(&tokens_storage, target_token_store);
+	}
+
+	// Read Issuer Response
+	err = read_issuer_response(tls, req, target_token_store->payload_enc_key, target_token_store->timestamp, target_token_store->all_random_data);
+	if (err != ESP_OK) {
+		ESP_LOGE(TAG, "Failed to read issuer_response");
+		goto fetch_tokens_finish_destroytls;
+	}
+	ESP_LOGI(TAG, "read issuer_response success");
+
+	target_token_store->cur_random_data = target_token_store->all_random_data;
+	target_token_store->cur_token_idx = 0;
+	target_token_store->token_count = req.num_tokens_divided_by_multiplier * TOKEN_NUM_MULTIPLIER;
+	target_token_store->payload_aead_type = req.payload_aead_type;
+	target_token_store->access_type_is_pub = req.access_type_is_pub;
 
 fetch_tokens_finish_destroytls:
-	if (tls != NULL)
+	if (!tls)
 		esp_tls_conn_destroy(tls);
 fetch_tokens_finish:
 	LOG_TIME_FUNC_END();
 	return err;
 }
 
-static esp_err_t get_token_internal(const char *topic, fetch_request_t fetch_req, uint8_t timestamp[TIMESTAMP_LEN], uint8_t random_bytes[RANDOM_BYTES_LEN]) {
+static esp_err_t get_token_internal(const char *topic, fetch_request_properties_t fetch_req, uint8_t *encKey, uint8_t *token) {
 	LOG_TIME_FUNC_START();
 	esp_err_t err = ESP_OK;
-	if (fetch_req.num_tokens < 4 || fetch_req.num_tokens > 0x3F * 4 || fetch_req.num_tokens % 4 != 0) {
-		ESP_LOGE(TAG, "Invalid number of tokens. Must be between [4, 0x3F*4] and multiples of 4");
+	if (fetch_req.num_tokens_divided_by_multiplier < 1 || fetch_req.num_tokens_divided_by_multiplier > 0x1F) {
+		ESP_LOGE(TAG, "Invalid number of tokens_storage. Must be between [%d, 0x1F*%d] and multiples of %d", TOKEN_NUM_MULTIPLIER, TOKEN_NUM_MULTIPLIER, TOKEN_NUM_MULTIPLIER);
 		err = ESP_ERR_INVALID_ARG;
 		goto get_token_internal_finish;
 	}
@@ -606,37 +563,43 @@ static esp_err_t get_token_internal(const char *topic, fetch_request_t fetch_req
 		goto get_token_internal_finish;
 	}
 
-	if (token_store.token_count == 0) {
-		ESP_LOGI(TAG, "No token in the token store");
+	ESP_LOGI(TAG, "Checking the token storage...");
+	token_store_t *target_token_store = tokens_storage.head;
+	while (target_token_store) {
+		if ((strcmp(topic, target_token_store->topic) == 0) && (fetch_req.access_type_is_pub == target_token_store->access_type_is_pub)) {
+			// found
+			break;
+		}
+		target_token_store = (token_store_t *)target_token_store->next;
+	}
+	if (!target_token_store || (target_token_store->cur_token_idx >= target_token_store->token_count)) {
+		ESP_LOGI(TAG, "No token in the token storage");
 		err = fetch_tokens(fetch_req, topic, topic_len);
 		if (err != ESP_OK)
 			goto get_token_internal_finish;
-	}
 
-	memcpy(timestamp, token_store.timestamp, TIMESTAMP_LEN);
-	memcpy(random_bytes, token_store.random_bytes, RANDOM_BYTES_LEN);
-	memmove(token_store.random_bytes, token_store.random_bytes + RANDOM_BYTES_LEN, (token_store.token_count - 1) * RANDOM_BYTES_LEN);
-	token_store.token_count--;
-	err = save_token_store_to_nvs();
+		if (!target_token_store) {
+			target_token_store = tokens_storage.head;
+			while (target_token_store) {
+				if ((strcmp(topic, target_token_store->topic) == 0) && (fetch_req.access_type_is_pub == target_token_store->access_type_is_pub)) {
+					// found
+					break;
+				}
+				target_token_store = (token_store_t *)target_token_store->next;
+			}
+			if (!target_token_store) {
+				ESP_LOGE(TAG, "Again not found!!");
+				goto get_token_internal_finish;
+			}
+		}
+	}
+	ESP_LOGI(TAG, "Found the token store, popping one...");
+	payload_aead_type_t popped_type;
+	err = pop_token_from_token_store(target_token_store, &popped_type, encKey, token);
 
 get_token_internal_finish:
 	LOG_TIME_FUNC_END();
 	return err;
-}
-
-static void get_token_init(void) {
-	LOG_TIME_FUNC_START();
-	load_token_store_from_nvs();  // Load token store from NVS at startup
-	LOG_TIME_FUNC_END();
-}
-
-static void get_token_deinit(void) {
-	LOG_TIME_FUNC_START();
-	if (token_store.random_bytes != NULL) {
-		free(token_store.random_bytes);
-		token_store.random_bytes = NULL;
-	}
-	LOG_TIME_FUNC_END();
 }
 
 void tokenmgr_app_init(void) {
@@ -665,32 +628,24 @@ void tokenmgr_init(void) {
 
 		netif = wifi_init_sta();
 
-		ret = mqtt_init();
-		if (ret != ESP_OK) {
-			ESP_LOGE(TAG, "Mqtt initialization failed");
-			goto comp_initialize_finish;
-		}
-		reset_nvs_storage();
-
 		current_state = TOKENMGR_STATE_OPERTATIONAL;
 		ESP_LOGI(TAG, "tokenmgr initialized");
 	} else {
 		ESP_LOGE(TAG, "tokenmgr is already initialized");
 	}
-comp_initialize_finish:
 	LOG_TIME_FUNC_END();
 }
 
 void tokenmgr_deinit() {
 	LOG_TIME_FUNC_START();
 	if (current_state == TOKENMGR_STATE_OPERTATIONAL) {
-		if (plain_mqtt_client != NULL) {
+		if (plain_mqtt_client) {
 			esp_mqtt_client_destroy(plain_mqtt_client);
 		}
-		if (tls_mqtt_client != NULL) {
+		if (tls_mqtt_client) {
 			esp_mqtt_client_destroy(tls_mqtt_client);
 		}
-		if (netif != NULL) {
+		if (netif) {
 			mdns_free();
 			esp_netif_sntp_deinit();
 			esp_wifi_stop();
@@ -704,30 +659,25 @@ void tokenmgr_deinit() {
 	LOG_TIME_FUNC_END();
 }
 
-esp_err_t get_token(const char *topic, fetch_request_t fetch_req, uint8_t timestamp[TIMESTAMP_LEN], uint8_t random_bytes[RANDOM_BYTES_LEN]) {
+esp_err_t get_token(const char *topic, fetch_request_properties_t fetch_req, uint8_t *encKey, uint8_t *token) {
 	LOG_TIME_FUNC_START();
 	esp_err_t ret = ESP_OK;
 	CHECK_CURSTATE_IF_OPERATIONAL(ret, get_token_finish);
-	get_token_init();
-	ret = get_token_internal(topic, fetch_req, timestamp, random_bytes);
-	get_token_deinit();
+	ret = get_token_internal(topic, fetch_req, encKey, token);
 get_token_finish:
 	LOG_TIME_FUNC_END();
 	return ret;
 }
 
-esp_err_t b64encode_token(const uint8_t timestamp[TIMESTAMP_LEN], const uint8_t random_bytes[RANDOM_BYTES_LEN], uint8_t encoded_token[BASE64_ENCODED_TOKEN_SIZE]) {
+esp_err_t b64encode_token(const uint8_t *token, uint8_t *encoded_token) {
 	LOG_TIME_FUNC_START();
+
 	esp_err_t err = ESP_OK;
 	CHECK_CURSTATE_IF_OPERATIONAL(err, b64encode_token_finish);
-	if (!timestamp || !random_bytes || !encoded_token) {
+	if (!token || !encoded_token) {
 		err = ESP_ERR_INVALID_ARG;
 		goto b64encode_token_finish;
 	}
-
-	uint8_t token[TOKEN_SIZE];
-	memcpy(token, timestamp, TIMESTAMP_LEN);
-	memcpy(token + TIMESTAMP_LEN, random_bytes, RANDOM_BYTES_LEN);
 
 	size_t output_len;
 	int ret = mbedtls_base64_encode((unsigned char *)encoded_token, BASE64_ENCODED_TOKEN_SIZE, &output_len, (const unsigned char *)token, TOKEN_SIZE);
@@ -742,19 +692,185 @@ b64encode_token_finish:
 	return err;
 }
 
-esp_err_t mqtt_publish_qos0(mqtt_client_type_t client_type, const char *topic, const char *data, int len_data) {
+static void mqtt_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
+	mqtt_client_type_t *client_type = (mqtt_client_type_t *)arg;
+	const char *client_type_label = (*client_type == MQTT_CLIENT_PLAIN) ? "plain" : "tls";
+	const EventGroupHandle_t client_group = (*client_type == MQTT_CLIENT_PLAIN) ? mqtt_plain_event_group : mqtt_tls_event_group;
+	if ((esp_mqtt_event_id_t)event_id == MQTT_EVENT_CONNECTED) {
+		ESP_LOGI(TAG, "Event MQTT_EVENT_CONNECTED (%s)", client_type_label);
+		xEventGroupSetBits(client_group, MQTT_CONNECTED_BIT);
+	} else if ((esp_mqtt_event_id_t)event_id == MQTT_EVENT_ERROR) {
+		ESP_LOGE(TAG, "Event MQTT_EVENT_ERROR (%s)", client_type_label);
+		xEventGroupSetBits(client_group, MQTT_FAIL_BIT);
+	} else if ((esp_mqtt_event_id_t)event_id != MQTT_EVENT_BEFORE_CONNECT) {
+		ESP_LOGE(TAG, "MQTT (%s) event other than MQTT_EVENT_CONNECTED: %ld", client_type_label, event_id);
+		xEventGroupSetBits(client_group, MQTT_FAIL_BIT);
+	}
+}
+
+static esp_mqtt_client_handle_t mqtt_client_start(esp_mqtt_client_config_t *p_cfg, mqtt_client_type_t *p_client_type) {
+	EventGroupHandle_t *p_event_group;
+	esp_mqtt_client_handle_t mqtt_client;
+	const char *mqtt_client_label;
+
+	if (*p_client_type == MQTT_CLIENT_PLAIN) {
+		p_event_group = &mqtt_plain_event_group;
+		mqtt_client_label = "plain";
+	} else {
+		p_event_group = &mqtt_tls_event_group;
+		mqtt_client_label = "tls";
+	}
+	*p_event_group = xEventGroupCreate();
+	mqtt_client = esp_mqtt_client_init(p_cfg);
+	if (!mqtt_client) {
+		ESP_LOGE(TAG, "MQTT (%s) client initialization failed", mqtt_client_label);
+		return NULL;
+	}
+	ESP_ERROR_CHECK(esp_mqtt_client_register_event(mqtt_client, ESP_EVENT_ANY_ID, mqtt_event_handler, (void *)p_client_type));
+	ESP_ERROR_CHECK(esp_mqtt_client_start(mqtt_client));
+	ESP_LOGI(TAG, "esp_mqtt_client_start triggered (%s)", mqtt_client_label);
+
+	EventBits_t bits = xEventGroupWaitBits(*p_event_group,
+										   MQTT_CONNECTED_BIT | MQTT_FAIL_BIT,
+										   pdFALSE, pdFALSE, portMAX_DELAY);
+	ESP_ERROR_CHECK(esp_mqtt_client_unregister_event(mqtt_client, ESP_EVENT_ANY_ID, mqtt_event_handler));
+	if (bits & MQTT_CONNECTED_BIT)
+		ESP_LOGI(TAG, "MQTT (%s) connected", mqtt_client_label);
+	else {
+		if (bits & MQTT_FAIL_BIT)
+			ESP_LOGE(TAG, "MQTT (%s) connection failed", mqtt_client_label);
+		else
+			ESP_LOGE(TAG, "UNEXPECTED EVENT");
+		if (mqtt_client)
+			esp_mqtt_client_destroy(mqtt_client);
+		return NULL;
+	}
+	return mqtt_client;
+}
+esp_err_t seal_message(payload_aead_type_t payload_aead_type, const uint8_t *plaintext, const uint16_t cur_token_idx, const uint8_t *encryption_key, int *text_len, uint8_t *sealed) {
+	LOG_TIME_FUNC_START();
+	esp_err_t err = ESP_OK;
+	uint8_t *nonce = NULL;
+
+	if (!is_encryption_enabled(payload_aead_type)) {
+		ESP_LOGE(TAG, "Invalid Cipher Type 0x%02X", payload_aead_type);
+		err = ESP_ERR_INVALID_ARG;
+		goto seal_message_finish;
+	}
+	if (*text_len < 1) {
+		ESP_LOGE(TAG, "Invalid Text Len %d", *text_len);
+		err = ESP_ERR_INVALID_ARG;
+		goto seal_message_finish;
+	}
+
+	if (sealed) {
+		free((void *)sealed);
+	}
+
+	// LIMITED TO AES-128-GCM
+	int noncelen = get_nonce_len(payload_aead_type);
+	int gcmtaglen = 16;
+	mbedtls_gcm_context gcm;
+	mbedtls_gcm_init(&gcm);
+	nonce = (uint8_t *)malloc(noncelen);
+	if (!nonce) {
+		ESP_LOGE(TAG, "Failed to allocate memory for nonce");
+		err = ESP_ERR_NO_MEM;
+		goto seal_message_finish;
+	}
+
+	sealed = (uint8_t *)malloc(*text_len + gcmtaglen);
+	if (!sealed) {
+		ESP_LOGE(TAG, "Failed to allocate memory for sealed message");
+		free(nonce);
+		err = ESP_ERR_NO_MEM;
+		goto seal_message_finish;
+	}
+
+	memset(nonce, 0, noncelen);
+	uint64_t nonce_combined = (uint64_t)cur_token_idx;
+	for (int i = 0; i < 8; i++) {
+		nonce[i] = (nonce_combined >> (56 - i * 8)) & 0xFF;
+	}
+
+	if (mbedtls_gcm_setkey(&gcm, MBEDTLS_CIPHER_ID_AES, (const unsigned char *)encryption_key, get_key_len(payload_aead_type) * 8) != 0) {
+		ESP_LOGE(TAG, "Failed to set AES key");
+		free((void *)sealed);
+		free((void *)nonce);
+		err = ESP_ERR_INVALID_ARG;
+		goto seal_message_finish;
+	}
+
+	if (mbedtls_gcm_crypt_and_tag(&gcm, MBEDTLS_GCM_ENCRYPT, *text_len, nonce, noncelen, NULL, 0, plaintext, sealed, gcmtaglen, sealed + *text_len) != 0) {
+		ESP_LOGE(TAG, "Failed to encrypt data");
+		free((void *)sealed);
+		free((void *)nonce);
+		err = ESP_ERR_INVALID_ARG;
+		goto seal_message_finish;
+	}
+
+seal_message_finish:
+	mbedtls_gcm_free(&gcm);
+	if (nonce) {
+		free((void *)nonce);
+	}
+	LOG_TIME_FUNC_END();
+	return err;
+}
+
+esp_err_t mqtt_publish_qos0(mqtt_client_type_t client_type, const char *topic, const uint8_t *data, int datalen) {
 	LOG_TIME_FUNC_START();
 	esp_err_t ret = ESP_OK;
+	esp_mqtt_client_handle_t mqtt_client = NULL;
 	CHECK_CURSTATE_IF_OPERATIONAL(ret, mqtt_publish_qos0_finish);
-	const char *mqtt_client_label = (client_type == MQTT_CLIENT_PLAIN) ? "plain" : "tls";
-	const esp_mqtt_client_handle_t mqtt_client = (client_type == MQTT_CLIENT_PLAIN) ? plain_mqtt_client : tls_mqtt_client;
-	if (esp_mqtt_client_publish(mqtt_client, topic, data, len_data, 0, 0) != 0) {
-		ESP_LOGI(TAG, "MQTT Publish (%s) failed", mqtt_client_label);
+	const char *mqtt_client_label;
+
+	if (client_type == MQTT_CLIENT_PLAIN) {
+		esp_mqtt_client_config_t plain_cfg = {
+			.broker.address.uri = PLAIN_BROKER_URI,
+			.credentials.client_id = "esp32-plain-cli",
+			.session.protocol_ver = MQTT_PROTOCOL_V_5,
+			.network.disable_auto_reconnect = true,
+		};
+		mqtt_client_type_t plain_client_type = MQTT_CLIENT_PLAIN;
+		mqtt_client_label = "plain";
+		mqtt_client = mqtt_client_start(&plain_cfg, &plain_client_type);
+	} else {
+		esp_mqtt_client_config_t tls_cfg = {
+			.broker = {
+				.address.uri = TLS_BROKER_URI,
+				.verification.crt_bundle_attach = esp_crt_bundle_attach,
+			},
+			.credentials = {
+				.client_id = "esp32-tls-cli",
+				.authentication = {
+					.certificate = (const char *)client_crt_start,
+					.key = (const char *)client_key_start,
+				},
+			},
+			.session.protocol_ver = MQTT_PROTOCOL_V_5,
+			.network.disable_auto_reconnect = true,
+		};
+		mqtt_client_type_t tls_client_type = MQTT_CLIENT_TLS;
+		mqtt_client_label = "tls";
+		mqtt_client = mqtt_client_start(&tls_cfg, &tls_client_type);
+	}
+
+	if (mqtt_client)
+		goto mqtt_publish_qos0_finish;
+
+	if (esp_mqtt_client_publish(mqtt_client, topic, (const char *)data, datalen, 0, 0) != 0) {
+		ESP_LOGE(TAG, "MQTT Publish (%s) failed", mqtt_client_label);
 		ret = ESP_FAIL;
 	} else {
 		ESP_LOGI(TAG, "MQTT Publish (%s) success", mqtt_client_label);
 	}
 mqtt_publish_qos0_finish:
+	if (mqtt_client) {
+		esp_mqtt_client_disconnect(mqtt_client);
+		esp_mqtt_client_destroy(mqtt_client);
+	}
+
 	LOG_TIME_FUNC_END();
 	return ret;
 }

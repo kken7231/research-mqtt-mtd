@@ -1,6 +1,6 @@
 socktimeout:
   external: 5_000_000_000
-  local: 500_000
+  local: 5_000_000_000
 
 filepaths:
   tokensdir: /mqttmtd/tokens/
@@ -10,7 +10,7 @@ ports:
   issuer: 18883
   verifier: 21883
   mqttinterface: 1883
-  mqttinterface: 11883
+  mqttserver: 11883
   dashboard: 8080
 
 certs:

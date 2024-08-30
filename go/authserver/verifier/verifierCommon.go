@@ -11,7 +11,7 @@ import (
 )
 
 func Run(atl *types.AuthTokenList) {
-	fmt.Printf("Starting verifier server at port %d\n", config.Server.Ports.Verifier)
+	fmt.Printf("Starting verifier server on port %d\n", config.Server.Ports.Verifier)
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Server.Ports.Verifier))
 	if err != nil {
 		log.Fatalf("Verifier - Failed to start plain listener: %v", err)
@@ -50,21 +50,23 @@ func tokenVerifierHandler(conn net.Conn, atl *types.AuthTokenList) {
 
 	// ATL Lookup
 	atl.Lock()
-	defer atl.Unlock()
 	entry, err := atl.LookupEntryWithToken(verifierRequest.Token)
+	atl.Unlock()
 	if err != nil {
 		fmt.Printf("verifier(%s): Failed token verification with error: %v\n", remoteAddr, err)
 		return
 	}
 
 	// Construct Response
-	if entry == nil || entry.AccessTypeIsPub == verifierRequest.AccessTypeIsPub {
+	if (entry == nil) || (entry.AccessTypeIsPub != verifierRequest.AccessTypeIsPub) {
 		// Verification Failed
+		fmt.Printf("verifier(%s): Verification failed\n", remoteAddr)
 		verifierResponse = types.VerifierResponse{
 			ResultCode: types.VerfFail,
 		}
-	} else if resultCode, err := refreshCurrentValidRandomBytes(atl, entry); err != nil {
+	} else if resultCode, err := updateCurrentValidRandomBytes(atl, entry); err != nil {
 		// Internal Value Refresh Failed
+		fmt.Printf("verifier(%s): Failed token update with error: %v\n", remoteAddr, err)
 		verifierResponse = types.VerifierResponse{
 			ResultCode: types.VerfFail,
 		}
@@ -72,11 +74,11 @@ func tokenVerifierHandler(conn net.Conn, atl *types.AuthTokenList) {
 		// Internal Value Refreshed
 		if resultCode.IsSuccessEncKey() {
 			verifierResponse = types.VerifierResponse{
-				ResultCode:        resultCode,
-				TokenIndex:        entry.CurrentValidRandomBytesIdx,
-				PayloadCipherType: entry.PayloadCipherType,
-				EncryptionKey:     entry.PayloadEncKey,
-				Topic:             entry.Topic,
+				ResultCode:      resultCode,
+				TokenIndex:      entry.CurrentValidTokenIdx - 1, // entry.CurrentValidTokenIdx is the current one, so the verified token is of one before
+				PayloadAEADType: entry.PayloadAEADType,
+				EncryptionKey:   entry.PayloadEncKey,
+				Topic:           entry.Topic,
 			}
 		} else if resultCode.IsSuccess() {
 			verifierResponse = types.VerifierResponse{
@@ -84,11 +86,12 @@ func tokenVerifierHandler(conn net.Conn, atl *types.AuthTokenList) {
 				Topic:      entry.Topic,
 			}
 		} else {
-			verifierResponse = types.VerifierResponse{
-				ResultCode: resultCode,
-			}
+			fmt.Printf("verifier(%s): Unexpected result code: %d\n", remoteAddr, resultCode)
+			return
 		}
 	}
+
+	fmt.Printf("verifier(%s): ResultCode: 0x%02x\n", remoteAddr, verifierResponse.ResultCode)
 
 	if err = funcs.SendVerifierResponse(context.TODO(), conn, config.Server.SocketTimeout.Local, verifierResponse); err != nil {
 		fmt.Printf("verifier(%s): Error sending out a response: %v\n", remoteAddr, err)

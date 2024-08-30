@@ -3,7 +3,7 @@ set -e
 
 prepend_service_name() {
   while IFS= read -r line; do
-    echo "$1| $line"
+    echo "$(date '+%Y-%m-%d %H:%M:%S.%6N')| $1| $line"
   done
 }
 
@@ -17,6 +17,7 @@ GIT_ROOT="$(git rev-parse --show-toplevel)"
 
 # pushd "$GIT_ROOT/certcreate"; rm -f "$GIT_ROOT/certs/server/server.*"; ./gen_server.sh -c "$GIT_ROOT/certs" -a $(ipconfig getifaddr en1); popd
 pushd "$GIT_ROOT/certcreate"; rm -f "$GIT_ROOT/certs/server/server.*"; ./gen_server.sh -c "$GIT_ROOT/certs" -a server.local; popd
+pushd "$GIT_ROOT/certcreate"; rm -f "$GIT_ROOT/certs/clients/client_listen.*"; ./gen_client.sh -c "$GIT_ROOT/certs" -n client_listen; popd
 
 GO_DIR="$GIT_ROOT/go"
 MQTTENV_DIR="$GIT_ROOT/.mqttenv"
@@ -37,26 +38,19 @@ chmod 0700 "$MQTTENV_DIR/mosquitto/config/dhparam.pem"
 
 cp -r "$GIT_ROOT/mqttmtd_config/" "$MQTTENV_DIR/mqttmtd/config/"
 sed -e "s|{{MQTTENV_DIR}}|$MQTTENV_DIR|g" "$MQTTENV_DIR/mqttmtd/config/server_conf_nondocker_template.yml" > "$MQTTENV_DIR/mosquitto/config/server_conf.yml"
-# chmod 0444 "$MQTTENV_DIR/mqttmtd/config/."
-
 cp -r "$GIT_ROOT/certs/ca/" "$MQTTENV_DIR/mqttmtd/certs/ca/"
-# chmod 0444 "$MQTTENV_DIR/mqttmtd/certs/ca/."
-
 cp -r "$GIT_ROOT/certs/server/" "$MQTTENV_DIR/mqttmtd/certs/server/"
-# chmod 0444 "$MQTTENV_DIR/mqttmtd/certs/server/."
 
-# Start the MQTT server and log its output
 sudo scutil --set LocalHostName server 2>&1 | prepend_service_name "scutil        " >> "$MQTTENVLOGS_DIR/combined.log" &
-/opt/homebrew/opt/mosquitto/sbin/mosquitto -v -c "$MQTTENV_DIR/mosquitto/config/mosquitto.conf" 2>&1 | prepend_service_name "mosquitto     " >> "$MQTTENVLOGS_DIR/combined.log" &
-/opt/homebrew/opt/mosquitto/sbin/mosquitto -v -c "$MQTTENV_DIR/mosquitto/config/mosquitto-tls.conf" 2>&1 | prepend_service_name "mosquitto-tls " >> "$MQTTENVLOGS_DIR/combined.log" &
+/opt/homebrew/sbin/mosquitto -v -c "$MQTTENV_DIR/mosquitto/config/mosquitto.conf" 2>&1 | prepend_service_name "mosquitto     " >> "$MQTTENVLOGS_DIR/combined.log" &
+/opt/homebrew/sbin/mosquitto -v -c "$MQTTENV_DIR/mosquitto/config/mosquitto-tls.conf" 2>&1 | prepend_service_name "mosquitto-tls " >> "$MQTTENVLOGS_DIR/combined.log" &
 
 sleep 1
 
-# Start the auth server and log its output
-"$MQTTENV_DIR/mqttmtd/authserver" -conf "$MQTTENV_DIR/mosquitto/config/server_conf.yml" 2>&1 | prepend_service_name "authserver    " >> "$MQTTENVLOGS_DIR/combined.log" &
+/opt/homebrew/sbin/mosquitto_sub -h localhost -p 11883 -t "/sample/topic/pub" 2>&1 | prepend_service_name "mqttsub_plain " >> "$MQTTENVLOGS_DIR/combined.log" &
+/opt/homebrew/sbin/mosquitto_sub -h localhost -p 8883 --cafile "$MQTTENV_DIR/mqttmtd/certs/ca/ca.pem" -cert "$MQTTENV_DIR/mqttmtd/certs/clients/client_listen.pem" -key "$MQTTENV_DIR/mqttmtd/certs/clients/client_listen.key" -t "/sample/topic/pub" 2>&1 | prepend_service_name "mqttsub_tls   " >> "$MQTTENVLOGS_DIR/combined.log" &
 
-# Start the MQTT interface and log its output
+"$MQTTENV_DIR/mqttmtd/authserver" -conf "$MQTTENV_DIR/mosquitto/config/server_conf.yml" 2>&1 | prepend_service_name "authserver    " >> "$MQTTENVLOGS_DIR/combined.log" &
 "$MQTTENV_DIR/mqttmtd/mqttinterface" -conf "$MQTTENV_DIR/mosquitto/config/server_conf.yml" 2>&1 | prepend_service_name "mqttinterface " >> "$MQTTENVLOGS_DIR/combined.log" &
 
-# Tail the combined log file to keep the container running and display the logs
 tail -f "$MQTTENVLOGS_DIR/combined.log"

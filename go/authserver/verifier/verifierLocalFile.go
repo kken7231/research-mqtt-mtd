@@ -11,8 +11,8 @@ import (
 	"unsafe"
 )
 
-func refreshCurrentValidRandomBytes(atl *types.AuthTokenList, entry *types.ATLEntry) (resultCode types.VerificationResultCode, err error) {
-	randomBytesFilePath := unsafe.String(unsafe.SliceData(entry.AllRandomBytes), len(entry.AllRandomBytes))
+func updateCurrentValidRandomBytes(atl *types.AuthTokenList, entry *types.ATLEntry) (resultCode types.VerificationResultCode, err error) {
+	randomBytesFilePath := unsafe.String(unsafe.SliceData(entry.AllRandomData), len(entry.AllRandomData))
 	if _, err = os.Stat(randomBytesFilePath); err == nil {
 		// Random Bytes File Found
 		var (
@@ -42,9 +42,9 @@ func refreshCurrentValidRandomBytes(atl *types.AuthTokenList, entry *types.ATLEn
 		}()
 
 		// Seek to the next random bytes
-		if _, err = randomBytesFile.Seek(int64(entry.CurrentValidRandomBytesIdx+1)*int64(consts.RANDOM_BYTES_LEN), io.SeekStart); err != nil {
+		if _, err = randomBytesFile.Seek(int64(entry.CurrentValidTokenIdx+1)*int64(consts.RANDOM_BYTES_LEN), io.SeekStart); err != nil {
 			err = fmt.Errorf("failed seeking to the next valid token: %v", err)
-			if entry.PayloadCipherType.IsValidCipherType() {
+			if entry.PayloadAEADType.IsEncryptionEnabled() {
 				resultCode = types.VerfSuccessEncKeyReloadNeeded
 			} else {
 				resultCode = types.VerfSuccessReloadNeeded
@@ -56,8 +56,9 @@ func refreshCurrentValidRandomBytes(atl *types.AuthTokenList, entry *types.ATLEn
 		// Read next random bytes
 		curValidRandomBytes = make([]byte, consts.RANDOM_BYTES_LEN)
 		if n, err = randomBytesFile.Read(curValidRandomBytes); err != nil {
-			err = fmt.Errorf("failed reading the next valid token: %v", err)
-			if entry.PayloadCipherType.IsValidCipherType() {
+			fmt.Printf("failed reading the next valid token, probably the last token: %v\n", err)
+			err = nil
+			if entry.PayloadAEADType.IsEncryptionEnabled() {
 				resultCode = types.VerfSuccessEncKeyReloadNeeded
 			} else {
 				resultCode = types.VerfSuccessReloadNeeded
@@ -67,7 +68,7 @@ func refreshCurrentValidRandomBytes(atl *types.AuthTokenList, entry *types.ATLEn
 		}
 		if n != consts.RANDOM_BYTES_LEN {
 			err = fmt.Errorf("failed reading the next valid token, length too short: %v", err)
-			if entry.PayloadCipherType.IsValidCipherType() {
+			if entry.PayloadAEADType.IsEncryptionEnabled() {
 				resultCode = types.VerfSuccessEncKeyReloadNeeded
 			} else {
 				resultCode = types.VerfSuccessReloadNeeded
@@ -76,10 +77,10 @@ func refreshCurrentValidRandomBytes(atl *types.AuthTokenList, entry *types.ATLEn
 			return
 		}
 		atl.Lock()
-		entry.CurrentValidRandomBytes = curValidRandomBytes
-		entry.CurrentValidRandomBytesIdx++
+		entry.CurrentValidRandomData = curValidRandomBytes
+		entry.CurrentValidTokenIdx++
 		atl.Unlock()
-		if entry.PayloadCipherType.IsValidCipherType() {
+		if entry.PayloadAEADType.IsEncryptionEnabled() {
 			resultCode = types.VerfSuccessEncKey
 		} else {
 			resultCode = types.VerfSuccess
@@ -89,7 +90,7 @@ func refreshCurrentValidRandomBytes(atl *types.AuthTokenList, entry *types.ATLEn
 		atl.Lock()
 		atl.Remove(entry)
 		atl.Unlock()
-		if entry.PayloadCipherType.IsValidCipherType() {
+		if entry.PayloadAEADType.IsEncryptionEnabled() {
 			resultCode = types.VerfSuccessEncKeyReloadNeeded
 		} else {
 			resultCode = types.VerfSuccessReloadNeeded

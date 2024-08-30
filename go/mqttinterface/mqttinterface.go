@@ -21,8 +21,16 @@ const (
 	BUF_SIZE int = 1024
 )
 
+type MQTT_INTERFACE_CONTEXT_KEY string
+
+type AEADInfo struct {
+	AEADType  types.PayloadAEADType
+	EncKey    []byte
+	PubSeqNum uint64
+}
+
 func run() {
-	fmt.Printf("Starting mqtt interface server at port %d\n", config.Server.Ports.MqttInterface)
+	fmt.Printf("Starting mqtt interface server on port %d\n", config.Server.Ports.MqttInterface)
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Server.Ports.MqttInterface))
 	if err != nil {
 		fmt.Println("Failed to start plain listener: ", err)
@@ -41,7 +49,7 @@ func run() {
 }
 
 func communicateWithVerifier(ctx context.Context, verifierRequest types.VerifierRequest) (response types.VerifierResponse, err error) {
-	conn, err := net.Dial("tcp", fmt.Sprintf(":%d", config.Server.Ports.MqttInterface))
+	conn, err := net.Dial("tcp", fmt.Sprintf(":%d", config.Server.Ports.Verifier))
 	if err != nil {
 		fmt.Println("Error connecting To Verifier: ", err)
 		return
@@ -57,7 +65,7 @@ func communicateWithVerifier(ctx context.Context, verifierRequest types.Verifier
 	return funcs.ParseVerifierResponse(ctx, conn, config.Server.SocketTimeout.Local, verifierRequest)
 }
 
-func clientToMqttHandler(ctx context.Context, buf []byte, incomingConn net.Conn, brokerConn net.Conn) (shouldCloseSock bool, err error) {
+func clientToMqttHandler(ctx context.Context, buf []byte, incomingConn net.Conn, brokerConn net.Conn, cliMqttVersion *byte, aeadInfo *AEADInfo) (shouldCloseSock bool, err error) {
 	shouldCloseSock = false
 	incomingAddr := incomingConn.RemoteAddr()
 
@@ -96,7 +104,7 @@ func clientToMqttHandler(ctx context.Context, buf []byte, incomingConn net.Conn,
 				fmt.Printf("cli2Mqtt(%s): Seems not a b64 encoded\n", incomingAddr)
 			} else {
 				decodedTopic := make([]byte, len(*topic)/4*3)
-				if _, err = base64.StdEncoding.Decode(decodedTopic, *topic); err != nil {
+				if _, err = base64.URLEncoding.Decode(decodedTopic, *topic); err != nil {
 					fmt.Printf("cli2Mqtt(%s): Failed decoding the given %s: %v\n", incomingAddr, topicType, err)
 					return
 				}
@@ -115,7 +123,7 @@ func clientToMqttHandler(ctx context.Context, buf []byte, incomingConn net.Conn,
 				verfResponse   types.VerifierResponse
 				payload        []byte
 			)
-			topicName, contentBetween, payload, err = getTopicNameFromPublish(buf, (int(fixedHdr.Flags)>>1)&0x3)
+			topicName, contentBetween, payload, err = getTopicNameFromPublish(*cliMqttVersion, buf, (int(fixedHdr.Flags)>>1)&0x3)
 			if err != nil {
 				fmt.Printf("cli2Mqtt(%s): Failed getting topicName: %v\n", incomingAddr, err)
 				return
@@ -141,9 +149,9 @@ func clientToMqttHandler(ctx context.Context, buf []byte, incomingConn net.Conn,
 			bb.Write(verfResponse.Topic)
 			bb.Write(contentBetween)
 
-			if verfResponse.PayloadCipherType.IsValidCipherType() {
+			if verfResponse.PayloadAEADType.IsEncryptionEnabled() {
 				var decrypted []byte
-				if decrypted, err = verfResponse.PayloadCipherType.OpenMessage(payload, verfResponse.EncryptionKey, uint64(verfResponse.TokenIndex)); err != nil {
+				if decrypted, err = verfResponse.PayloadAEADType.OpenMessage(payload, verfResponse.EncryptionKey, uint64(verfResponse.TokenIndex)); err != nil {
 					return
 				}
 				bb.Write(decrypted)
@@ -158,14 +166,16 @@ func clientToMqttHandler(ctx context.Context, buf []byte, incomingConn net.Conn,
 				contentBefore           []byte
 				contentAfter            []byte
 			)
-			contentBefore, topicFiltersWithOptions, contentAfter, err = getTopicFiltersFromSubscribe(buf)
+			contentBefore, topicFiltersWithOptions, contentAfter, err = getTopicFiltersFromSubscribe(*cliMqttVersion, buf)
+			fmt.Printf("contentBefore: %s\n", hex.EncodeToString(contentBefore))
+			fmt.Printf("contentAfter: %s\n", hex.EncodeToString(contentAfter))
 			if err != nil {
 				fmt.Printf("cli2Mqtt(%s): Failed getting topicFilters: %v\n", incomingAddr, err)
 				return
 			}
 			bb.Write(contentBefore)
 
-			// TODO: disable multiple filters for now
+			// TODO: disable z filters for now
 			for _, filterWithOption := range topicFiltersWithOptions {
 				topicFilter := filterWithOption[:len(filterWithOption)-1]
 				topicFilterOption := filterWithOption[len(filterWithOption)-1]
@@ -183,6 +193,10 @@ func clientToMqttHandler(ctx context.Context, buf []byte, incomingConn net.Conn,
 				if verfResponse, err = communicateWithVerifier(ctx, verfRequest); err != nil {
 					return
 				}
+				if !verfResponse.ResultCode.IsSuccess() {
+					fmt.Printf("cli2Mqtt(%s): Topic Filter Bytes %s: verification failed\n", incomingAddr, hex.EncodeToString(topicFilter))
+					return
+				}
 
 				funcs.SetLen(&buf, 2)
 				binary.BigEndian.PutUint16(buf, uint16(len(verfResponse.Topic)))
@@ -193,12 +207,12 @@ func clientToMqttHandler(ctx context.Context, buf []byte, incomingConn net.Conn,
 
 			bb.Write(contentAfter)
 
-			// Context settings for Server->Client Publish Ciphering
-			if verfResponse.PayloadCipherType.IsValidCipherType() {
+			// Context settings for Server->Client Publish Encryption
+			if verfResponse.PayloadAEADType.IsEncryptionEnabled() {
 				var pubSeqNum uint64 = 0
-				ctx = context.WithValue(ctx, "MQTTMTD_CipherType", verfResponse.PayloadCipherType)
-				ctx = context.WithValue(ctx, "MQTTMTD_EncryptionKey", verfResponse.EncryptionKey)
-				ctx = context.WithValue(ctx, "MQTTMTD_PublishSequenceNumber", pubSeqNum)
+				aeadInfo.AEADType = verfResponse.PayloadAEADType
+				aeadInfo.EncKey = verfResponse.EncryptionKey
+				aeadInfo.PubSeqNum = pubSeqNum
 			}
 		}
 
@@ -211,6 +225,16 @@ func clientToMqttHandler(ctx context.Context, buf []byte, incomingConn net.Conn,
 		copy(buf[1:1+len(encodedRemainingLen)], encodedRemainingLen)
 		copy(buf[1+len(encodedRemainingLen):], bb.Bytes())
 	} else {
+
+		if fixedHdr.ControlPacketType == MqttControlCONNECT {
+			if *cliMqttVersion, err = getMQTTVersionFromConnect(buf); err != nil {
+				fmt.Printf("cli2Mqtt(%s): Failed getting MQTT Version: %v\n", incomingAddr, err)
+				return
+			} else {
+				fmt.Printf("cli2Mqtt(%s): Client MQTT Version: %d\n", incomingAddr, *cliMqttVersion)
+			}
+		}
+
 		var encodedRemainingLen []byte
 		if encodedRemainingLen, err = mqttparser.EncodeToVariableByteInteger(fixedHdr.RemainingLength); err != nil {
 			return
@@ -234,7 +258,7 @@ func clientToMqttHandler(ctx context.Context, buf []byte, incomingConn net.Conn,
 	return
 }
 
-func mqttToClientHandler(ctx context.Context, buf []byte, incomingConn net.Conn, brokerConn net.Conn) (err error) {
+func mqttToClientHandler(ctx context.Context, buf []byte, incomingConn net.Conn, brokerConn net.Conn, cliMqttVersion *byte, aeadInfo *AEADInfo) (err error) {
 	incomingAddr := incomingConn.RemoteAddr()
 
 	select {
@@ -268,33 +292,17 @@ func mqttToClientHandler(ctx context.Context, buf []byte, incomingConn net.Conn,
 			contentBetween []byte
 			payload        []byte
 		)
-		topicName, contentBetween, payload, err = getTopicNameFromPublish(buf, (int(fixedHdr.Flags)>>1)&0x3)
+		topicName, contentBetween, payload, err = getTopicNameFromPublish(*cliMqttVersion, buf, (int(fixedHdr.Flags)>>1)&0x3)
 		if err != nil {
 			fmt.Printf("mqtt2Cli(%s): Failed getting topicName: %v\n", incomingAddr, err)
 			return
 		}
 		fmt.Printf("mqtt2Cli(%s): Topic Name Bytes: %s\n", incomingAddr, hex.EncodeToString(topicName))
 
-		if v := ctx.Value("MQTTMTD_CipherType"); v != nil {
-			errorThere := true
-			if cipherType, ok := v.(types.PayloadCipherType); ok && cipherType.IsValidCipherType() {
-				if v := ctx.Value("MQTTMTD_EncryptionKey"); v != nil {
-					if encKey, ok := v.([]byte); ok && len(encKey) == cipherType.GetKeyLen() {
-						if v := ctx.Value("MQTTMTD_PublishSequenceNumber"); v != nil {
-							if pubSeqNum, ok := v.(uint64); ok {
-								payload, err = cipherType.SealMessage(payload, encKey, pubSeqNum)
-								if err != nil {
-									fmt.Printf("mqtt2Cli(%s): Failed sealing payload: %v\n", incomingAddr, err)
-									return
-								}
-								errorThere = false
-							}
-						}
-					}
-				}
-			}
-			if errorThere {
-				fmt.Printf("mqtt2Cli(%s): Failed sealing payload since context settings are irrelevant\n", incomingAddr)
+		if aeadInfo.AEADType.IsEncryptionEnabled() {
+			payload, err = aeadInfo.AEADType.SealMessage(payload, aeadInfo.EncKey, aeadInfo.PubSeqNum)
+			if err != nil {
+				fmt.Printf("mqtt2Cli(%s): Failed sealing payload: %v\n", incomingAddr, err)
 				return
 			}
 		}
@@ -361,6 +369,10 @@ func mqttInterfaceHandler(incomingConn net.Conn) {
 
 	var wg sync.WaitGroup
 	ctx, cancel := funcs.NewCancelableContext(true)
+	var cliMqttVersion byte = 0xFF
+	aeadInfo := AEADInfo{
+		AEADType: types.PAYLOAD_AEAD_NONE,
+	}
 
 	wg.Add(2)
 	go func() {
@@ -371,7 +383,7 @@ func mqttInterfaceHandler(incomingConn net.Conn) {
 			case <-ctx.Done():
 				return
 			default:
-				if shouldCloseSock, err := clientToMqttHandler(ctx, buf, incomingConn, brokerConn); err != nil {
+				if shouldCloseSock, err := clientToMqttHandler(ctx, buf, incomingConn, brokerConn, &cliMqttVersion, &aeadInfo); err != nil {
 					fmt.Println("clientToMqttHandler failed: ", err)
 					cancel()
 					return
@@ -391,7 +403,7 @@ func mqttInterfaceHandler(incomingConn net.Conn) {
 			case <-ctx.Done():
 				return
 			default:
-				if err := mqttToClientHandler(ctx, buf, incomingConn, brokerConn); err != nil {
+				if err := mqttToClientHandler(ctx, buf, incomingConn, brokerConn, &cliMqttVersion, &aeadInfo); err != nil {
 					fmt.Println("mqttToClientHandler failed: ", err)
 					cancel()
 					return

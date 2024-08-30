@@ -7,6 +7,7 @@ import (
 	"mqttmtd/funcs"
 	"net"
 	"time"
+	"unsafe"
 )
 
 func decodeVariableByteIntegerFromConn(ctx context.Context, conn net.Conn, timeout time.Duration) (value int, len int, err error) {
@@ -166,7 +167,24 @@ func getFixedHeader(ctx context.Context, conn net.Conn, timeout time.Duration) (
 	return
 }
 
-func getTopicNameFromPublish(varHdrAndPayload []byte, qos int) (topicName []byte, contentBetween []byte, payload []byte, err error) {
+func getMQTTVersionFromConnect(varHdrAndPayload []byte) (mqttVersion byte, err error) {
+	if len(varHdrAndPayload) < 7 {
+		err = fmt.Errorf("length inadequate")
+		return
+	}
+	if unsafe.String(unsafe.SliceData(varHdrAndPayload[2:6]), 4) != "MQTT" {
+		err = fmt.Errorf("protocol not mqtt")
+		return
+	}
+	mqttVersion = varHdrAndPayload[6]
+	return
+}
+
+func getTopicNameFromPublish(mqttVersion byte, varHdrAndPayload []byte, qos int) (topicName []byte, contentBetween []byte, payload []byte, err error) {
+	if mqttVersion == 0xFF {
+		err = fmt.Errorf("mqttVersion  invalid")
+		return
+	}
 	length := int(binary.BigEndian.Uint16(varHdrAndPayload[:2]))
 	if length > len(varHdrAndPayload)-2 {
 		err = fmt.Errorf("length inadequate")
@@ -181,22 +199,30 @@ func getTopicNameFromPublish(varHdrAndPayload []byte, qos int) (topicName []byte
 		propertiesLen    int
 		propertiesLenLen int
 	)
-	propertiesLen, propertiesLenLen, err = decodeVariableByteInteger(varHdrAndPayload[2+length+identifierLen:])
+	if mqttVersion >= 5 {
+		propertiesLen, propertiesLenLen, err = decodeVariableByteInteger(varHdrAndPayload[2+length+identifierLen:])
+	}
 	contentBetween = varHdrAndPayload[2+length : 2+length+identifierLen+propertiesLenLen+propertiesLen]
 	payload = varHdrAndPayload[2+length+identifierLen+propertiesLenLen+propertiesLen:]
 	return
 }
 
-func getTopicFiltersFromSubscribe(varHdrAndPayload []byte) (contentBefore []byte, topicFiltersWithOptions [][]byte, contentAfter []byte, err error) {
+func getTopicFiltersFromSubscribe(mqttVersion byte, varHdrAndPayload []byte) (contentBefore []byte, topicFiltersWithOptions [][]byte, contentAfter []byte, err error) {
+	if mqttVersion == 0xFF {
+		err = fmt.Errorf("mqttVersion  invalid")
+		return
+	}
 	if 4 > len(varHdrAndPayload) {
 		err = fmt.Errorf("length inadequate")
 		return
 	}
 	var (
-		propertiesLen    int
-		propertiesLenLen int
+		propertiesLen    int = 0
+		propertiesLenLen int = 0
 	)
-	propertiesLen, propertiesLenLen, err = decodeVariableByteInteger(varHdrAndPayload[2:])
+	if mqttVersion >= 5 {
+		propertiesLen, propertiesLenLen, err = decodeVariableByteInteger(varHdrAndPayload[2:])
+	}
 	contentBefore = varHdrAndPayload[:2+propertiesLenLen+propertiesLen]
 	offset := 2 + propertiesLenLen + propertiesLen
 	for offset < len(varHdrAndPayload) {

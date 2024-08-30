@@ -89,7 +89,7 @@ func Run(acl *types.AccessControlList, atl *types.AuthTokenList) {
 	myAcl = acl
 	myAtl = atl
 	http.HandleFunc("/", httpServerHandler)
-	fmt.Println("Starting dashboard server at port ", config.Server.Ports.Dashboard)
+	fmt.Println("Starting dashboard server on port ", config.Server.Ports.Dashboard)
 	if err := http.ListenAndServe(fmt.Sprintf(":%d", config.Server.Ports.Dashboard), nil); err != nil {
 		fmt.Println("Error starting server: ", err)
 	}
@@ -134,7 +134,7 @@ func httpServerHandler(w http.ResponseWriter, req *http.Request) {
 	func() {
 		defer myAtl.Unlock()
 
-		atlTbl.Headers = []string{"INDEX", "TIMESTAMP", "RANDOM_BYTES", "NUM_REMAINING_TOKENS", "CLIENT_NAME", "ACCESS_TYPE", "TOPIC"}
+		atlTbl.Headers = []string{"INDEX", "TIMESTAMP", "CURRENT_VALID_RANDOM_DATA", "CUR_RANDOM_DATA_INDEX", "CLIENT_NAME", "ACCESS_TYPE", "TOPIC"}
 		atlTbl.Rows = [][]string{}
 		myAtl.ForEachEntry(func(i int, entry *types.ATLEntry) {
 			var accessTypeStr string
@@ -145,9 +145,9 @@ func httpServerHandler(w http.ResponseWriter, req *http.Request) {
 			}
 			newRow := []string{
 				strconv.FormatInt(int64(i)+1, 10),
-				hex.EncodeToString(entry.Timestamp[:]),
-				hex.EncodeToString(entry.AllRandomBytes[:]),
-				strconv.FormatInt(int64(entry.CurrentValidRandomBytesIdx), 10),
+				fmt.Sprintf("%02X-%s", entry.Timestamp[0], hex.EncodeToString(entry.Timestamp[1:])),
+				hex.EncodeToString(entry.CurrentValidRandomData[:]),
+				strconv.FormatInt(int64(entry.CurrentValidTokenIdx), 10),
 				unsafe.String(unsafe.SliceData(entry.ClientName), len(entry.ClientName)),
 				accessTypeStr,
 				unsafe.String(unsafe.SliceData(entry.Topic), len(entry.Topic)),

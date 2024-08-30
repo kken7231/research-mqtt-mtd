@@ -18,7 +18,7 @@ var Benchmarks = []func(*testing.B){
 func BenchmarkGetToken_Pub_Single(b *testing.B) {
 	topic := testutil.SAMPLE_TOPIC_PUB
 	testutil.LoadClientConfig(b)
-	fetchReq := testutil.PrepareFetchReq(true, types.PAYLOAD_CIPHER_NONE)
+	fetchReq := testutil.PrepareFetchReq(true, types.PAYLOAD_AEAD_NONE)
 	b.StopTimer()
 	testutil.GetTokenTest(b, topic, *fetchReq, true)
 }
@@ -26,7 +26,7 @@ func BenchmarkGetToken_Pub_Single(b *testing.B) {
 func BenchmarkGetToken_PubonSubTopic_Single(b *testing.B) {
 	topic := testutil.SAMPLE_TOPIC_SUB
 	testutil.LoadClientConfig(b)
-	fetchReq := testutil.PrepareFetchReq(true, types.PAYLOAD_CIPHER_NONE)
+	fetchReq := testutil.PrepareFetchReq(true, types.PAYLOAD_AEAD_NONE)
 	b.StopTimer()
 	testutil.GetTokenTest(b, topic, *fetchReq, false)
 }
@@ -34,7 +34,7 @@ func BenchmarkGetToken_PubonSubTopic_Single(b *testing.B) {
 func BenchmarkGetToken_Pub_Cycle(b *testing.B) {
 	topic := testutil.SAMPLE_TOPIC_PUB
 	testutil.LoadClientConfig(b)
-	fetchReq := testutil.PrepareFetchReq(true, types.PAYLOAD_CIPHER_NONE)
+	fetchReq := testutil.PrepareFetchReq(true, types.PAYLOAD_AEAD_NONE)
 	b.StopTimer()
 	for i := 0; i < int(fetchReq.NumTokens); i++ {
 		testutil.GetTokenTest(b, topic, *fetchReq, true)
@@ -45,7 +45,7 @@ func BenchmarkGetToken_Pub_Cycle(b *testing.B) {
 func BenchmarkGetToken_Sub_Single(b *testing.B) {
 	topic := testutil.SAMPLE_TOPIC_SUB
 	testutil.LoadClientConfig(b)
-	fetchReq := testutil.PrepareFetchReq(false, types.PAYLOAD_CIPHER_NONE)
+	fetchReq := testutil.PrepareFetchReq(false, types.PAYLOAD_AEAD_NONE)
 	b.StopTimer()
 	testutil.GetTokenTest(b, topic, *fetchReq, true)
 }
@@ -53,7 +53,7 @@ func BenchmarkGetToken_Sub_Single(b *testing.B) {
 func BenchmarkGetToken_SubonPubTopic_Single(b *testing.B) {
 	topic := testutil.SAMPLE_TOPIC_PUB
 	testutil.LoadClientConfig(b)
-	fetchReq := testutil.PrepareFetchReq(false, types.PAYLOAD_CIPHER_NONE)
+	fetchReq := testutil.PrepareFetchReq(false, types.PAYLOAD_AEAD_NONE)
 	b.StopTimer()
 	testutil.GetTokenTest(b, topic, *fetchReq, false)
 }
@@ -61,7 +61,7 @@ func BenchmarkGetToken_SubonPubTopic_Single(b *testing.B) {
 func BenchmarkGetToken_Sub_Cycle(b *testing.B) {
 	topic := testutil.SAMPLE_TOPIC_SUB
 	testutil.LoadClientConfig(b)
-	fetchReq := testutil.PrepareFetchReq(false, types.PAYLOAD_CIPHER_NONE)
+	fetchReq := testutil.PrepareFetchReq(false, types.PAYLOAD_AEAD_NONE)
 	b.StopTimer()
 	for i := 0; i < int(fetchReq.NumTokens); i++ {
 		testutil.GetTokenTest(b, topic, *fetchReq, true)

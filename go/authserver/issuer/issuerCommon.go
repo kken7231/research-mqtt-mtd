@@ -15,7 +15,7 @@ import (
 )
 
 func Run(acl *types.AccessControlList, atl *types.AuthTokenList) {
-	fmt.Printf("Starting issuer server at port %d\n", config.Server.Ports.Issuer)
+	fmt.Printf("Starting issuer server on port %d\n", config.Server.Ports.Issuer)
 	cert, err := tls.LoadX509KeyPair(config.Server.Certs.ServerCertFilePath, config.Server.Certs.ServerKeyFilePath)
 	if err != nil {
 		log.Fatalf("Issuer - Failed to load server certificate: %v", err)

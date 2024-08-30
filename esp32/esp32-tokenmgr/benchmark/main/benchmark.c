@@ -37,10 +37,10 @@ void tearDown(void) {
 }
 
 esp_err_t publish_plain(const uint16_t ntokens, const char *data, long *elapsed_sec, long *elapsed_usec) {
-	fetch_request_t fetch_req = {
+	issuer_request_t fetch_req = {
 		.num_tokens = ntokens,
-		.access_type = ACCESS_PUB,
-		.enchash_enabled = false,
+		.access_type_is_pub = true,
+		.payload_aead_type = PAYLOAD_AEAD_NONE,
 	};
 	const char* topic = TOPIC_PUB;
 	uint8_t timestamp[TIMESTAMP_LEN] , random_bytes[RANDOM_BYTES_LEN], encoded_token[BASE64_ENCODED_TOKEN_SIZE];
@@ -53,9 +53,9 @@ esp_err_t publish_plain(const uint16_t ntokens, const char *data, long *elapsed_
 }
 
 esp_err_t publish_plain_withenchash(const uint16_t ntokens, const char *data, long *elapsed_sec, long *elapsed_usec) {
-	fetch_request_t fetch_req = {
+	issuer_request_t fetch_req = {
 		.num_tokens = ntokens,
-		.access_type = ACCESS_PUB,
+		.access_type_is_pub = true,
 		.enchash_enabled = true,
 	};
 	const char* topic = TOPIC_PUB;

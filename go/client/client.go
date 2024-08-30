@@ -65,9 +65,9 @@ func main() {
 	}
 
 	fetchReq := &tokenmgr.FetchRequest{
-		NumTokens:         uint16(ntokens),
-		AccessTypeIsPub:   reqAccessType,
-		PayloadCipherType: types.PAYLOAD_CIPHER_NONE,
+		NumTokens:       uint16(ntokens),
+		AccessTypeIsPub: reqAccessType,
+		PayloadAEADType: types.PAYLOAD_AEAD_NONE,
 	}
 	_, _, token, err := tokenmgr.GetToken(topic, *fetchReq)
 	if err != nil {
@@ -76,7 +76,7 @@ func main() {
 
 	var tokenStr string
 	if b64 {
-		tokenStr = base64.RawURLEncoding.EncodeToString(token)
+		tokenStr = base64.URLEncoding.EncodeToString(token)
 	} else {
 		tokenStrBytes := make([]byte, (consts.TIMESTAMP_LEN+consts.RANDOM_BYTES_LEN)*2)
 		var buf [2]byte

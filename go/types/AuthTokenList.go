@@ -21,16 +21,16 @@ type ATLEntry struct {
 	ClientName []byte
 
 	// Token Info
-	AccessTypeIsPub            bool
-	Timestamp                  [1 + consts.TIMESTAMP_LEN]byte // size = 1 + consts.TIMESTAMP_LEN, in order to distinguish expired tokens
-	AllRandomBytes             []byte                         // onmemory: all random bytes / localfile: utf8-encoded filepath
-	RandomBytesLen             uint16
-	CurrentValidRandomBytes    []byte
-	CurrentValidRandomBytesIdx uint16
+	AccessTypeIsPub        bool
+	Timestamp              [1 + consts.TIMESTAMP_LEN]byte // size = 1 + consts.TIMESTAMP_LEN, in order to distinguish expired tokens
+	AllRandomData          []byte                         // onmemory: all random data / localfile: utf8-encoded filepath
+	CurrentValidRandomData []byte
+	TokenCount             uint16
+	CurrentValidTokenIdx   uint16
 
-	// Payload Cipher
-	PayloadCipherType PayloadCipherType
-	PayloadEncKey     []byte // must be nil if PayloadCipherType.IsValidCipherType() == false
+	// Payload AEAD
+	PayloadAEADType PayloadAEADType
+	PayloadEncKey   []byte // must be nil if PayloadAEADType.IsEncryptionEnabled() == false
 
 	// Doubly Linked List Properties
 	prev *ATLEntry
@@ -158,7 +158,7 @@ func (atl *AuthTokenList) LookupEntryWithToken(token []byte) (entry *ATLEntry, e
 			// expiration check
 			if entryTime > uint64(time.Now().Add(-1*consts.TOKEN_EXPIRATION_DURATION).UnixNano()) {
 				// not expired
-				if bytes.Equal(entry.CurrentValidRandomBytes, token[consts.TIMESTAMP_LEN:consts.TOKEN_SIZE]) {
+				if bytes.Equal(entry.CurrentValidRandomData, token[consts.TIMESTAMP_LEN:consts.TOKEN_SIZE]) {
 					// random bytes matched (found)
 					break
 				} else {

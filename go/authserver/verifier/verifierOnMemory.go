@@ -7,22 +7,22 @@ import (
 	"mqttmtd/types"
 )
 
-func refreshCurrentValidRandomBytes(atl *types.AuthTokenList, entry *types.ATLEntry) (resultCode types.VerificationResultCode, err error) {
-	if entry.CurrentValidRandomBytesIdx+1 >= entry.RandomBytesLen {
+func updateCurrentValidRandomBytes(atl *types.AuthTokenList, entry *types.ATLEntry) (resultCode types.VerificationResultCode, err error) {
+	if entry.CurrentValidTokenIdx+1 >= entry.TokenCount {
 		atl.Lock()
 		atl.Remove(entry)
 		atl.Unlock()
-		if entry.PayloadCipherType.IsValidCipherType() {
+		if entry.PayloadAEADType.IsEncryptionEnabled() {
 			resultCode = types.VerfSuccessEncKeyReloadNeeded
 		} else {
 			resultCode = types.VerfSuccessReloadNeeded
 		}
 	} else {
 		atl.Lock()
-		entry.CurrentValidRandomBytesIdx++
-		entry.CurrentValidRandomBytes = entry.AllRandomBytes[entry.CurrentValidRandomBytesIdx*consts.RANDOM_BYTES_LEN : (entry.CurrentValidRandomBytesIdx+1)*consts.RANDOM_BYTES_LEN]
+		entry.CurrentValidTokenIdx++
+		entry.CurrentValidRandomData = entry.AllRandomData[entry.CurrentValidTokenIdx*consts.RANDOM_BYTES_LEN : (entry.CurrentValidTokenIdx+1)*consts.RANDOM_BYTES_LEN]
 		atl.Unlock()
-		if entry.PayloadCipherType.IsValidCipherType() {
+		if entry.PayloadAEADType.IsEncryptionEnabled() {
 			resultCode = types.VerfSuccessEncKey
 		} else {
 			resultCode = types.VerfSuccess

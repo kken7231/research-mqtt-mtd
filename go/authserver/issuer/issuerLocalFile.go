@@ -41,7 +41,7 @@ func generateAndSendIssuerResponse(atl *types.AuthTokenList, conn net.Conn, clie
 		fmt.Printf("issuer(%s): Failed mkdir -p to save tokens: %v\n", remoteAddr, err)
 		return
 	}
-	randomBytesFilePath = config.Server.FilePaths.TokensDirPath + base64.RawURLEncoding.EncodeToString(timestamp[:])
+	randomBytesFilePath = config.Server.FilePaths.TokensDirPath + base64.URLEncoding.EncodeToString(timestamp[:])
 	randomBytesFile, err = os.Create(randomBytesFilePath)
 	if err != nil {
 		fmt.Printf("issuer(%s): Failed opening file to save random bytes: %v\n", remoteAddr, err)
@@ -58,15 +58,15 @@ func generateAndSendIssuerResponse(atl *types.AuthTokenList, conn net.Conn, clie
 		}
 	}()
 
-	if request.PayloadCipherRequested {
+	if request.PayloadAEADRequested {
 		// Encryption Key
-		encKey = make([]byte, request.PayloadCipherType.GetKeyLen())
+		encKey = make([]byte, request.PayloadAEADType.GetKeyLen())
 		n, err = rand.Read(encKey)
 		if err != nil {
 			fmt.Printf("issuer(%s): Error generating encryption key: %v\n", remoteAddr, err)
 			return
 		}
-		if n != request.PayloadCipherType.GetKeyLen() {
+		if n != request.PayloadAEADType.GetKeyLen() {
 			fmt.Printf("issuer(%s): Failed generating encryption key: length is inadequate\n", remoteAddr)
 			return
 		}
@@ -93,7 +93,7 @@ func generateAndSendIssuerResponse(atl *types.AuthTokenList, conn net.Conn, clie
 	// Send Response
 	issuerResponse := types.IssuerResponse{
 		EncryptionKey:  encKey,
-		Timestamp:      timestamp[:],
+		Timestamp:      timestamp[1:],
 		AllRandomBytes: allRandomBytes,
 	}
 	if err = funcs.SendIssuerResponse(context.TODO(), conn, config.Server.SocketTimeout.External, issuerResponse); err != nil {
@@ -105,16 +105,16 @@ func generateAndSendIssuerResponse(atl *types.AuthTokenList, conn net.Conn, clie
 	atl.Lock()
 	atl.RevokeEntry(unsafe.Slice(unsafe.StringData(clientName), len(clientName)), request.Topic, request.AccessTypeIsPub)
 	atl.AppendEntry(&types.ATLEntry{
-		Topic:                      request.Topic,
-		ClientName:                 unsafe.Slice(unsafe.StringData(clientName), len(clientName)),
-		AccessTypeIsPub:            request.AccessTypeIsPub,
-		Timestamp:                  timestamp,
-		AllRandomBytes:             []byte(randomBytesFilePath),
-		RandomBytesLen:             uint16(request.NumberOfTokensDividedByMultiplier)*1 + consts.TOKEN_NUM_MULTIPLIER,
-		CurrentValidRandomBytes:    currentValidRandomBytes,
-		CurrentValidRandomBytesIdx: 0,
-		PayloadCipherType:          request.PayloadCipherType,
-		PayloadEncKey:              encKey,
+		Topic:                  request.Topic,
+		ClientName:             unsafe.Slice(unsafe.StringData(clientName), len(clientName)),
+		AccessTypeIsPub:        request.AccessTypeIsPub,
+		Timestamp:              timestamp,
+		AllRandomData:          []byte(randomBytesFilePath),
+		TokenCount:             uint16(request.NumberOfTokensDividedByMultiplier)*1 + consts.TOKEN_NUM_MULTIPLIER,
+		CurrentValidRandomData: currentValidRandomBytes,
+		CurrentValidTokenIdx:   0,
+		PayloadAEADType:        request.PayloadAEADType,
+		PayloadEncKey:          encKey,
 	})
 	atl.Unlock()
 

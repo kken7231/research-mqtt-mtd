@@ -12,6 +12,7 @@
 #include "esp_sntp.h"
 #include "esp_tls.h"
 #include "esp_wifi.h"
+#include "mbedtls/aes.h"
 #include "mbedtls/base64.h"
 #include "mdns.h"
 #include "mqtt_client.h"
@@ -25,32 +26,50 @@
 #define TOKEN_SIZE (TIMESTAMP_LEN + RANDOM_BYTES_LEN)
 #define BASE64_ENCODED_TOKEN_SIZE ((TOKEN_SIZE + 2) / 3 * 4) + 1
 #define TIME_REVOCATION (7 * 24 * 60 * 60)	// 1 week in seconds
-#define TOKEN_NUM_MULTIPIER 16
+#define TOKEN_NUM_MULTIPLIER 16
 // Definition expected in config.h
 extern const char *ISSUER_HOST;
 // Definition expected in config.h
 extern const int ISSUER_PORT;
 
 typedef enum {
-	ACCESS_PUB = 1,
-	ACCESS_SUB = 2,
-	ACCESS_PUBSUB = 3
-} access_type_t;
+	PAYLOAD_AEAD_NONE = 0x0,
+	// Referred to TLSv1.3 cipher suites. Only AEAD.
+
+	PAYLOAD_AEAD_AES_128_GCM = 0x1
+	// PAYLOAD_AEAD_AES_256 = 0x2,
+	// PAYLOAD_AEAD_CHACHA20_POLY1305 = 0x3,
+} payload_aead_type_t;
 
 typedef struct {
-	uint16_t num_tokens;
-	access_type_t access_type;
-	bool enchash_enabled;
-} fetch_request_t;
+	bool access_type_is_pub;
+	uint16_t num_tokens_divided_by_multiplier;
+	payload_aead_type_t payload_aead_type;
+} fetch_request_properties_t;
 
 typedef struct {
 	const char *topic;
+
+	// Token info
+	bool access_type_is_pub;
 	uint8_t timestamp[TIMESTAMP_LEN];
-	uint8_t *random_bytes;
-	uint8_t *random_bytes_cur_pointer;
+	uint8_t *all_random_data;
+	uint8_t *cur_random_data;
 	uint16_t token_count;
+	uint16_t cur_token_idx;
+
+	// Payload Cipher
+	payload_aead_type_t payload_aead_type;
+	uint8_t *payload_enc_key;
+
+	void *prev;
 	void *next;
 } token_store_t;
+
+typedef struct {
+	token_store_t *head;
+	token_store_t *tail;
+} token_storage_t;
 
 typedef enum {
 	TOKENMGR_STATE_BEFORE_ONETIME_INIT,
@@ -105,7 +124,8 @@ void tokenmgr_deinit(void);
 void print_time_record_summary(void);
 void reset_time_record_store(void);
 
-esp_err_t get_token(const char *, fetch_request_t, uint8_t[TIMESTAMP_LEN], uint8_t[RANDOM_BYTES_LEN]);
-esp_err_t b64encode_token(const uint8_t[TIMESTAMP_LEN], const uint8_t[RANDOM_BYTES_LEN], uint8_t[BASE64_ENCODED_TOKEN_SIZE]);
-esp_err_t mqtt_publish_qos0(mqtt_client_type_t, const char *, const char *, int);
+esp_err_t get_token(const char *, fetch_request_properties_t, uint8_t *, uint8_t *);
+esp_err_t b64encode_token(const uint8_t *, uint8_t *);
+esp_err_t seal_message(payload_aead_type_t, const uint8_t *, const uint16_t, const uint8_t *, int *, uint8_t *);
+esp_err_t mqtt_publish_qos0(mqtt_client_type_t, const char *, const uint8_t *, int);
 #endif
