@@ -30,8 +30,8 @@ void app_main(void) {
 	tokenmgr_app_init();
 	tokenmgr_init();
 	display_time("Testing App started", time(NULL));
-	display_time("Waiting for 20s...", time(NULL));
-	sleep(20);
+	display_time("Waiting for 30 sec...", time(NULL));
+	sleep(30);
 
 	display_time("Plain Test Start", time(NULL));
 	if (plain_none(1, 32) != 0) {
@@ -42,8 +42,8 @@ void app_main(void) {
 	tokenmgr_deinit();
 	tokenmgr_init();
 
-	display_time("Waiting for 20 sec...", time(NULL));
-	sleep(20);
+	display_time("Waiting for 30 sec...", time(NULL));
+	sleep(30);
 
 	display_time("Plain(AEAD) Test Start", time(NULL));
 	if (plain_aead(1, 32) != 0) {
@@ -54,8 +54,8 @@ void app_main(void) {
 	tokenmgr_deinit();
 	tokenmgr_init();
 
-	display_time("Waiting for 20 sec...", time(NULL));
-	sleep(20);
+	display_time("Waiting for 30 sec...", time(NULL));
+	sleep(30);
 
 	display_time("TLS Test Start", time(NULL));
 	if (tls(32) != 0) {
