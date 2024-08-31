@@ -30,7 +30,6 @@ void app_main(void) {
 	tokenmgr_app_init();
 	tokenmgr_init();
 	display_time("Testing App started", time(NULL));
-	printf("free heap: %d bytes\n", heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
 	display_time("Waiting for 20s...", time(NULL));
 	sleep(20);
 
@@ -40,7 +39,6 @@ void app_main(void) {
 	}
 	tokenmgr_deinit();
 	tokenmgr_init();
-	printf("free heap: %d bytes\n", heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
 	display_time("Plain Test Ended. Waiting for 20s...", time(NULL));
 	sleep(20);
 
@@ -50,7 +48,6 @@ void app_main(void) {
 	}
 	tokenmgr_deinit();
 	tokenmgr_init();
-	printf("free heap: %d bytes\n", heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
 	display_time("Plain(AEAD) Test Ended. Waiting for 20 sec...", time(NULL));
 	sleep(20);
 

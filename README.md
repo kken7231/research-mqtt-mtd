@@ -12,7 +12,7 @@ Server consists of these services:
 
 ### Before
 
-1. Run docker-compose in ./database
+1. Run docker-compose in ./database, after removing the existing sqlite.db
 ```sh
 cd database
 docker-compose up --build
@@ -24,7 +24,7 @@ cd shell
 ./run_server_macos
 ```
 
-3. Run arduino logging program on an ESP32C3
+3. Connect and Run arduino logging program on an ESP32C3
 
 4. Check that grafana and other services are working well
 

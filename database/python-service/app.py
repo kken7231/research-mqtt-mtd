@@ -28,7 +28,6 @@ def on_message(client, userdata, msg):
     data = msg.payload.decode()
     timestamp, current, voltage, power = parse_watt(data)
     if timestamp != 0:
-        timestamp = datetime.fromtimestamp(float(timestamp),tz=timezone(timedelta(hours=9))).isoformat()
         cursor.execute('INSERT INTO cli_watts_data (current, voltage, power, timestamp) VALUES (?, ?, ?, ?)',(current, voltage, power, timestamp))
         conn.commit()
         print(f"cli/watts: Timestamp={timestamp}, Current={current}, Voltage={voltage}, Power={power}")

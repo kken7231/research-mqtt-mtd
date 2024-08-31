@@ -98,9 +98,9 @@ void loop() {
 
     if (client.connected() || client.connect("abc")) {
       // Calculate the current time based on startTime and elapsed milliseconds
-      unsigned long now = (unsigned long)startTime * 1000 + currentMillis;
+      unsigned long long now = (unsigned long long)startTime * 1000 + currentMillis;
 
-      sprintf(buffer, "{\"ts\":%lu,\"cur\":%f,\"vol\":%f,\"pow\":%f}", (unsigned long)now, cur, vol, pow);
+      sprintf(buffer, "{\"ts\":%llu,\"cur\":%f,\"vol\":%f,\"pow\":%f}", now, cur, vol, pow);
       Serial.println(buffer);
       client.publish(topic, buffer);
 
