@@ -33,28 +33,36 @@ void app_main(void) {
 	display_time("Waiting for 20s...", time(NULL));
 	sleep(20);
 
+	display_time("Plain Test Start", time(NULL));
 	if (plain_none(1, 32) != 0) {
 		printf("Aborting...\n");
 		return;
 	}
+	display_time("Plain Test End", time(NULL));
 	tokenmgr_deinit();
 	tokenmgr_init();
-	display_time("Plain Test Ended. Waiting for 20s...", time(NULL));
+
+	display_time("Waiting for 20 sec...", time(NULL));
 	sleep(20);
 
+	display_time("Plain(AEAD) Test Start", time(NULL));
 	if (plain_aead(1, 32) != 0) {
 		printf("Aborting...\n");
 		return;
 	}
+	display_time("Plain(AEAD) Test End", time(NULL));
 	tokenmgr_deinit();
 	tokenmgr_init();
-	display_time("Plain(AEAD) Test Ended. Waiting for 20 sec...", time(NULL));
+
+	display_time("Waiting for 20 sec...", time(NULL));
 	sleep(20);
 
+	display_time("TLS Test Start", time(NULL));
 	if (tls(32) != 0) {
 		printf("Aborting...\n");
 		return;
 	}
+	display_time("TLS Test End", time(NULL));
 	tokenmgr_deinit();
 
 	display_time("Test Ended", time(NULL));

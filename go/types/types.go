@@ -4,7 +4,6 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"mqttmtd/consts"
 	"os"
@@ -179,9 +178,6 @@ func (p PayloadAEADType) OpenMessage(payload []byte, encKey []byte, nonceSpice u
 		}
 		nonce = make([]byte, aesGCM.NonceSize())
 		binary.BigEndian.PutUint64(nonce, uint64(consts.NONCE_BASE)+nonceSpice)
-		fmt.Println("Nonce: ", hex.EncodeToString(nonce))
-		fmt.Println("EncKey: ", hex.EncodeToString(encKey))
-		fmt.Println("Payload: ", hex.EncodeToString(payload))
 
 		decrypted, err = aesGCM.Open(nil, nonce, payload, nil)
 		if err != nil {

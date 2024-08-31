@@ -67,25 +67,6 @@ esp_err_t seal_message(payload_aead_type_t type, const char *plaintext, const si
 
 			ret = mbedtls_gcm_crypt_and_tag(&gcm, MBEDTLS_GCM_ENCRYPT, plaintext_len, nonce, get_noncelen(type), NULL, 0, (const unsigned char *)plaintext, (unsigned char *)sealed, 16, (unsigned char *)(sealed + plaintext_len));
 			mbedtls_gcm_free(&gcm);
-
-			printf("Nonce: ");
-			for (size_t i = 0; i < sizeof(nonce); i++) {
-				printf("%02X", nonce[i]);
-			}
-			printf("\n");
-
-			printf("EncKey: ");
-			for (size_t i = 0; i < get_keylen(type); i++) {
-				printf("%02X", encKey[i]);
-			}
-			printf("\n");
-			printf("Payload: ");
-			for (size_t i = 0; i < *sealed_len; i++) {
-				printf("%02X", (sealed)[i]);
-			}
-			printf("\n");
-			break;
-
 			if (ret != 0) {
 				err = ESP_FAIL;
 				goto seal_message_finish;

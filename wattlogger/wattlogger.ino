@@ -5,9 +5,8 @@
 
 // Sensor
 Adafruit_INA260 ina260 = Adafruit_INA260();
-int loggingInterval = 1000; // ms
-unsigned long lastReadMillis = 0; 
-time_t startTime = 0;
+unsigned long long loggingInterval = 1000; // ms
+unsigned long long lastReadMillis = 0; 
 float ss;
 
 // WiFi
@@ -73,23 +72,16 @@ void setup() {
 
   // Initialize and synchronize time with NTP server
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-  
-	startTime = align_to_nearest_10_seconds(time(NULL) + 30);
-  if (startTime == 0) {
-    Serial.println("Invalid datetime string, aborting...");
-    while (1);
-  }
-  display_time("Configured start time", startTime);
-  
-  lastReadMillis = millis(); // Capture the starting millis
+
+  lastReadMillis = millis() + 20000; // Capture the starting millis. In 20s.
   
   Serial.println("Setup complete");
 }
 
 void loop() {
-  unsigned long currentMillis = millis();
+  unsigned long long currentMillis = millis();
   
-  if (currentMillis - lastReadMillis >= loggingInterval) {
+  if (currentMillis >= loggingInterval + lastReadMillis) {
     lastReadMillis += loggingInterval;
 
     float cur = ina260.readCurrent();
@@ -97,10 +89,7 @@ void loop() {
     float pow = ina260.readPower();
 
     if (client.connected() || client.connect("abc")) {
-      // Calculate the current time based on startTime and elapsed milliseconds
-      unsigned long long now = (unsigned long long)startTime * 1000 + currentMillis;
-
-      sprintf(buffer, "{\"ts\":%llu,\"cur\":%f,\"vol\":%f,\"pow\":%f}", now, cur, vol, pow);
+      sprintf(buffer, "{\"ts\":%lu,\"cur\":%f,\"vol\":%f,\"pow\":%f}", (unsigned long)time(NULL), cur, vol, pow);
       Serial.println(buffer);
       client.publish(topic, buffer);
 
