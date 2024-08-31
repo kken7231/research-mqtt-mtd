@@ -4,6 +4,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"mqttmtd/consts"
 	"os"
@@ -117,6 +118,7 @@ func (p PayloadAEADType) SealMessage(plaintext []byte, encKey []byte, nonceSpice
 	var (
 		nonce []byte
 	)
+	fmt.Printf("Sealing Message. Type: %d\n", p)
 	switch p {
 	case PAYLOAD_AEAD_AES_128_GCM:
 		fallthrough
@@ -177,6 +179,10 @@ func (p PayloadAEADType) OpenMessage(payload []byte, encKey []byte, nonceSpice u
 		}
 		nonce = make([]byte, aesGCM.NonceSize())
 		binary.BigEndian.PutUint64(nonce, uint64(consts.NONCE_BASE)+nonceSpice)
+		fmt.Println("Nonce: ", hex.EncodeToString(nonce))
+		fmt.Println("EncKey: ", hex.EncodeToString(encKey))
+		fmt.Println("Payload: ", hex.EncodeToString(payload))
+
 		decrypted, err = aesGCM.Open(nil, nonce, payload, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decrypt: %w", err)

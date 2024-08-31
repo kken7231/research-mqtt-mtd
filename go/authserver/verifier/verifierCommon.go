@@ -64,7 +64,14 @@ func tokenVerifierHandler(conn net.Conn, atl *types.AuthTokenList) {
 		verifierResponse = types.VerifierResponse{
 			ResultCode: types.VerfFail,
 		}
-	} else if resultCode, err := updateCurrentValidRandomBytes(atl, entry); err != nil {
+	}
+	var (
+		curValidTokenIdx uint16                = entry.CurrentValidTokenIdx
+		payloadAEADType  types.PayloadAEADType = entry.PayloadAEADType
+		payloadEncKey    []byte                = entry.PayloadEncKey
+		topic            []byte                = entry.Topic
+	)
+	if resultCode, err := updateCurrentValidRandomBytes(atl, entry); err != nil {
 		// Internal Value Refresh Failed
 		fmt.Printf("verifier(%s): Failed token update with error: %v\n", remoteAddr, err)
 		verifierResponse = types.VerifierResponse{
@@ -75,15 +82,15 @@ func tokenVerifierHandler(conn net.Conn, atl *types.AuthTokenList) {
 		if resultCode.IsSuccessEncKey() {
 			verifierResponse = types.VerifierResponse{
 				ResultCode:      resultCode,
-				TokenIndex:      entry.CurrentValidTokenIdx - 1, // entry.CurrentValidTokenIdx is the current one, so the verified token is of one before
-				PayloadAEADType: entry.PayloadAEADType,
-				EncryptionKey:   entry.PayloadEncKey,
-				Topic:           entry.Topic,
+				TokenIndex:      curValidTokenIdx,
+				PayloadAEADType: payloadAEADType,
+				EncryptionKey:   payloadEncKey,
+				Topic:           topic,
 			}
 		} else if resultCode.IsSuccess() {
 			verifierResponse = types.VerifierResponse{
 				ResultCode: resultCode,
-				Topic:      entry.Topic,
+				Topic:      topic,
 			}
 		} else {
 			fmt.Printf("verifier(%s): Unexpected result code: %d\n", remoteAddr, resultCode)

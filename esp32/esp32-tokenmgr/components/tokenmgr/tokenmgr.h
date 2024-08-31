@@ -50,7 +50,7 @@ typedef enum {
 bool is_encryption_enabled(payload_aead_type_t);
 int get_keylen(payload_aead_type_t);
 int get_noncelen(payload_aead_type_t);
-esp_err_t seal_message(payload_aead_type_t, const char *, const size_t, const uint8_t *, uint64_t, uint8_t **, size_t *);
+esp_err_t seal_message(payload_aead_type_t, const char *, const size_t, const uint8_t *, uint64_t, uint8_t *, size_t *);
 
 typedef struct {
 	uint16_t num_tokens_divided_by_multiplier;
@@ -83,6 +83,8 @@ typedef struct {
 token_store_entry_t *token_store_entry_init(const char *, bool);
 void token_store_append(token_store_t *, token_store_entry_t *);
 token_store_entry_t *token_store_search(token_store_t *, const char *, bool);
+void reset_token_store_entries(token_store_t *store);
+void reset_token_store();
 
 typedef enum {
 	TOKENMGR_STATE_BEFORE_ONETIME_INIT,

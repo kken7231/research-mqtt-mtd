@@ -44,3 +44,17 @@ token_store_entry_t *token_store_search(token_store_t *store, const char *topic,
 	}
 	return entry;
 }
+
+void reset_token_store_entries(token_store_t *store) {
+	token_store_entry_t *entry = store->head;
+	while (entry) {
+		if (entry->all_random_data) {
+			free((void *)entry->all_random_data);
+		}
+		if (entry->payload_encryption_key) {
+			free((void *)entry->payload_encryption_key);
+		}
+		entry = entry->next;
+		free((void *)entry);
+	}
+}

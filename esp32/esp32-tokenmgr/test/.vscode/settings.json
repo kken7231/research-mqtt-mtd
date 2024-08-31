@@ -2,6 +2,6 @@
     "C_Cpp.intelliSenseEngine": "default",
     "C_Cpp.clang_format_style": "{BasedOnStyle: Google, ColumnLimit: 0, IndentWidth: 4, TabWidth: 4, UseTab: Always}",  
     "idf.adapterTargetName": "esp32c3",
-    "idf.port": "/dev/tty.usbmodem83101",
+    "idf.port": "/dev/tty.usbmodem1101",
     "idf.flashType": "UART"
 }

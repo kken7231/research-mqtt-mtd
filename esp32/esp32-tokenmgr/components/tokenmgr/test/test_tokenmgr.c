@@ -178,7 +178,9 @@ TEST_CASE("Send 32 plain AEAD publishes", "[pub]") {
 		printf("[%02d] %ld.%06ld sec (avg. %ld.%06ld)\n", i, elapsed_sec, elapsed_usec, avg_sec, avg_usec);
 		sleep(1);
 	}
-	free((void*)encryption_key);
+	if (encryption_key) {
+		free((void*)encryption_key);
+	}
 }
 
 TEST_CASE("Send 32 tls publishes", "[pub]") {

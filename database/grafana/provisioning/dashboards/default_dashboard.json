@@ -1,33 +1,31 @@
 {
-  "dashboard": {
-    "id": null,
-    "title": "SQLite Sample Dashboard",
-    "timezone": "browser",
-    "panels": [
-      {
-        "title": "Sample Query",
-        "type": "graph",
-        "gridPos": {
-          "x": 0,
-          "y": 0,
-          "w": 12,
-          "h": 8
-        },
-        "targets": [
-          {
-            "format": "time_series",
-            "refId": "A",
-            "rawSql": "SELECT timestamp as time, voltage, current, power FROM cli_watts_data",
-            "datasource": "SQLite"
-          }
-        ]
-      }
-    ],
-    "schemaVersion": 26,
-    "version": 1,
-    "time": {
-      "from": "now-6h",
-      "to": "now"
+  "id": null,
+  "title": "SQLite Sample Dashboard",
+  "timezone": "browser",
+  "panels": [
+    {
+      "title": "Sample Query",
+      "type": "graph",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "format": "time_series",
+          "refId": "A",
+          "rawSql": "SELECT timestamp as time, voltage, current, power FROM cli_watts_data",
+          "datasource": "SQLite"
+        }
+      ]
     }
+  ],
+  "schemaVersion": 26,
+  "version": 1,
+  "time": {
+    "from": "now-15m",
+    "to": "now"
   }
 }

@@ -13,7 +13,7 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS cli_watts_data (
                     current REAL,
                     voltage REAL,
                     power REAL,
-                    timestamp TEXT
+                    timestamp REAL
                   )''')
 conn.commit()
 
@@ -36,7 +36,7 @@ def on_message(client, userdata, msg):
 def parse_watt(data):
     try:
         data_dict = json.loads(data)
-        timestamp = float(data_dict.get('ts', 0.000))
+        timestamp = int(data_dict.get('ts', 0))
         current = float(data_dict.get('cur', 0.0))
         voltage = float(data_dict.get('vol', 0.0))
         power = float(data_dict.get('pow', 0.0))

@@ -3,7 +3,8 @@ set -e
 
 prepend_service_name() {
   while IFS= read -r line; do
-    echo "$(date '+%Y-%m-%d %H:%M:%S.%6N')| $1| $line"
+    # coreutil is needed through brew
+    echo "$(gdate '+%Y-%m-%d %H:%M:%S.%6N')| $1| $line"
   done
 }
 
@@ -24,7 +25,7 @@ MQTTENV_DIR="$GIT_ROOT/.mqttenv"
 MQTTENVLOGS_DIR="$GIT_ROOT/.mqttenvlogs"
 sudo rm -rf "$MQTTENV_DIR"
 rm -rf "$MQTTENVLOGS_DIR"
-mkdir -p "$MQTTENV_DIR" "$MQTTENV_DIR/mqttmtd" "$MQTTENV_DIR/mqttmtd/certs" "$MQTTENV_DIR/mqttmtd/tokens" "$MQTTENV_DIR/mosquitto" "$MQTTENVLOGS_DIR"
+mkdir -p "$MQTTENV_DIR" "$MQTTENV_DIR/mqttmtd" "$MQTTENV_DIR/mqttmtd/certs/clients" "$MQTTENV_DIR/mqttmtd/tokens" "$MQTTENV_DIR/mosquitto" "$MQTTENVLOGS_DIR"
 
 pushd "$GO_DIR/mqttinterface"; go build -o "$MQTTENV_DIR/mqttmtd/mqttinterface" .; popd;
 pushd "$GO_DIR/authserver"; go build -tags onmemory -o "$MQTTENV_DIR/mqttmtd/authserver" .; popd;
@@ -40,6 +41,8 @@ cp -r "$GIT_ROOT/mqttmtd_config/" "$MQTTENV_DIR/mqttmtd/config/"
 sed -e "s|{{MQTTENV_DIR}}|$MQTTENV_DIR|g" "$MQTTENV_DIR/mqttmtd/config/server_conf_nondocker_template.yml" > "$MQTTENV_DIR/mosquitto/config/server_conf.yml"
 cp -r "$GIT_ROOT/certs/ca/" "$MQTTENV_DIR/mqttmtd/certs/ca/"
 cp -r "$GIT_ROOT/certs/server/" "$MQTTENV_DIR/mqttmtd/certs/server/"
+cp "$GIT_ROOT/certs/clients/client_listen.pem" "$MQTTENV_DIR/mqttmtd/certs/clients/client_listen.pem"
+cp "$GIT_ROOT/certs/clients/client_listen.key" "$MQTTENV_DIR/mqttmtd/certs/clients/client_listen.key"
 
 sudo scutil --set LocalHostName server 2>&1 | prepend_service_name "scutil        " >> "$MQTTENVLOGS_DIR/combined.log" &
 /opt/homebrew/sbin/mosquitto -v -c "$MQTTENV_DIR/mosquitto/config/mosquitto.conf" 2>&1 | prepend_service_name "mosquitto     " >> "$MQTTENVLOGS_DIR/combined.log" &
@@ -47,8 +50,8 @@ sudo scutil --set LocalHostName server 2>&1 | prepend_service_name "scutil      
 
 sleep 1
 
-/opt/homebrew/sbin/mosquitto_sub -h localhost -p 11883 -t "/sample/topic/pub" 2>&1 | prepend_service_name "mqttsub_plain " >> "$MQTTENVLOGS_DIR/combined.log" &
-/opt/homebrew/sbin/mosquitto_sub -h localhost -p 8883 --cafile "$MQTTENV_DIR/mqttmtd/certs/ca/ca.pem" -cert "$MQTTENV_DIR/mqttmtd/certs/clients/client_listen.pem" -key "$MQTTENV_DIR/mqttmtd/certs/clients/client_listen.key" -t "/sample/topic/pub" 2>&1 | prepend_service_name "mqttsub_tls   " >> "$MQTTENVLOGS_DIR/combined.log" &
+(script -q -a "$MQTTENVLOGS_DIR/mosquitto_server_plain.log" /opt/homebrew/bin/mosquitto_sub -h localhost -p 11883 -t /sample/topic/pub -F "%I - \"%p\"" 2>&1) &
+(script -q -a "$MQTTENVLOGS_DIR/mosquitto_server_tls.log" /opt/homebrew/bin/mosquitto_sub -h localhost -p 8883  -F "%I - \"%p\"" --insecure --cafile "$MQTTENV_DIR/mqttmtd/certs/ca/ca.pem" --cert "$MQTTENV_DIR/mqttmtd/certs/clients/client_listen.pem" --key "$MQTTENV_DIR/mqttmtd/certs/clients/client_listen.key" -t "/sample/topic/pub" 2>&1) &
 
 "$MQTTENV_DIR/mqttmtd/authserver" -conf "$MQTTENV_DIR/mosquitto/config/server_conf.yml" 2>&1 | prepend_service_name "authserver    " >> "$MQTTENVLOGS_DIR/combined.log" &
 "$MQTTENV_DIR/mqttmtd/mqttinterface" -conf "$MQTTENV_DIR/mosquitto/config/server_conf.yml" 2>&1 | prepend_service_name "mqttinterface " >> "$MQTTENVLOGS_DIR/combined.log" &

@@ -11,15 +11,6 @@ static const char* TAG = "tokenmgr_app";
 
 const int CIPHERSUITES_LIST[] = {MBEDTLS_TLS1_3_AES_128_GCM_SHA256, 0};
 
-static void app_init(void) {
-	tokenmgr_app_init();
-	tokenmgr_init();
-}
-
-static void app_deinit(void) {
-	tokenmgr_deinit();
-}
-
 static time_t align_to_nearest_10_seconds(time_t t) {
 	return (t / 10) * 10;
 }
@@ -36,22 +27,38 @@ static void display_time(const char* label, time_t t) {
 }
 
 void app_main(void) {
-	printf("Testing App started\n");
-	app_init();
+	tokenmgr_app_init();
+	tokenmgr_init();
+	display_time("Testing App started", time(NULL));
+	printf("free heap: %d bytes\n", heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+	display_time("Waiting for 20s...", time(NULL));
+	sleep(20);
 
-	time_t current_time = time(NULL);
-	time_t time_plain = align_to_nearest_10_seconds(current_time + 30);
-	time_t time_aead = align_to_nearest_10_seconds(time_plain + 180);
-	time_t time_tls = align_to_nearest_10_seconds(time_aead + 180);
+	if (plain_none(1, 32) != 0) {
+		printf("Aborting...\n");
+		return;
+	}
+	tokenmgr_deinit();
+	tokenmgr_init();
+	printf("free heap: %d bytes\n", heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+	display_time("Plain Test Ended. Waiting for 20s...", time(NULL));
+	sleep(20);
 
-	printf("\nAligned Times:\n");
-	display_time("plain_none starts", time_plain);
-	display_time("plain_aead starts", time_aead);
-	display_time("tls starts", time_tls);
+	if (plain_aead(1, 32) != 0) {
+		printf("Aborting...\n");
+		return;
+	}
+	tokenmgr_deinit();
+	tokenmgr_init();
+	printf("free heap: %d bytes\n", heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+	display_time("Plain(AEAD) Test Ended. Waiting for 20 sec...", time(NULL));
+	sleep(20);
 
-	plain_none(time_plain, 1, 32);
-	plain_aead(time_aead, 1, 32);
-	tls(time_tls, 32);
+	if (tls(32) != 0) {
+		printf("Aborting...\n");
+		return;
+	}
+	tokenmgr_deinit();
 
-	app_deinit();
+	display_time("Test Ended", time(NULL));
 }

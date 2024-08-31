@@ -30,10 +30,10 @@ int get_noncelen(payload_aead_type_t type) {
 	}
 }
 
-esp_err_t seal_message(payload_aead_type_t type, const char *plaintext, const size_t plaintext_len, const uint8_t *encKey, uint64_t nonceSpice, uint8_t **sealed, size_t *sealed_len) {
+esp_err_t seal_message(payload_aead_type_t type, const char *plaintext, const size_t plaintext_len, const uint8_t *encKey, uint64_t nonceSpice, uint8_t *sealed, size_t *sealed_len) {
 	LOG_TIME_FUNC_START();
-	if (!encKey || !plaintext) {
-		ESP_LOGE(TAG, "encKey or plaintext is NULL");
+	if (!sealed || !encKey || !plaintext) {
+		ESP_LOGE(TAG, "sealed, encKey or plaintext is NULL");
 		return ESP_ERR_INVALID_ARG;
 	}
 
@@ -49,6 +49,11 @@ esp_err_t seal_message(payload_aead_type_t type, const char *plaintext, const si
 	switch (type) {
 		case PAYLOAD_AEAD_AES_128_GCM:
 		case PAYLOAD_AEAD_AES_256_GCM: {
+			if (*sealed_len < plaintext_len + 16) {	 // GCM adds a 16-byte tag)
+				err = ESP_FAIL;
+				goto seal_message_finish;
+			}
+			*sealed_len = plaintext_len + 16;
 			mbedtls_gcm_context gcm;
 			mbedtls_gcm_init(&gcm);
 			mbedtls_cipher_id_t cipher = MBEDTLS_CIPHER_ID_AES;
@@ -60,25 +65,39 @@ esp_err_t seal_message(payload_aead_type_t type, const char *plaintext, const si
 				goto seal_message_finish;
 			}
 
-			*sealed_len = plaintext_len + 16;  // GCM adds a 16-byte tag
-			*sealed = (uint8_t *)malloc(*sealed_len);
-			if (*sealed == NULL) {
-				mbedtls_gcm_free(&gcm);
-				err = ESP_ERR_NO_MEM;
-				goto seal_message_finish;
-			}
-
-			ret = mbedtls_gcm_crypt_and_tag(&gcm, MBEDTLS_GCM_ENCRYPT, plaintext_len, nonce, sizeof(nonce), NULL, 0, (const unsigned char *)plaintext, (unsigned char *)*sealed, 16, (unsigned char *)(*sealed + plaintext_len));
+			ret = mbedtls_gcm_crypt_and_tag(&gcm, MBEDTLS_GCM_ENCRYPT, plaintext_len, nonce, get_noncelen(type), NULL, 0, (const unsigned char *)plaintext, (unsigned char *)sealed, 16, (unsigned char *)(sealed + plaintext_len));
 			mbedtls_gcm_free(&gcm);
 
+			printf("Nonce: ");
+			for (size_t i = 0; i < sizeof(nonce); i++) {
+				printf("%02X", nonce[i]);
+			}
+			printf("\n");
+
+			printf("EncKey: ");
+			for (size_t i = 0; i < get_keylen(type); i++) {
+				printf("%02X", encKey[i]);
+			}
+			printf("\n");
+			printf("Payload: ");
+			for (size_t i = 0; i < *sealed_len; i++) {
+				printf("%02X", (sealed)[i]);
+			}
+			printf("\n");
+			break;
+
 			if (ret != 0) {
-				free((void *)*sealed);
 				err = ESP_FAIL;
 				goto seal_message_finish;
 			}
 			break;
 		}
 		case PAYLOAD_AEAD_CHACHA20_POLY1305: {
+			if (*sealed_len < plaintext_len + 16) {	 // ChaCha20-Poly1305 adds a 16-byte tag
+				err = ESP_FAIL;
+				goto seal_message_finish;
+			}
+			*sealed_len = plaintext_len + 16;
 			mbedtls_chachapoly_context chachapoly;
 			mbedtls_chachapoly_init(&chachapoly);
 
@@ -89,14 +108,10 @@ esp_err_t seal_message(payload_aead_type_t type, const char *plaintext, const si
 				goto seal_message_finish;
 			}
 
-			*sealed_len = plaintext_len + 16;  // ChaCha20-Poly1305 adds a 16-byte tag
-			*sealed = (uint8_t *)malloc(*sealed_len);
-
-			ret = mbedtls_chachapoly_encrypt_and_tag(&chachapoly, plaintext_len, nonce, NULL, 0, (const unsigned char *)plaintext, (unsigned char *)*sealed, (unsigned char *)(*sealed + plaintext_len));
+			ret = mbedtls_chachapoly_encrypt_and_tag(&chachapoly, plaintext_len, nonce, NULL, 0, (const unsigned char *)plaintext, (unsigned char *)sealed, (unsigned char *)(sealed + plaintext_len));
 			mbedtls_chachapoly_free(&chachapoly);
 
 			if (ret != 0) {
-				free((void *)*sealed);
 				err = ESP_FAIL;
 				goto seal_message_finish;
 			}

@@ -11,6 +11,10 @@ static token_store_t *token_store = &token_store_instance;
 static esp_err_t fetch_tokens(issuer_request_t req, const char *topic, const uint16_t topic_len) {
 	LOG_TIME_FUNC_START();
 	esp_err_t err = ESP_OK;
+	// request
+	uint8_t req_data[4 + topic_len];
+	memset(req_data, 0, 4 + topic_len);
+
 	if (topic_len > 0x7F) {
 		ESP_LOGE(TAG, "Topic must be less than 0x7F letters");
 		err = ESP_ERR_INVALID_ARG;
@@ -54,13 +58,12 @@ static esp_err_t fetch_tokens(issuer_request_t req, const char *topic, const uin
 	}
 
 	// Send a request
-	// uint8_t req_data[4 + topic_len];
-	uint8_t *req_data = (uint8_t *)malloc(4 + topic_len);
-	if (!req_data) {
-		ESP_LOGE(TAG, "Failed to allocate memory for req_data");
-		err = ESP_ERR_NO_MEM;
-		goto fetch_tokens_finish_destroytls;
-	}
+	// uint8_t *req_data = (uint8_t *)malloc(4 + topic_len);
+	// if (!req_data) {
+	// 	ESP_LOGE(TAG, "Failed to allocate memory for req_data");
+	// 	err = ESP_ERR_NO_MEM;
+	// 	goto fetch_tokens_finish_destroytls;
+	// }
 	int offset = 0;
 	req_data[offset] = req.num_tokens_divided_by_multiplier;
 	if (req.access_type_is_pub) req_data[offset] |= 0x80;
@@ -71,9 +74,8 @@ static esp_err_t fetch_tokens(issuer_request_t req, const char *topic, const uin
 	req_data[offset++] = (uint8_t)(topic_len & 0xFF);
 	memcpy(req_data + offset, topic, topic_len);
 	offset += topic_len;
-
 	err = conn_write(tls, req_data, offset, 0);
-	free((void *)req_data);
+	// free((void *)req_data);
 	if (err != ESP_OK) {
 		ESP_LOGE(TAG, "Failed to conn_write issuer_request");
 		goto fetch_tokens_finish_destroytls;
@@ -146,7 +148,7 @@ static esp_err_t fetch_tokens(issuer_request_t req, const char *topic, const uin
 	entry->cur_token_idx = 0;
 
 fetch_tokens_finish_destroytls:
-	if (!tls)
+	if (tls)
 		esp_tls_conn_destroy(tls);
 fetch_tokens_finish:
 	LOG_TIME_FUNC_END();
@@ -205,9 +207,6 @@ void tokenmgr_app_init(void) {
 		ESP_ERROR_CHECK(esp_event_loop_create_default());
 		current_state = TOKENMGR_STATE_UNINITIALIZED;
 	}
-	// token_store = (token_store_t *)malloc(sizeof(token_store_t));
-	// token_store->head = NULL;
-	// token_store->tail = NULL;
 	LOG_TIME_FUNC_END();
 }
 
@@ -252,10 +251,18 @@ void tokenmgr_deinit() {
 			esp_netif_destroy(netif);
 		}
 
+		reset_token_store();
+
 		current_state = TOKENMGR_STATE_UNINITIALIZED;
 		ESP_LOGI(TAG, "tokenmgr deinitialized");
 	}
 	LOG_TIME_FUNC_END();
+}
+
+void reset_token_store() {
+	reset_token_store_entries(token_store);
+	token_store->head = NULL;
+	token_store->tail = NULL;
 }
 
 esp_err_t get_token(const char *topic, issuer_request_t fetch_req, uint8_t token[TOKEN_SIZE], uint8_t *encryption_key, uint16_t *cur_token_idx) {

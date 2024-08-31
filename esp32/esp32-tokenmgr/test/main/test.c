@@ -75,13 +75,13 @@ void app_main(void) {
 	// unity_run_test_by_name("Send 32 plain publishes");
 	// UNITY_END();
 
-	UNITY_BEGIN();
-	unity_run_test_by_name("Send 32 plain AEAD publishes");
-	UNITY_END();
-
 	// UNITY_BEGIN();
-	// unity_run_test_by_name("Send 32 tls publishes");
+	// unity_run_test_by_name("Send 32 plain AEAD publishes");
 	// UNITY_END();
+
+	UNITY_BEGIN();
+	unity_run_test_by_name("Send 32 tls publishes");
+	UNITY_END();
 }
 
 static void print_banner(const char *text) {

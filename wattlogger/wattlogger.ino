@@ -5,10 +5,9 @@
 
 // Sensor
 Adafruit_INA260 ina260 = Adafruit_INA260();
-int loggingInterval = 500; // ms
+int loggingInterval = 1000; // ms
 unsigned long lastReadMillis = 0; 
-const char* datetimeString = "2024-08-29 13:15:00";
-time_t configuredStartTime = 0; // Configurable start time from string
+time_t startTime = 0;
 float ss;
 
 // WiFi
@@ -24,21 +23,26 @@ const long gmtOffset_sec = 3600 * 9;  // GMT offset for Japan Standard Time (JST
 const int daylightOffset_sec = 0;
 
 // MQTT Broker
-const char* mqtt_broker = "192.168.11.16";
+const char* mqtt_broker = "server.local";
 const char* topic = "cli/watts";
 const int mqtt_port = 31883;
 PubSubClient client(espClient);
 
 char buffer[100];
 
-// Function to parse a datetime string and return a time_t value
-time_t parseDatetimeString(const char* datetime) {
-  struct tm tm;
-  if (strptime(datetime, "%Y-%m-%d %H:%M:%S", &tm) == NULL) {
-    Serial.println("Failed to parse datetime string");
-    return 0;
-  }
-  return mktime(&tm);
+static time_t align_to_nearest_10_seconds(time_t t) {
+	return (t / 10) * 10;
+}
+
+static void display_time(const char* label, time_t t) {
+	char buffer[64];
+	struct tm tm_time;
+
+	setenv("TZ", "JST-9", 1);
+	tzset();
+	localtime_r(&t, &tm_time);
+	strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &tm_time);
+	Serial.printf("%s: %s\n", label, buffer);
 }
 
 void setup() {
@@ -62,24 +66,20 @@ void setup() {
   Serial.println("Found INA260 chip");
 
   ina260.setAveragingCount(INA260_COUNT_64);
-  ina260.setCurrentConversionTime(INA260_TIME_4_156_ms);
-  ina260.setVoltageConversionTime(INA260_TIME_4_156_ms);
+  ina260.setCurrentConversionTime(INA260_TIME_8_244_ms);
+  ina260.setVoltageConversionTime(INA260_TIME_8_244_ms);
 
   client.setServer(mqtt_broker, mqtt_port);
 
   // Initialize and synchronize time with NTP server
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   
-  // Set the configured start time from a string (example: "2023-09-01 10:00:00")
-  configuredStartTime = parseDatetimeString(datetimeString);
-
-  if (configuredStartTime == 0) {
+	startTime = align_to_nearest_10_seconds(time(NULL) + 30);
+  if (startTime == 0) {
     Serial.println("Invalid datetime string, aborting...");
     while (1);
   }
-
-  Serial.print("Configured start time (Unix): ");
-  Serial.println(configuredStartTime);
+  display_time("Configured start time", startTime);
   
   lastReadMillis = millis(); // Capture the starting millis
   
@@ -97,11 +97,10 @@ void loop() {
     float pow = ina260.readPower();
 
     if (client.connected() || client.connect("abc")) {
-      // Calculate the current time based on configuredStartTime and elapsed milliseconds
-      unsigned long now = ((unsigned long)configuredStartTime + currentMillis) / 1000;
-      unsigned long millisec = ((unsigned long)configuredStartTime + currentMillis) % 1000;
+      // Calculate the current time based on startTime and elapsed milliseconds
+      unsigned long now = (unsigned long)startTime * 1000 + currentMillis;
 
-      sprintf(buffer, "{\"ts\":%lu.%03lu,\"cur\":%f,\"vol\":%f,\"pow\":%f}", (unsigned long)now, millisec, cur, vol, pow);
+      sprintf(buffer, "{\"ts\":%lu,\"cur\":%f,\"vol\":%f,\"pow\":%f}", (unsigned long)now, cur, vol, pow);
       Serial.println(buffer);
       client.publish(topic, buffer);
 
