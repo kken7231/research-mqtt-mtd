@@ -9,7 +9,7 @@ plot_config:
       label: "Test End"
 
 database_config:
-  db_path: "/Users/kentarou/git/research-mqtt-mtd/logs/sqlite.db" # Path to the SQLite database
+  db_path: "/Users/kentarito/git/research-mqtt-mtd/logs/sqlite.db" # Path to the SQLite database
   query: "SELECT timestamp, power FROM cli_watts_data;" # SQL query to fetch data
 
 # obtained using start_time_getter.py

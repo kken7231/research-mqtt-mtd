@@ -6,17 +6,18 @@ import yaml
 import argparse
 
 
-testcases = ["plain", "plain_aead", "tls"]
 # Calculate the number of test cases to determine the grid size
-n_testcases = len(testcases)
+n_testcases = 2
 
 base_font_size = 12  # Base font size
 font_size_multiplier = 1.75
 title_font_size = 21
 plt.rcParams.update({'font.size': base_font_size * font_size_multiplier})
 
-# Create a figure with a grid of subplots, each sized (10, 6)
-fig, axes = plt.subplots(nrows=n_testcases, ncols=1, figsize=(10, 6 * n_testcases))
+# Create a figure with a grid of subplots, each sized (10, 4.5)
+fig, axes = plt.subplots(nrows=n_testcases, ncols=1, figsize=(10, 4.5 * n_testcases))
+
+zipped = [(axes[0], "plain"), (axes[0], "plain_aead"), (axes[1], "tls")]
 
 # Define pcap file and IP filter directly
 pcap_path = 'wireshark202408311559.pcapng'
@@ -47,7 +48,7 @@ for packet in cap:
 
 
 # Create a stacked bar chart for each testcase and add it to the subplot
-for ax, testcase in zip(axes, testcases):
+for ax, testcase in zipped:
     # Construct the file name based on the provided argument
     config_file = f'plot_confs/{testcase}.yaml'
 
@@ -56,9 +57,7 @@ for ax, testcase in zip(axes, testcases):
         config = yaml.safe_load(file)
 
     # Parse configurations
-    plot_type = config['plot_config']['type']
     iterations = config['server_iterations']
-
 
     def parse_time(time_str, local_tz):
         return pd.to_datetime(time_str).tz_localize(local_tz)
@@ -104,8 +103,25 @@ for ax, testcase in zip(axes, testcases):
     plt.rcParams.update({'font.size': base_font_size * font_size_multiplier})
 
     # Plot the traffic (bytes per second) over time
-    ax.bar(iteration_indices, byte_counts, linestyle='-', color='black')
-    ax.set_title(f"Network Traffic Over Time ({plot_type})", fontsize=title_font_size)
+    barwidth = 0.5
+    barxoffset = 0
+    barcolor = 'black'
+    barlabel = None
+    if testcase == "plain":
+        barxoffset = -0.3
+        barwidth = 0.3
+        barcolor = 'blue'
+        barlabel = 'Payload Security off'
+    elif testcase == "plain_aead":
+        barwidth = 0.3
+        barcolor = 'red'
+        barlabel = 'Payload Security on'
+    ax.bar([x+barxoffset for x in iteration_indices], byte_counts, width=barwidth, linestyle='-', color=barcolor, label=barlabel)
+    if testcase == "tls":
+        ax.set_title(f"Network Traffic Over Time (Over TLS)", fontsize=title_font_size)
+    else:
+        ax.set_title(f"Network Traffic Over Time (MQTT-MTD)", fontsize=title_font_size)
+        ax.legend(loc='upper right', bbox_to_anchor=(0.5, 0, 0.5, 1))
     ax.set_xlabel('Iteration', fontsize=base_font_size * font_size_multiplier)
     ax.set_ylabel('Bytes Exchanged', fontsize=base_font_size * font_size_multiplier)
     ax.set_ylim(0, 12000)

@@ -136,8 +136,8 @@ font_size_multiplier = 1.75
 title_font_size = 21
 plt.rcParams.update({'font.size': base_font_size * font_size_multiplier})
 
-# Create a figure with a grid of subplots, each sized (10, 6)
-fig, axes = plt.subplots(nrows=n_testcases, ncols=1, figsize=(10, 6 * n_testcases))
+# Create a figure with a grid of subplots, each sized (10, 4.5)
+fig, axes = plt.subplots(nrows=n_testcases, ncols=1, figsize=(10, 4.5 * n_testcases))
 
 # Ensure axes is always iterable (even if there's only one subplot)
 if n_testcases == 1:

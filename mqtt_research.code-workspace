@@ -11,6 +11,9 @@
     },
     {
       "path": "esp32/esp32-tokenmgr/benchmark"
+    },
+    {
+      "path": "esp32/esp32-tokenmgr_demo"
     }
   ],
   "settings": {
