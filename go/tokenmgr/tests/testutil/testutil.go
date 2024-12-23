@@ -5,9 +5,10 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"go/common"
-	"go/tokenmgr"
-	"net"
+	"mqttmtd/config"
+	"mqttmtd/consts"
+	"mqttmtd/tokenmgr"
+	"mqttmtd/types"
 	"net/url"
 	"os"
 	"reflect"
@@ -26,32 +27,22 @@ const (
 	SAMPLE_TOPIC_SUB    string = "/sample/topic/sub"
 	SAMPLE_TOPIC_PUBSUB string = "/sample/topic/pubsub"
 
-	ADDR_MQTT_INTERFACE string = "mqtt://192.168.11.11:1883"
-	// ADDR_MQTT_INTERFACE string = "mqtt://192.168.11.16:1883"
+	// if server uses mDNS
+	// ADDR_MQTT_INTERFACE string = "mqtt://server.local:1883"
+	// else (like docker)
+	ADDR_MQTT_INTERFACE string = "mqtt://server:1883"
 
-	CA_CRT     string = "/mqttmtd/certs/ca/ca.pem"
-	CLIENT_CRT string = "/mqttmtd/certs/client/client.pem"
-	CLIENT_KEY string = "/mqttmtd/certs/client/client.key"
-
-	// CA_CRT     string = "/Users/kentarou/git/research-mqtt-mtd/src/certs/ca/ca.crt"
-	// CLIENT_CRT string = "/Users/kentarou/git/research-mqtt-mtd/src/certs/clients/client1.crt"
-	// CLIENT_KEY string = "/Users/kentarou/git/research-mqtt-mtd/src/certs/clients/client1.key"
+	// CONFIG_FILEPATH string = "/Users/kentarou/git/research-mqtt-mtd/go/config/client_conf.yml"
+	// CONFIG_FILEPATH string = "/Users/kentarou/git/research-mqtt-mtd/go/config/client_conf.yml"
+	CONFIG_FILEPATH string = "/mqttmtd/config/client_conf.yml"
 )
 
 var (
-	NumTokens byte = 0x10 * 4
+	NumTokens uint16 = 0x10 * 16
 )
 
-func SetNumTokens(numTokens byte) {
+func SetNumTokens(numTokens uint16) {
 	NumTokens = numTokens
-}
-
-func ConnRead(conn net.Conn, dst *[]byte, timeout time.Duration) (n int, err error) {
-	return common.ConnReadBase(conn, dst, timeout)
-}
-
-func ConnWrite(conn net.Conn, data []byte, timeout time.Duration) (n int, err error) {
-	return common.ConnWriteBase(conn, data, timeout)
 }
 
 func Fatal(tb testing.TB, err error) {
@@ -143,23 +134,37 @@ func PrintResults(results map[string]*testing.BenchmarkResult) {
 	}
 }
 
-func PrepareFetchReq(accessType tokenmgr.AccessType) (fetchReq *tokenmgr.FetchRequest) {
+func PrepareFetchReq(accessTypeIsPub bool, aeadType types.PayloadAEADType) (fetchReq *tokenmgr.FetchRequest) {
 	fetchReq = &tokenmgr.FetchRequest{
-		NumTokens:  NumTokens,
-		AccessType: accessType,
-		CaCrt:      CA_CRT,
-		ClientCrt:  CLIENT_CRT,
-		ClientKey:  CLIENT_KEY,
+		NumTokens:       NumTokens,
+		AccessTypeIsPub: accessTypeIsPub,
+		PayloadAEADType: aeadType,
 	}
 	return
 }
 
-func AutopahoPublish(tb testing.TB, timestamp []byte, randomBytes []byte, msg string) {
+func sealMessage(tb testing.TB, aeadType types.PayloadAEADType, encKey []byte, tokenIndex uint16, msg []byte) (sealed []byte) {
+	var err error
+	if sealed, err = aeadType.SealMessage(msg, encKey, uint64(tokenIndex)); err != nil {
+		Fatal(tb, err)
+	}
+	return
+}
+
+func openMessage(tb testing.TB, aeadType types.PayloadAEADType, encKey []byte, pubSeqNum uint64, sealedMsg []byte) (opened []byte) {
+	var err error
+	if opened, err = aeadType.OpenMessage(sealedMsg, encKey, pubSeqNum); err != nil {
+		Fatal(tb, err)
+	}
+	return
+}
+
+func AutopahoPublish(tb testing.TB, token []byte, msg []byte, aeadType types.PayloadAEADType, encKey []byte, tokenIndex uint16) {
 	if b, ok := tb.(*testing.B); ok {
 		b.StartTimer()
 	}
-	b64Encoded := make([]byte, tokenmgr.TOKEN_SIZE/3*4)
-	base64.StdEncoding.Encode(b64Encoded, append(timestamp, randomBytes...))
+	b64Encoded := make([]byte, consts.TOKEN_SIZE/3*4)
+	base64.URLEncoding.Encode(b64Encoded, token)
 
 	if b, ok := tb.(*testing.B); ok {
 		b.StopTimer()
@@ -219,14 +224,28 @@ func AutopahoPublish(tb testing.TB, timestamp []byte, randomBytes []byte, msg st
 		return
 	}
 
-	// Publish a test message (use PublishViaQueue if you don't want to wait for a response)
-	if _, err = cm.Publish(ctx, &paho.Publish{
-		QoS:     0,
-		Topic:   string(b64Encoded),
-		Payload: []byte(msg),
-	}); err != nil {
-		if ctx.Err() == nil {
-			Fatal(tb, err)
+	// Publish a test message
+	if aeadType.IsEncryptionEnabled() {
+		// Payload AEAD Encryption Enabled
+		if _, err = cm.Publish(ctx, &paho.Publish{
+			QoS:     0,
+			Topic:   string(b64Encoded),
+			Payload: sealMessage(tb, aeadType, encKey, tokenIndex, msg),
+		}); err != nil {
+			if ctx.Err() == nil {
+				Fatal(tb, err)
+			}
+		}
+	} else {
+		// Payload AEAD Encryption Disabled
+		if _, err = cm.Publish(ctx, &paho.Publish{
+			QoS:     0,
+			Topic:   string(b64Encoded),
+			Payload: msg,
+		}); err != nil {
+			if ctx.Err() == nil {
+				Fatal(tb, err)
+			}
 		}
 	}
 	fmt.Println("mqtt publish made")
@@ -235,12 +254,14 @@ func AutopahoPublish(tb testing.TB, timestamp []byte, randomBytes []byte, msg st
 	<-cm.Done() // Wait for clean shutdown (cancelling the context triggered the shutdown)
 }
 
-func AutopahoSubscribe(tb testing.TB, timestamp []byte, randomBytes []byte, isErrorExpected bool, subscribeChan chan struct{}, waitForPublish []byte) {
+func AutopahoSubscribe(tb testing.TB, token []byte, isErrorExpected bool, subscribeChan chan struct{}, waitForPublish []byte, aeadType types.PayloadAEADType, encKey []byte) {
+	var pubSeqNum uint64 = 0
+
 	if b, ok := tb.(*testing.B); ok {
 		b.StartTimer()
 	}
-	b64Encoded := make([]byte, tokenmgr.TOKEN_SIZE/3*4)
-	base64.StdEncoding.Encode(b64Encoded, append(timestamp, randomBytes...))
+	b64Encoded := make([]byte, consts.TOKEN_SIZE/3*4)
+	base64.URLEncoding.Encode(b64Encoded, token)
 
 	if b, ok := tb.(*testing.B); ok {
 		b.StopTimer()
@@ -261,6 +282,21 @@ func AutopahoSubscribe(tb testing.TB, timestamp []byte, randomBytes []byte, isEr
 		}
 	}
 	received := make(chan struct{})
+	onPublishReceivedFunc := func(pr paho.PublishReceived) (bool, error) {
+		if aeadType.IsEncryptionEnabled() {
+			opened := openMessage(tb, aeadType, encKey, pubSeqNum, pr.Packet.Payload)
+			fmt.Printf("received sealed message on topic \"%s\"; body: %s (retain: %t)\n", pr.Packet.Topic, opened, pr.Packet.Retain)
+			if bytes.Equal(opened, waitForPublish) {
+				received <- struct{}{}
+			}
+		} else {
+			fmt.Printf("received message on topic \"%s\"; body: %s (retain: %t)\n", pr.Packet.Topic, pr.Packet.Payload, pr.Packet.Retain)
+			if bytes.Equal(pr.Packet.Payload, waitForPublish) {
+				received <- struct{}{}
+			}
+		}
+		return true, nil
+	}
 	cliCfg := autopaho.ClientConfig{
 		ServerUrls:                    []*url.URL{u},
 		KeepAlive:                     20,
@@ -269,15 +305,8 @@ func AutopahoSubscribe(tb testing.TB, timestamp []byte, randomBytes []byte, isEr
 		OnConnectionUp:                func(cm *autopaho.ConnectionManager, connAck *paho.Connack) { fmt.Println("mqtt connection up") },
 		OnConnectError:                func(err error) { fmt.Printf("error whilst attempting connection: %s\n", err) },
 		ClientConfig: paho.ClientConfig{
-			OnPublishReceived: []func(paho.PublishReceived) (bool, error){
-				func(pr paho.PublishReceived) (bool, error) {
-					fmt.Printf("received message on topic %s; body: %s (retain: %t)\n", pr.Packet.Topic, pr.Packet.Payload, pr.Packet.Retain)
-					if bytes.Equal(pr.Packet.Payload, waitForPublish) {
-						received <- struct{}{}
-					}
-					return true, nil
-				}},
-			OnClientError: onClientErrorFunc,
+			OnPublishReceived: []func(paho.PublishReceived) (bool, error){onPublishReceivedFunc},
+			OnClientError:     onClientErrorFunc,
 			OnServerDisconnect: func(d *paho.Disconnect) {
 				if d.Properties != nil {
 					fmt.Printf("server requested disconnect: %s\n", d.Properties.ReasonString)
@@ -312,7 +341,7 @@ func AutopahoSubscribe(tb testing.TB, timestamp []byte, randomBytes []byte, isEr
 	}
 
 	// Subscribe to topic
-	if _, err = cm.Subscribe(context.Background(), &paho.Subscribe{
+	if _, err = cm.Subscribe(ctx, &paho.Subscribe{
 		Subscriptions: []paho.SubscribeOptions{{
 			QoS:   0,
 			Topic: string(b64Encoded),
@@ -323,8 +352,9 @@ func AutopahoSubscribe(tb testing.TB, timestamp []byte, randomBytes []byte, isEr
 		}
 	} else if isErrorExpected {
 		Fatal(tb, err)
+	} else {
+		fmt.Println("mqtt subscription made")
 	}
-	fmt.Println("mqtt subscription made")
 	if subscribeChan != nil {
 		subscribeChan <- struct{}{}
 	}
@@ -340,26 +370,35 @@ func AutopahoSubscribe(tb testing.TB, timestamp []byte, randomBytes []byte, isEr
 	<-cm.Done() // Wait for clean shutdown (cancelling the context triggered the shutdown)
 }
 
-func RemoveTokenFile(topic string, fetchReq tokenmgr.FetchRequest) {
-	tokenFilePath := tokenmgr.TOKENS_DIR + fetchReq.AccessType.String() + base64.URLEncoding.EncodeToString(unsafe.Slice(unsafe.StringData(topic), len(topic)))
-	os.Remove(tokenFilePath)
-}
-
-func GetTokenTest(tb testing.TB, topic string, fetchReq tokenmgr.FetchRequest, expectSuccess bool) (timestamp []byte, randomBytes []byte) {
-	if _, err := os.Stat(fetchReq.CaCrt); err != nil {
-		Fatal(tb, err)
-	}
-	if _, err := os.Stat(fetchReq.ClientCrt); err != nil {
-		Fatal(tb, err)
-	}
-	if _, err := os.Stat(fetchReq.ClientKey); err != nil {
-		Fatal(tb, err)
-	}
-
+func LoadClientConfig(tb testing.TB) {
 	if b, ok := tb.(*testing.B); ok {
 		b.StartTimer()
 	}
-	timestamp, randomBytes, err := tokenmgr.GetToken(topic, fetchReq)
+	if err := config.LoadClientConfig(CONFIG_FILEPATH); err != nil {
+		Fatal(tb, err)
+	}
+	if b, ok := tb.(*testing.B); ok {
+		b.StopTimer()
+	}
+}
+
+func RemoveTokenFile(topic string, fetchReq tokenmgr.FetchRequest) {
+	var accessTypeStr string
+	if fetchReq.AccessTypeIsPub {
+		accessTypeStr = "PUB"
+	} else {
+		accessTypeStr = "SUB"
+	}
+	tokenFilePath := config.Client.FilePaths.TokensDirPath + accessTypeStr + base64.URLEncoding.EncodeToString(unsafe.Slice(unsafe.StringData(topic), len(topic)))
+	os.Remove(tokenFilePath)
+}
+
+func GetTokenTest(tb testing.TB, topic string, fetchReq tokenmgr.FetchRequest, expectSuccess bool) (encKey []byte, tokenIndex uint16, token []byte) {
+	if b, ok := tb.(*testing.B); ok {
+		b.StartTimer()
+	}
+	var err error
+	encKey, tokenIndex, token, err = tokenmgr.GetToken(topic, fetchReq)
 	if b, ok := tb.(*testing.B); ok {
 		b.StopTimer()
 	}
@@ -367,12 +406,16 @@ func GetTokenTest(tb testing.TB, topic string, fetchReq tokenmgr.FetchRequest, e
 		if err != nil {
 			Fatal(tb, err)
 		}
-		if len(timestamp) != tokenmgr.TIMESTAMP_LEN || len(randomBytes) != tokenmgr.RANDOM_BYTES_LEN {
+		if len(token) != consts.TOKEN_SIZE {
 			Fatal(tb, fmt.Errorf("length invalid"))
+		}
+		if (fetchReq.PayloadAEADType.IsEncryptionEnabled() && encKey == nil) || (!fetchReq.PayloadAEADType.IsEncryptionEnabled() && encKey != nil) {
+			Fatal(tb, fmt.Errorf("enc invalid"))
 		}
 		return
 	} else {
-		if err == nil {
+		if err == nil && len(token) == consts.TOKEN_SIZE &&
+			((fetchReq.PayloadAEADType.IsEncryptionEnabled() && encKey != nil) || (!fetchReq.PayloadAEADType.IsEncryptionEnabled() && encKey == nil)) {
 			Fatal(tb, fmt.Errorf("no error observed"))
 		}
 		return

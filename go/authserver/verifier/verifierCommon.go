@@ -1,20 +1,18 @@
 package verifier
 
 import (
-	"encoding/binary"
+	"context"
 	"fmt"
-	"go/authserver/consts"
-	"go/authserver/funcs"
-	"go/authserver/types"
-	"go/common"
 	"log"
+	"mqttmtd/config"
+	"mqttmtd/funcs"
+	"mqttmtd/types"
 	"net"
-	"time"
 )
 
 func Run(atl *types.AuthTokenList) {
-	fmt.Printf("Starting verifier server at %s\n", consts.LADDR_VERIFIER)
-	listener, err := net.Listen("tcp", consts.LADDR_VERIFIER)
+	fmt.Printf("Starting verifier server on port %d\n", config.Server.Ports.Verifier)
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Server.Ports.Verifier))
 	if err != nil {
 		log.Fatalf("Verifier - Failed to start plain listener: %v", err)
 	}
@@ -38,52 +36,72 @@ func tokenVerifierHandler(conn net.Conn, atl *types.AuthTokenList) {
 	}()
 	remoteAddr := conn.RemoteAddr().String()
 
-	buf := make([]byte, consts.TOKEN_SIZE+1) // 1 byte for size check
-	n, err := funcs.ConnRead(conn, &buf, time.Millisecond*500)
+	var (
+		err              error
+		verifierRequest  types.VerifierRequest
+		verifierResponse types.VerifierResponse
+	)
+	// Receive Request
+	verifierRequest, err = funcs.ParseVerifierRequest(context.TODO(), conn, config.Server.SocketTimeout.External)
 	if err != nil {
-		fmt.Printf("verifier(%s): Failed reading token: %v\n", remoteAddr, err)
-		return
-	}
-	if n != consts.TOKEN_SIZE+1 {
-		fmt.Printf("verifier(%s): Failed reading token: length is inadequate\n", remoteAddr)
+		fmt.Printf("verifier(%s): Failed reading a request: %v\n", remoteAddr, err)
 		return
 	}
 
-	var reqAccessType types.AccessType
-	if buf[0]&0x80 != 0 {
-		reqAccessType = types.AccessPub
-	} else {
-		reqAccessType = types.AccessSub
-	}
-	token := buf[1:]
-
-	// Token validation
+	// ATL Lookup
 	atl.Lock()
-	defer atl.Unlock()
-
-	previous, entry, err := atl.LookupEntryWithToken(token)
+	entry, err := atl.LookupEntryWithToken(verifierRequest.Token)
+	atl.Unlock()
 	if err != nil {
 		fmt.Printf("verifier(%s): Failed token verification with error: %v\n", remoteAddr, err)
 		return
 	}
 
-	if entry == nil || (entry.AccessType&reqAccessType) == 0 {
-		common.SetLen(&buf, 1)
-		buf[0] = byte(types.VerfFail)
+	// Construct Response
+	if (entry == nil) || (entry.AccessTypeIsPub != verifierRequest.AccessTypeIsPub) {
+		// Verification Failed
+		fmt.Printf("verifier(%s): Verification failed\n", remoteAddr)
+		verifierResponse = types.VerifierResponse{
+			ResultCode: types.VerfFail,
+		}
+	}
+	var (
+		curValidTokenIdx uint16                = entry.CurrentValidTokenIdx
+		payloadAEADType  types.PayloadAEADType = entry.PayloadAEADType
+		payloadEncKey    []byte                = entry.PayloadEncKey
+		topic            []byte                = entry.Topic
+	)
+	if resultCode, err := updateCurrentValidRandomBytes(atl, entry); err != nil {
+		// Internal Value Refresh Failed
+		fmt.Printf("verifier(%s): Failed token update with error: %v\n", remoteAddr, err)
+		verifierResponse = types.VerifierResponse{
+			ResultCode: types.VerfFail,
+		}
 	} else {
-		common.SetLen(&buf, len(entry.Topic)+3)
-		binary.BigEndian.PutUint16(buf[1:], uint16(len(entry.Topic)))
-		copy(buf[3:], entry.Topic)
-
-		err = popTokenAndRefreshToken(atl, previous, entry, &buf)
-
-		if err != nil {
-			fmt.Printf("verifier(%s): Failed token update with error: %v\n", remoteAddr, err)
+		// Internal Value Refreshed
+		if resultCode.IsSuccessEncKey() {
+			verifierResponse = types.VerifierResponse{
+				ResultCode:      resultCode,
+				TokenIndex:      curValidTokenIdx,
+				PayloadAEADType: payloadAEADType,
+				EncryptionKey:   payloadEncKey,
+				Topic:           topic,
+			}
+		} else if resultCode.IsSuccess() {
+			verifierResponse = types.VerifierResponse{
+				ResultCode: resultCode,
+				Topic:      topic,
+			}
+		} else {
+			fmt.Printf("verifier(%s): Unexpected result code: %d\n", remoteAddr, resultCode)
+			return
 		}
 	}
 
-	if _, err = funcs.ConnWrite(conn, buf, 0); err != nil {
-		fmt.Printf("verifier(%s): Error sending out: %v\n", remoteAddr, err)
+	fmt.Printf("verifier(%s): ResultCode: 0x%02x\n", remoteAddr, verifierResponse.ResultCode)
+
+	if err = funcs.SendVerifierResponse(context.TODO(), conn, config.Server.SocketTimeout.Local, verifierResponse); err != nil {
+		fmt.Printf("verifier(%s): Error sending out a response: %v\n", remoteAddr, err)
 		return
 	}
 }

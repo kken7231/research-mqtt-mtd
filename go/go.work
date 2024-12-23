@@ -3,7 +3,10 @@ go 1.22.5
 use (
 	./authserver
 	./client
-	./tokenmgr
+	./consts
+	./config
+	./funcs
 	./mqttinterface
-	./common
+	./tokenmgr
+	./types
 )

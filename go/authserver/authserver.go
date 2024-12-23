@@ -2,13 +2,13 @@ package main
 
 import (
 	"flag"
-	"go/authserver/autorevoker"
-	"go/authserver/consts"
-	"go/authserver/dashboardserver"
-	"go/authserver/issuer"
-	"go/authserver/types"
-	"go/authserver/verifier"
 	"log"
+	"mqttmtd/authserver/autorevoker"
+	"mqttmtd/authserver/dashboardserver"
+	"mqttmtd/authserver/issuer"
+	"mqttmtd/authserver/verifier"
+	"mqttmtd/config"
+	"mqttmtd/types"
 )
 
 var (
@@ -17,11 +17,17 @@ var (
 )
 
 func main() {
-	aclFilePath := flag.String("acl", consts.DEFAULT_FILEPATH_ACL, "path to the ACL file")
+
+	configFilePath := flag.String("conf", "", "path to the server conf file")
 	flag.Parse()
 
-	err := acl.LoadFile(*aclFilePath)
-	if err != nil {
+	if err := config.LoadServerConfig(*configFilePath); err != nil {
+		log.Fatalf("Failed to load server config from %s: %v", *configFilePath, err)
+	} else {
+		log.Printf("Server Config Loaded from %s\n", *configFilePath)
+	}
+
+	if err := acl.LoadFile(config.Server.FilePaths.AclFilePath); err != nil {
 		log.Fatalf("Failed to load ACL: %v", err)
 	}
 

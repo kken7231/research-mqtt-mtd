@@ -3,11 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
-	"go/tokenmgr/tests/t01gettoken"
-	"go/tokenmgr/tests/t02publish"
-	"go/tokenmgr/tests/t03subscribe"
-	"go/tokenmgr/tests/testutil"
 	"log"
+	"mqttmtd/tokenmgr/tests/t01gettoken"
+	"mqttmtd/tokenmgr/tests/t02publish"
+	"mqttmtd/tokenmgr/tests/t03subscribe"
+	"mqttmtd/tokenmgr/tests/testutil"
 	"reflect"
 	"regexp"
 	"runtime"
@@ -34,7 +34,7 @@ func main() {
 	flag.Set("test.benchtime", "1x")
 	flag.Parse()
 
-	testutil.SetNumTokens(byte(*numTokens))
+	testutil.SetNumTokens(uint16(*numTokens))
 	var benchmarkFuncs []func(*testing.B)
 	switch *test {
 	case 1:

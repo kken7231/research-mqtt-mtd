@@ -1,42 +1,41 @@
 package issuer
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"go/authserver/consts"
-	"go/authserver/funcs"
-	"go/authserver/types"
 	"log"
+	"mqttmtd/config"
+	"mqttmtd/funcs"
+	"mqttmtd/types"
 	"os"
 	"strings"
-	"time"
-	"unicode/utf8"
 	"unsafe"
 )
 
 func Run(acl *types.AccessControlList, atl *types.AuthTokenList) {
-	fmt.Printf("Starting issuer server at %s\n", consts.LADDR_ISSUER)
-	cert, err := tls.LoadX509KeyPair(consts.SERVER_CRTFILE, consts.SERVER_KEYFILE)
+	fmt.Printf("Starting issuer server on port %d\n", config.Server.Ports.Issuer)
+	cert, err := tls.LoadX509KeyPair(config.Server.Certs.ServerCertFilePath, config.Server.Certs.ServerKeyFilePath)
 	if err != nil {
 		log.Fatalf("Issuer - Failed to load server certificate: %v", err)
 	}
 
-	caCert, err := os.ReadFile(consts.CA_CRTFILE)
+	caCert, err := os.ReadFile(config.Server.Certs.CaCertFilePath)
 	if err != nil {
 		log.Fatalf("Issuer - Failed to load ca certificate: %v", err)
 	}
 	caCertPool := x509.NewCertPool()
 	caCertPool.AppendCertsFromPEM(caCert)
 
-	config := &tls.Config{
+	tlsConf := &tls.Config{
 		Certificates: []tls.Certificate{cert},
 		ClientAuth:   tls.RequireAndVerifyClientCert,
 		MinVersion:   tls.VersionTLS13,
 		ClientCAs:    caCertPool,
 	}
 
-	listener, err := tls.Listen("tcp", consts.LADDR_ISSUER, config)
+	listener, err := tls.Listen("tcp", fmt.Sprintf(":%d", config.Server.Ports.Issuer), tlsConf)
 	if err != nil {
 		log.Fatalf("Issuer - Failed to start mTLS listener: %v", err)
 	}
@@ -83,62 +82,19 @@ func tokenIssuerHandler(conn *tls.Conn, acl *types.AccessControlList, atl *types
 		return
 	}
 
-	// Data verification
-	// [0]: Flag
-	//   bit 7: Pub Access Requested (0-false, 1-true)
-	//   bit 6: Sub Access Requested (0-false, 1-true)
-	//   bit 5-0: Requested number of tokens divided by 4 (max 252 tokens)
-	// [1]: Length of Topic Name/Filter
-	// [2:2+TopicLen]: Topic Name/Filter
-	buf := make([]byte, 2)
-	if _, err := funcs.ConnRead(conn, &buf, time.Millisecond*500); err != nil {
-		fmt.Printf("issuer(%s): Failed reading two bytes: %v\n", remoteAddr, err)
-		return
-	}
 	var (
-		reqAccessTypeByte byte = 0
-		reqAccessType     types.AccessType
-		reqNumTokens      byte
-		reqTopicLen       byte
-		reqTopic          []byte
-		reqTopicStr       string
+		err                 error
+		issuerRequest       types.IssuerRequest
+		requestedAccessType types.ACLAccessType
 	)
-	if buf[0]&0x80 != 0 {
-		reqAccessTypeByte |= byte(types.AccessPub)
-	}
-	if buf[0]&0x40 != 0 {
-		reqAccessTypeByte |= byte(types.AccessSub)
-	}
-	if reqAccessTypeByte == 0 {
-		fmt.Printf("issuer(%s): Requested Access cannot be empty\n", remoteAddr)
-		return
-	}
-	reqAccessType = types.AccessType(reqAccessTypeByte)
-	reqNumTokens = (buf[0] & 0x3F) * 4
-	if reqNumTokens == 0 {
-		fmt.Printf("issuer(%s): Using default number of tokens: %d\n", remoteAddr, consts.DEFAULT_NUM_TOKENS)
-		reqNumTokens = consts.DEFAULT_NUM_TOKENS
-	}
-	reqTopicLen = buf[1]
-	if reqTopicLen == 0 {
-		fmt.Printf("issuer(%s): Topic length cannot be 0\n", remoteAddr)
-		return
-	}
-	reqTopic = make([]byte, reqTopicLen)
-	n, err := funcs.ConnRead(conn, &reqTopic, time.Millisecond*500)
+	// Receive Request
+	issuerRequest, err = funcs.ParseIssuerRequest(context.TODO(), conn, config.Server.SocketTimeout.External)
 	if err != nil {
-		fmt.Printf("issuer(%s): Failed reading topic with error: %v\n", remoteAddr, err)
-		return
-	} else if n != int(reqTopicLen) {
-		fmt.Printf("issuer(%s): Failed reading topic: length is inadequate\n", remoteAddr)
-		return
-	} else if !utf8.Valid(reqTopic) {
-		fmt.Printf("issuer(%s): Failed reading topic: topic is not aligned with utf-8\n", remoteAddr)
+		fmt.Printf("issuer(%s): Failed reading a request: %v\n", remoteAddr, err)
 		return
 	}
-	reqTopicStr = unsafe.String(unsafe.SliceData(reqTopic), reqTopicLen)
 
-	// ACL lookup
+	// ACL Lookup
 	acl.Lock()
 	clientACLEntry, found := acl.Entries[clientName]
 	if !found {
@@ -146,18 +102,25 @@ func tokenIssuerHandler(conn *tls.Conn, acl *types.AccessControlList, atl *types
 		acl.Unlock()
 		return
 	}
-	grantedAccessType, found := clientACLEntry[reqTopicStr]
+	topicStr := unsafe.String(unsafe.SliceData(issuerRequest.Topic), len(issuerRequest.Topic))
+	grantedAccessType, found := clientACLEntry[topicStr]
 	if !found {
-		fmt.Printf("issuer(%s): TopicName %s for ClientName %s not found in ACL\n", remoteAddr, reqTopicStr, clientName)
+		fmt.Printf("issuer(%s): Topic %s for ClientName %s not found in ACL\n", remoteAddr, topicStr, clientName)
 		acl.Unlock()
 		return
 	}
 	acl.Unlock()
 
-	if grantedAccessType&reqAccessType == 0 {
-		fmt.Printf("issuer(%s): ClientName %s not permitted for accessType %s: granted=%s\n", remoteAddr, clientName, reqAccessType.String(), grantedAccessType.String())
+	if issuerRequest.AccessTypeIsPub {
+		requestedAccessType = types.AccessPub
+	} else {
+		requestedAccessType = types.AccessSub
+	}
+	if grantedAccessType&requestedAccessType == 0 {
+		fmt.Printf("issuer(%s): Topic %s for ClientName %s not permitted for accessType %s: granted=%s\n", remoteAddr, topicStr, clientName, requestedAccessType.String(), grantedAccessType.String())
 		return
 	}
 
-	gatherTokenIngredients(atl, conn, clientName, reqAccessType, reqNumTokens, reqTopic, remoteAddr)
+	// Generate Tokens & Send Response
+	generateAndSendIssuerResponse(atl, conn, clientName, issuerRequest, remoteAddr)
 }

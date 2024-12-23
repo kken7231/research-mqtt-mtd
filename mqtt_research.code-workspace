@@ -8,6 +8,12 @@
     },
     {
       "path": "esp32/esp32-tokenmgr/test"
+    },
+    {
+      "path": "esp32/esp32-tokenmgr/benchmark"
+    },
+    {
+      "path": "esp32/esp32-tokenmgr_demo"
     }
   ],
   "settings": {
@@ -52,7 +58,34 @@
       "unity_internals.h": "c",
       "time.h": "c",
       "compare": "c",
-      "cstdint": "c"
+      "cstdint": "c",
+      "stop_token": "c",
+      "thread": "c",
+      "aes.h": "c",
+      "poly1305.h": "c",
+      "chachapoly.h": "c",
+      "array": "c",
+      "span": "c",
+      "string": "c",
+      "string_view": "c",
+      "__locale": "c",
+      "bitset": "c",
+      "__hash_table": "c",
+      "__tree": "c",
+      "type_traits": "c",
+      "limits": "c",
+      "ratio": "c",
+      "tuple": "c",
+      "variant": "c",
+      "charconv": "c",
+      "complex": "c",
+      "functional": "c",
+      "utility": "c",
+      "gcm.h": "c",
+      "chacha20.h": "c",
+      "base64.h": "c",
+      "cstdlib": "c",
+      "ctime": "c"
     },
     "[c]": {
       "editor.defaultFormatter": "ms-vscode.cpptools"

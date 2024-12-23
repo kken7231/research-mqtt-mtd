@@ -10,26 +10,20 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/time.h>
+#include <time.h>
 
 #include "config.h"
 #include "esp_log.h"
+#include "esp_netif_sntp.h"
 #include "nvs_flash.h"
 #include "tokenmgr.h"
 #include "unity.h"
-#include "esp_netif_sntp.h"
-#include <time.h>
-#include <sys/time.h>
 
 static const char *TAG = "tokenmgr_testapp";
 
-
-token_store_t token_store = {0};
 extern int permit_time_logging;
 const int CIPHERSUITES_LIST[] = {MBEDTLS_TLS1_3_AES_128_GCM_SHA256, 0};
-const esp_mqtt5_connection_property_config_t mqtt_connect_property = {
-	.session_expiry_interval = 10,
-	.maximum_packet_size = 1024,
-};
 
 void setUp(void) {
 	tokenmgr_init();
@@ -64,16 +58,26 @@ void app_main(void) {
 	// print_time_record_summary();
 	// reset_time_record_store();
 
+
+	// UNITY_BEGIN();
+	// unity_run_test_by_name("Send a plain AEAD publish");
+	// UNITY_END();
+	// print_time_record_summary();
+	// reset_time_record_store();
+
 	// UNITY_BEGIN();
 	// unity_run_test_by_name("Send a tls publish");
 	// UNITY_END();
 	// print_time_record_summary();
 	// reset_time_record_store();
 
+	// UNITY_BEGIN();
+	// unity_run_test_by_name("Send 32 plain publishes");
+	// UNITY_END();
 
-	UNITY_BEGIN();
-	unity_run_test_by_name("Send 32 plain publishes");
-	UNITY_END();
+	// UNITY_BEGIN();
+	// unity_run_test_by_name("Send 32 plain AEAD publishes");
+	// UNITY_END();
 
 	UNITY_BEGIN();
 	unity_run_test_by_name("Send 32 tls publishes");

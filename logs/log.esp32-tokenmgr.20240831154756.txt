@@ -1,0 +1,1635 @@
+[0;32mI (1417) esp_netif_handlers: sta ip: 192.168.11.19, mask: 255.255.255.0, gw: 192.168.11.1[0m
+[0;32mI (1417) tokenmgr_wifi: IP address assigned:192.168.11.19[0m
+[0;32mI (1417) tokenmgr_wifi: connected to ap SSID:aBuffalo-T-E510[0m
+[0;32mI (1427) tokenmgr_wifi: mdns hostname set to client[0m
+[0;32mI (1427) tokenmgr_wifi: esp_netif_sntp_start triggered[0m
+[0;32mI (2417) tokenmgr_wifi: time fixed with SNTP[0m
+[0;32mI (2417) tokenmgr: tokenmgr initialized[0m
+Testing App started: 2024-08-31 15:47:57
+Waiting for 30 sec...: 2024-08-31 15:47:57
+Plain Test Start: 2024-08-31 15:48:27
+[0;32mI (32417) tokenmgr: No token in the token store[0m
+[0;32mI (32857) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (34257) tokenmgr: conn_write issuer_request success[0m
+[0;32mI (34277) tokenmgr: conn_read timestamp success[0m
+[0;32mI (34277) tokenmgr: conn_read random bytes success[0m
+[0;32mI (34277) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (34297) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (34297) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (34307) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (34307) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:48:27.509702 get_token started
+2024-08-31 15:48:27.509734     get_token_internal started
+2024-08-31 15:48:27.510006         fetch_tokens started
+2024-08-31 15:48:29.373278         fetch_tokens ended (1.863272 seconds)
+2024-08-31 15:48:29.373415     get_token_internal ended (1.863681 seconds)
+2024-08-31 15:48:29.373438 get_token ended (1.863736 seconds)
+2024-08-31 15:48:29.373465 b64encode_token started
+2024-08-31 15:48:29.373543 b64encode_token ended (0.000078 seconds)
+2024-08-31 15:48:29.373567 mqtt_publish_qos0 started
+2024-08-31 15:48:29.420076 mqtt_publish_qos0 ended (0.046509 seconds)
+====================
+(1725086909)[00] 1.910430 sec (avg. 1.910430)
+[0;32mI (37377) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (37397) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (37397) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (37397) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (37397) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:48:32.468975 get_token started
+2024-08-31 15:48:32.469006     get_token_internal started
+2024-08-31 15:48:32.469058     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:48:32.469077 get_token ended (0.000102 seconds)
+2024-08-31 15:48:32.469099 b64encode_token started
+2024-08-31 15:48:32.469176 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:48:32.469201 mqtt_publish_qos0 started
+2024-08-31 15:48:32.518545 mqtt_publish_qos0 ended (0.049344 seconds)
+====================
+(1725086912)[01] 0.049626 sec (avg. 0.980028)
+[0;32mI (40467) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (40507) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (40517) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (40517) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (40517) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:48:35.558911 get_token started
+2024-08-31 15:48:35.558942     get_token_internal started
+2024-08-31 15:48:35.558994     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:48:35.559013 get_token ended (0.000102 seconds)
+2024-08-31 15:48:35.559035 b64encode_token started
+2024-08-31 15:48:35.559113 b64encode_token ended (0.000078 seconds)
+2024-08-31 15:48:35.559137 mqtt_publish_qos0 started
+2024-08-31 15:48:35.645872 mqtt_publish_qos0 ended (0.086735 seconds)
+====================
+(1725086915)[02] 0.087017 sec (avg. 0.682357)
+[0;32mI (43587) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (43727) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (43727) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (43727) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (43737) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:48:38.678911 get_token started
+2024-08-31 15:48:38.678942     get_token_internal started
+2024-08-31 15:48:38.678994     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:48:38.679013 get_token ended (0.000102 seconds)
+2024-08-31 15:48:38.679034 b64encode_token started
+2024-08-31 15:48:38.679111 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:48:38.679135 mqtt_publish_qos0 started
+2024-08-31 15:48:38.843772 mqtt_publish_qos0 ended (0.164637 seconds)
+====================
+(1725086918)[03] 0.164916 sec (avg. 0.552997)
+[0;32mI (46787) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (46887) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (46887) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (46887) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (46897) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:48:41.878911 get_token started
+2024-08-31 15:48:41.878942     get_token_internal started
+2024-08-31 15:48:41.878994     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:48:41.879013 get_token ended (0.000102 seconds)
+2024-08-31 15:48:41.879034 b64encode_token started
+2024-08-31 15:48:41.879112 b64encode_token ended (0.000078 seconds)
+2024-08-31 15:48:41.879136 mqtt_publish_qos0 started
+2024-08-31 15:48:42.014853 mqtt_publish_qos0 ended (0.135717 seconds)
+====================
+(1725086922)[04] 0.135998 sec (avg. 0.469597)
+[0;32mI (49957) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (49977) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (49977) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (49977) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (49987) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:48:45.048911 get_token started
+2024-08-31 15:48:45.048942     get_token_internal started
+2024-08-31 15:48:45.048994     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:48:45.049013 get_token ended (0.000102 seconds)
+2024-08-31 15:48:45.049034 b64encode_token started
+2024-08-31 15:48:45.049112 b64encode_token ended (0.000078 seconds)
+2024-08-31 15:48:45.049136 mqtt_publish_qos0 started
+2024-08-31 15:48:45.098004 mqtt_publish_qos0 ended (0.048868 seconds)
+====================
+(1725086925)[05] 0.049149 sec (avg. 0.399522)
+[0;32mI (53047) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (53067) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (53067) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (53067) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (53067) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:48:48.138911 get_token started
+2024-08-31 15:48:48.138942     get_token_internal started
+2024-08-31 15:48:48.138994     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:48:48.139013 get_token ended (0.000102 seconds)
+2024-08-31 15:48:48.139034 b64encode_token started
+2024-08-31 15:48:48.139111 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:48:48.139136 mqtt_publish_qos0 started
+2024-08-31 15:48:48.191053 mqtt_publish_qos0 ended (0.051917 seconds)
+====================
+(1725086928)[06] 0.052198 sec (avg. 0.349904)
+[0;32mI (56137) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (56197) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (56197) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (56197) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (56197) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:48:51.228911 get_token started
+2024-08-31 15:48:51.228942     get_token_internal started
+2024-08-31 15:48:51.228994     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:48:51.229013 get_token ended (0.000102 seconds)
+2024-08-31 15:48:51.229034 b64encode_token started
+2024-08-31 15:48:51.229111 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:48:51.229136 mqtt_publish_qos0 started
+2024-08-31 15:48:51.313609 mqtt_publish_qos0 ended (0.084473 seconds)
+====================
+(1725086931)[07] 0.084754 sec (avg. 0.316761)
+[0;32mI (59257) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (59277) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (59277) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (59277) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (59287) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:48:54.348911 get_token started
+2024-08-31 15:48:54.348942     get_token_internal started
+2024-08-31 15:48:54.348994     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:48:54.349013 get_token ended (0.000102 seconds)
+2024-08-31 15:48:54.349035 b64encode_token started
+2024-08-31 15:48:54.349112 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:48:54.349136 mqtt_publish_qos0 started
+2024-08-31 15:48:54.396012 mqtt_publish_qos0 ended (0.046876 seconds)
+====================
+(1725086934)[08] 0.047157 sec (avg. 0.286805)
+[0;32mI (62337) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (62377) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (62377) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (62377) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (62377) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:48:57.428911 get_token started
+2024-08-31 15:48:57.428942     get_token_internal started
+2024-08-31 15:48:57.428994     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:48:57.429013 get_token ended (0.000102 seconds)
+2024-08-31 15:48:57.429034 b64encode_token started
+2024-08-31 15:48:57.429111 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:48:57.429134 mqtt_publish_qos0 started
+2024-08-31 15:48:57.495374 mqtt_publish_qos0 ended (0.066240 seconds)
+====================
+(1725086937)[09] 0.066518 sec (avg. 0.264776)
+[0;32mI (65437) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (65627) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (65627) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (65637) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (65637) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:49:00.528911 get_token started
+2024-08-31 15:49:00.528942     get_token_internal started
+2024-08-31 15:49:00.528994     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:49:00.529013 get_token ended (0.000102 seconds)
+2024-08-31 15:49:00.529034 b64encode_token started
+2024-08-31 15:49:00.529111 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:49:00.529134 mqtt_publish_qos0 started
+2024-08-31 15:49:00.752403 mqtt_publish_qos0 ended (0.223269 seconds)
+====================
+(1725086940)[10] 0.223547 sec (avg. 0.261028)
+[0;32mI (68697) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (68717) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (68717) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (68717) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (68717) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:49:03.788911 get_token started
+2024-08-31 15:49:03.788942     get_token_internal started
+2024-08-31 15:49:03.788994     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:49:03.789013 get_token ended (0.000102 seconds)
+2024-08-31 15:49:03.789034 b64encode_token started
+2024-08-31 15:49:03.789111 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:49:03.789134 mqtt_publish_qos0 started
+2024-08-31 15:49:03.830733 mqtt_publish_qos0 ended (0.041599 seconds)
+====================
+(1725086943)[11] 0.041877 sec (avg. 0.242765)
+[0;32mI (71777) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (71877) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (71877) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (71877) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (71887) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:49:06.868911 get_token started
+2024-08-31 15:49:06.868942     get_token_internal started
+2024-08-31 15:49:06.868994     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:49:06.869013 get_token ended (0.000102 seconds)
+2024-08-31 15:49:06.869034 b64encode_token started
+2024-08-31 15:49:06.869111 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:49:06.869134 mqtt_publish_qos0 started
+2024-08-31 15:49:07.002482 mqtt_publish_qos0 ended (0.133348 seconds)
+====================
+(1725086947)[12] 0.133625 sec (avg. 0.234370)
+[0;32mI (74947) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (75047) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (75047) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (75057) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (75057) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:49:10.038911 get_token started
+2024-08-31 15:49:10.038942     get_token_internal started
+2024-08-31 15:49:10.038994     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:49:10.039013 get_token ended (0.000102 seconds)
+2024-08-31 15:49:10.039034 b64encode_token started
+2024-08-31 15:49:10.039111 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:49:10.039135 mqtt_publish_qos0 started
+2024-08-31 15:49:10.179401 mqtt_publish_qos0 ended (0.140266 seconds)
+====================
+(1725086950)[13] 0.140545 sec (avg. 0.227668)
+[0;32mI (78127) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (78227) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (78227) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (78227) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (78237) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:49:13.218911 get_token started
+2024-08-31 15:49:13.218942     get_token_internal started
+2024-08-31 15:49:13.218994     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:49:13.219013 get_token ended (0.000102 seconds)
+2024-08-31 15:49:13.219034 b64encode_token started
+2024-08-31 15:49:13.219111 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:49:13.219134 mqtt_publish_qos0 started
+2024-08-31 15:49:13.347284 mqtt_publish_qos0 ended (0.128150 seconds)
+====================
+(1725086953)[14] 0.128428 sec (avg. 0.221052)
+[0;32mI (81287) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (81307) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (81307) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (81307) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (81307) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:49:16.378911 get_token started
+2024-08-31 15:49:16.378942     get_token_internal started
+2024-08-31 15:49:16.378994     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:49:16.379013 get_token ended (0.000102 seconds)
+2024-08-31 15:49:16.379034 b64encode_token started
+2024-08-31 15:49:16.379111 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:49:16.379134 mqtt_publish_qos0 started
+2024-08-31 15:49:16.431851 mqtt_publish_qos0 ended (0.052717 seconds)
+====================
+(1725086956)[15] 0.052995 sec (avg. 0.210548)
+[0;32mI (84377) tokenmgr: No token in the token store[0m
+[0;32mI (84727) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (86127) tokenmgr: conn_write issuer_request success[0m
+[0;32mI (86197) tokenmgr: conn_read timestamp success[0m
+[0;32mI (86197) tokenmgr: conn_read random bytes success[0m
+[0;32mI (86207) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (86227) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (86227) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (86227) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (86227) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:49:19.468969 get_token started
+2024-08-31 15:49:19.469001     get_token_internal started
+2024-08-31 15:49:19.469489         fetch_tokens started
+2024-08-31 15:49:21.300556         fetch_tokens ended (1.831067 seconds)
+2024-08-31 15:49:21.300601     get_token_internal ended (1.831600 seconds)
+2024-08-31 15:49:21.300623 get_token ended (1.831654 seconds)
+2024-08-31 15:49:21.300650 b64encode_token started
+2024-08-31 15:49:21.300727 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:49:21.300751 mqtt_publish_qos0 started
+2024-08-31 15:49:21.346972 mqtt_publish_qos0 ended (0.046221 seconds)
+====================
+(1725086961)[16] 1.878057 sec (avg. 0.308637)
+[0;32mI (89307) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (89377) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (89377) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (89377) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (89377) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:49:24.398911 get_token started
+2024-08-31 15:49:24.398942     get_token_internal started
+2024-08-31 15:49:24.398994     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:49:24.399013 get_token ended (0.000102 seconds)
+2024-08-31 15:49:24.399034 b64encode_token started
+2024-08-31 15:49:24.399111 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:49:24.399134 mqtt_publish_qos0 started
+2024-08-31 15:49:24.500918 mqtt_publish_qos0 ended (0.101784 seconds)
+====================
+(1725086964)[17] 0.102062 sec (avg. 0.297161)
+[0;32mI (92447) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (92507) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (92517) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (92517) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (92517) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:49:27.538911 get_token started
+2024-08-31 15:49:27.538942     get_token_internal started
+2024-08-31 15:49:27.538994     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:49:27.539013 get_token ended (0.000102 seconds)
+2024-08-31 15:49:27.539034 b64encode_token started
+2024-08-31 15:49:27.539428 b64encode_token ended (0.000394 seconds)
+2024-08-31 15:49:27.539451 mqtt_publish_qos0 started
+2024-08-31 15:49:27.639517 mqtt_publish_qos0 ended (0.100066 seconds)
+====================
+(1725086967)[18] 0.100662 sec (avg. 0.286819)
+[0;32mI (95587) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (95697) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (95697) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (95697) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (95697) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:49:30.678911 get_token started
+2024-08-31 15:49:30.678942     get_token_internal started
+2024-08-31 15:49:30.678994     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:49:30.679013 get_token ended (0.000102 seconds)
+2024-08-31 15:49:30.679034 b64encode_token started
+2024-08-31 15:49:30.679111 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:49:30.679134 mqtt_publish_qos0 started
+2024-08-31 15:49:30.845523 mqtt_publish_qos0 ended (0.166389 seconds)
+====================
+(1725086970)[19] 0.166667 sec (avg. 0.280811)
+[0;32mI (98787) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (98987) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (98987) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (98987) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (98997) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:49:33.878911 get_token started
+2024-08-31 15:49:33.878942     get_token_internal started
+2024-08-31 15:49:33.878994     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:49:33.879013 get_token ended (0.000102 seconds)
+2024-08-31 15:49:33.879034 b64encode_token started
+2024-08-31 15:49:33.879601 b64encode_token ended (0.000567 seconds)
+2024-08-31 15:49:33.879629 mqtt_publish_qos0 started
+2024-08-31 15:49:34.147253 mqtt_publish_qos0 ended (0.267624 seconds)
+====================
+(1725086974)[20] 0.268397 sec (avg. 0.280220)
+[0;32mI (102087) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (102147) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (102147) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (102147) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (102157) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:49:37.178911 get_token started
+2024-08-31 15:49:37.178942     get_token_internal started
+2024-08-31 15:49:37.178994     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:49:37.179013 get_token ended (0.000102 seconds)
+2024-08-31 15:49:37.179034 b64encode_token started
+2024-08-31 15:49:37.179111 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:49:37.179134 mqtt_publish_qos0 started
+2024-08-31 15:49:37.296325 mqtt_publish_qos0 ended (0.117191 seconds)
+====================
+(1725086977)[21] 0.117469 sec (avg. 0.272822)
+[0;32mI (105237) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (105257) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (105257) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (105257) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (105267) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:49:40.328911 get_token started
+2024-08-31 15:49:40.328942     get_token_internal started
+2024-08-31 15:49:40.328994     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:49:40.329013 get_token ended (0.000102 seconds)
+2024-08-31 15:49:40.329034 b64encode_token started
+2024-08-31 15:49:40.329111 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:49:40.329134 mqtt_publish_qos0 started
+2024-08-31 15:49:40.381980 mqtt_publish_qos0 ended (0.052846 seconds)
+====================
+(1725086980)[22] 0.053125 sec (avg. 0.263270)
+[0;32mI (108327) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (108347) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (108347) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (108347) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (108347) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:49:43.418911 get_token started
+2024-08-31 15:49:43.418942     get_token_internal started
+2024-08-31 15:49:43.418994     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:49:43.419013 get_token ended (0.000102 seconds)
+2024-08-31 15:49:43.419034 b64encode_token started
+2024-08-31 15:49:43.419110 b64encode_token ended (0.000076 seconds)
+2024-08-31 15:49:43.419134 mqtt_publish_qos0 started
+2024-08-31 15:49:43.465347 mqtt_publish_qos0 ended (0.046213 seconds)
+====================
+(1725086983)[23] 0.046494 sec (avg. 0.254238)
+[0;32mI (111407) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (111507) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (111507) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (111507) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (111507) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:49:46.498911 get_token started
+2024-08-31 15:49:46.498942     get_token_internal started
+2024-08-31 15:49:46.498994     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:49:46.499013 get_token ended (0.000102 seconds)
+2024-08-31 15:49:46.499034 b64encode_token started
+2024-08-31 15:49:46.499111 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:49:46.499134 mqtt_publish_qos0 started
+2024-08-31 15:49:46.627727 mqtt_publish_qos0 ended (0.128593 seconds)
+====================
+(1725086986)[24] 0.128871 sec (avg. 0.249223)
+[0;32mI (114577) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (114667) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (114667) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (114667) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (114677) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:49:49.668911 get_token started
+2024-08-31 15:49:49.668942     get_token_internal started
+2024-08-31 15:49:49.668994     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:49:49.669013 get_token ended (0.000102 seconds)
+2024-08-31 15:49:49.669034 b64encode_token started
+2024-08-31 15:49:49.669111 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:49:49.669135 mqtt_publish_qos0 started
+2024-08-31 15:49:49.787728 mqtt_publish_qos0 ended (0.118593 seconds)
+====================
+(1725086989)[25] 0.118872 sec (avg. 0.244209)
+[0;32mI (117737) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (117847) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (117847) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (117847) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (117847) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:49:52.828911 get_token started
+2024-08-31 15:49:52.828942     get_token_internal started
+2024-08-31 15:49:52.828994     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:49:52.829013 get_token ended (0.000102 seconds)
+2024-08-31 15:49:52.829034 b64encode_token started
+2024-08-31 15:49:52.829111 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:49:52.829134 mqtt_publish_qos0 started
+2024-08-31 15:49:52.962010 mqtt_publish_qos0 ended (0.132876 seconds)
+====================
+(1725086992)[26] 0.133154 sec (avg. 0.240096)
+[0;32mI (120907) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (121017) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (121017) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (121017) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (121027) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:49:55.998911 get_token started
+2024-08-31 15:49:55.998942     get_token_internal started
+2024-08-31 15:49:55.998994     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:49:55.999013 get_token ended (0.000102 seconds)
+2024-08-31 15:49:55.999034 b64encode_token started
+2024-08-31 15:49:55.999111 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:49:55.999134 mqtt_publish_qos0 started
+2024-08-31 15:49:56.139352 mqtt_publish_qos0 ended (0.140218 seconds)
+====================
+(1725086996)[27] 0.140496 sec (avg. 0.236539)
+[0;32mI (124087) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (124207) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (124207) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (124207) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (124207) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:49:59.178911 get_token started
+2024-08-31 15:49:59.178942     get_token_internal started
+2024-08-31 15:49:59.178994     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:49:59.179013 get_token ended (0.000102 seconds)
+2024-08-31 15:49:59.179034 b64encode_token started
+2024-08-31 15:49:59.179111 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:49:59.179134 mqtt_publish_qos0 started
+2024-08-31 15:49:59.329839 mqtt_publish_qos0 ended (0.150705 seconds)
+====================
+(1725086999)[28] 0.150983 sec (avg. 0.233589)
+[0;32mI (127277) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (127297) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (127297) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (127307) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (127307) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:50:02.368911 get_token started
+2024-08-31 15:50:02.368942     get_token_internal started
+2024-08-31 15:50:02.368994     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:50:02.369013 get_token ended (0.000102 seconds)
+2024-08-31 15:50:02.369034 b64encode_token started
+2024-08-31 15:50:02.369111 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:50:02.369134 mqtt_publish_qos0 started
+2024-08-31 15:50:02.429014 mqtt_publish_qos0 ended (0.059880 seconds)
+====================
+(1725087002)[29] 0.060158 sec (avg. 0.227808)
+[0;32mI (130377) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (130397) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (130397) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (130397) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (130407) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:50:05.468911 get_token started
+2024-08-31 15:50:05.468942     get_token_internal started
+2024-08-31 15:50:05.468994     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:50:05.469013 get_token ended (0.000102 seconds)
+2024-08-31 15:50:05.469034 b64encode_token started
+2024-08-31 15:50:05.469111 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:50:05.469134 mqtt_publish_qos0 started
+2024-08-31 15:50:05.513638 mqtt_publish_qos0 ended (0.044504 seconds)
+====================
+(1725087005)[30] 0.044782 sec (avg. 0.221904)
+[0;32mI (133457) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (133487) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (133497) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (133497) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (133497) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:50:08.548911 get_token started
+2024-08-31 15:50:08.548942     get_token_internal started
+2024-08-31 15:50:08.548994     get_token_internal ended (0.000052 seconds)
+2024-08-31 15:50:08.549013 get_token ended (0.000102 seconds)
+2024-08-31 15:50:08.549034 b64encode_token started
+2024-08-31 15:50:08.549111 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:50:08.549134 mqtt_publish_qos0 started
+2024-08-31 15:50:08.610464 mqtt_publish_qos0 ended (0.061330 seconds)
+====================
+(1725087008)[31] 0.061607 sec (avg. 0.216894)
+Plain Test End: 2024-08-31 15:50:11
+[0;32mI (136627) tokenmgr: tokenmgr deinitialized[0m
+[0;32mI (136627) pp: pp rom version: 9387209[0m
+[0;32mI (136627) net80211: net80211 rom version: 9387209[0m
+[0;32mI (136637) wifi_init: accept mbox: 6[0m
+[0;32mI (136637) wifi_init: tcpip mbox: 32[0m
+[0;32mI (136637) wifi_init: udp mbox: 6[0m
+[0;32mI (136637) wifi_init: tcp mbox: 6[0m
+[0;32mI (136647) wifi_init: tcp tx win: 5760[0m
+[0;32mI (136647) wifi_init: tcp rx win: 5760[0m
+[0;32mI (136657) wifi_init: tcp mss: 1440[0m
+[0;32mI (136657) wifi_init: WiFi IRAM OP enabled[0m
+[0;32mI (136667) wifi_init: WiFi RX IRAM OP enabled[0m
+[0;32mI (136677) tokenmgr_wifi: esp_wifi_start triggered[0m
+[0;32mI (137707) esp_netif_handlers: sta ip: 192.168.11.19, mask: 255.255.255.0, gw: 192.168.11.1[0m
+[0;32mI (137707) tokenmgr_wifi: IP address assigned:192.168.11.19[0m
+[0;32mI (137707) tokenmgr_wifi: connected to ap SSID:aBuffalo-T-E510[0m
+[0;32mI (137717) tokenmgr_wifi: mdns hostname set to client[0m
+[0;32mI (137717) tokenmgr_wifi: esp_netif_sntp_start triggered[0m
+[0;32mI (138727) tokenmgr_wifi: Waiting for system time to be set... (1/15)[0m
+[0;32mI (139727) tokenmgr_wifi: Waiting for system time to be set... (2/15)[0m
+[0;32mI (140347) tokenmgr_wifi: time fixed with SNTP[0m
+[0;32mI (140347) tokenmgr: tokenmgr initialized[0m
+Waiting for 30 sec...: 2024-08-31 15:50:15
+Plain(AEAD) Test Start: 2024-08-31 15:50:45
+[0;32mI (170347) tokenmgr: No token in the token store[0m
+[0;32mI (170787) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (172187) tokenmgr: conn_write issuer_request success[0m
+[0;32mI (172197) tokenmgr: conn_read encryption key success[0m
+[0;32mI (172197) tokenmgr: conn_read timestamp success[0m
+[0;32mI (172197) tokenmgr: conn_read random bytes success[0m
+[0;32mI (172207) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (172227) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (172227) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (172227) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (172237) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:50:11.649678 tokenmgr_deinit started
+2024-08-31 15:50:15.449439 tokenmgr_init ended
+2024-08-31 15:50:45.443680 get_token started
+2024-08-31 15:50:45.443711     get_token_internal started
+2024-08-31 15:50:45.443985         fetch_tokens started
+2024-08-31 15:50:47.306493         fetch_tokens ended (1.862508 seconds)
+2024-08-31 15:50:47.306541     get_token_internal ended (1.862830 seconds)
+2024-08-31 15:50:47.306565 get_token ended (1.862885 seconds)
+2024-08-31 15:50:47.306593 b64encode_token started
+2024-08-31 15:50:47.306671 b64encode_token ended (0.000078 seconds)
+2024-08-31 15:50:47.306700 seal_message started
+2024-08-31 15:50:47.307305 seal_message ended (0.000605 seconds)
+2024-08-31 15:50:47.307338 mqtt_publish_qos0 started
+2024-08-31 15:50:47.355470 mqtt_publish_qos0 ended (0.048132 seconds)
+====================
+(1725087047)[00] 1.911846 sec (avg. 1.911846)
+[0;32mI (175327) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (175357) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (175357) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (175357) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (175357) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:50:50.422862 get_token started
+2024-08-31 15:50:50.422893     get_token_internal started
+2024-08-31 15:50:50.422947     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:50:50.422968 get_token ended (0.000106 seconds)
+2024-08-31 15:50:50.422989 b64encode_token started
+2024-08-31 15:50:50.423067 b64encode_token ended (0.000078 seconds)
+2024-08-31 15:50:50.423096 seal_message started
+2024-08-31 15:50:50.423584 seal_message ended (0.000488 seconds)
+2024-08-31 15:50:50.423611 mqtt_publish_qos0 started
+2024-08-31 15:50:50.474710 mqtt_publish_qos0 ended (0.051099 seconds)
+====================
+(1725087050)[01] 0.051905 sec (avg. 0.981875)
+[0;32mI (178427) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (178577) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (178577) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (178577) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (178577) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:50:53.522864 get_token started
+2024-08-31 15:50:53.522895     get_token_internal started
+2024-08-31 15:50:53.522949     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:50:53.522968 get_token ended (0.000104 seconds)
+2024-08-31 15:50:53.522991 b64encode_token started
+2024-08-31 15:50:53.523068 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:50:53.523097 seal_message started
+2024-08-31 15:50:53.523586 seal_message ended (0.000489 seconds)
+2024-08-31 15:50:53.523614 mqtt_publish_qos0 started
+2024-08-31 15:50:53.696653 mqtt_publish_qos0 ended (0.173039 seconds)
+====================
+(1725087053)[02] 0.173846 sec (avg. 0.712532)
+[0;32mI (181647) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (181757) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (181757) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (181757) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (181757) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:50:56.742864 get_token started
+2024-08-31 15:50:56.742895     get_token_internal started
+2024-08-31 15:50:56.742949     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:50:56.742968 get_token ended (0.000104 seconds)
+2024-08-31 15:50:56.742991 b64encode_token started
+2024-08-31 15:50:56.743068 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:50:56.743097 seal_message started
+2024-08-31 15:50:56.743589 seal_message ended (0.000492 seconds)
+2024-08-31 15:50:56.743617 mqtt_publish_qos0 started
+2024-08-31 15:50:56.883982 mqtt_publish_qos0 ended (0.140365 seconds)
+====================
+(1725087056)[03] 0.141173 sec (avg. 0.569692)
+[0;32mI (184837) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (184897) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (184897) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (184907) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (184907) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:50:59.932864 get_token started
+2024-08-31 15:50:59.932895     get_token_internal started
+2024-08-31 15:50:59.932949     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:50:59.932968 get_token ended (0.000104 seconds)
+2024-08-31 15:50:59.932989 b64encode_token started
+2024-08-31 15:50:59.933067 b64encode_token ended (0.000078 seconds)
+2024-08-31 15:50:59.933096 seal_message started
+2024-08-31 15:50:59.933583 seal_message ended (0.000487 seconds)
+2024-08-31 15:50:59.933611 mqtt_publish_qos0 started
+2024-08-31 15:51:00.027508 mqtt_publish_qos0 ended (0.093897 seconds)
+====================
+(1725087060)[04] 0.094701 sec (avg. 0.474694)
+[0;32mI (187977) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (188087) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (188087) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (188087) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (188097) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:51:03.072864 get_token started
+2024-08-31 15:51:03.072895     get_token_internal started
+2024-08-31 15:51:03.072949     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:51:03.072968 get_token ended (0.000104 seconds)
+2024-08-31 15:51:03.072989 b64encode_token started
+2024-08-31 15:51:03.073068 b64encode_token ended (0.000079 seconds)
+2024-08-31 15:51:03.073095 seal_message started
+2024-08-31 15:51:03.073582 seal_message ended (0.000487 seconds)
+2024-08-31 15:51:03.073610 mqtt_publish_qos0 started
+2024-08-31 15:51:03.215699 mqtt_publish_qos0 ended (0.142089 seconds)
+====================
+(1725087063)[05] 0.142894 sec (avg. 0.419394)
+[0;32mI (191167) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (191187) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (191187) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (191187) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (191197) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:51:06.262864 get_token started
+2024-08-31 15:51:06.262895     get_token_internal started
+2024-08-31 15:51:06.262949     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:51:06.262968 get_token ended (0.000104 seconds)
+2024-08-31 15:51:06.262990 b64encode_token started
+2024-08-31 15:51:06.263068 b64encode_token ended (0.000078 seconds)
+2024-08-31 15:51:06.263097 seal_message started
+2024-08-31 15:51:06.263582 seal_message ended (0.000485 seconds)
+2024-08-31 15:51:06.263610 mqtt_publish_qos0 started
+2024-08-31 15:51:06.311946 mqtt_publish_qos0 ended (0.048336 seconds)
+====================
+(1725087066)[06] 0.049224 sec (avg. 0.366512)
+[0;32mI (194267) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (194337) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (194337) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (194337) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (194347) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:51:09.362864 get_token started
+2024-08-31 15:51:09.362895     get_token_internal started
+2024-08-31 15:51:09.362949     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:51:09.362968 get_token ended (0.000104 seconds)
+2024-08-31 15:51:09.362989 b64encode_token started
+2024-08-31 15:51:09.363067 b64encode_token ended (0.000078 seconds)
+2024-08-31 15:51:09.363095 seal_message started
+2024-08-31 15:51:09.363582 seal_message ended (0.000487 seconds)
+2024-08-31 15:51:09.363610 mqtt_publish_qos0 started
+2024-08-31 15:51:09.466096 mqtt_publish_qos0 ended (0.102486 seconds)
+====================
+(1725087069)[07] 0.103289 sec (avg. 0.333609)
+[0;32mI (197417) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (197527) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (197527) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (197527) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (197537) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:51:12.512864 get_token started
+2024-08-31 15:51:12.512895     get_token_internal started
+2024-08-31 15:51:12.512949     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:51:12.512969 get_token ended (0.000105 seconds)
+2024-08-31 15:51:12.512991 b64encode_token started
+2024-08-31 15:51:12.513069 b64encode_token ended (0.000078 seconds)
+2024-08-31 15:51:12.513097 seal_message started
+2024-08-31 15:51:12.513585 seal_message ended (0.000488 seconds)
+2024-08-31 15:51:12.513613 mqtt_publish_qos0 started
+2024-08-31 15:51:12.663457 mqtt_publish_qos0 ended (0.149844 seconds)
+====================
+(1725087072)[08] 0.150650 sec (avg. 0.313280)
+[0;32mI (200617) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (200637) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (200637) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (200637) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (200647) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:51:15.712864 get_token started
+2024-08-31 15:51:15.712895     get_token_internal started
+2024-08-31 15:51:15.712949     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:51:15.712968 get_token ended (0.000104 seconds)
+2024-08-31 15:51:15.712990 b64encode_token started
+2024-08-31 15:51:15.713068 b64encode_token ended (0.000078 seconds)
+2024-08-31 15:51:15.713097 seal_message started
+2024-08-31 15:51:15.713583 seal_message ended (0.000486 seconds)
+2024-08-31 15:51:15.713611 mqtt_publish_qos0 started
+2024-08-31 15:51:15.761675 mqtt_publish_qos0 ended (0.048064 seconds)
+====================
+(1725087075)[09] 0.048867 sec (avg. 0.286839)
+[0;32mI (203717) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (203857) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (203867) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (203867) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (203867) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:51:18.812864 get_token started
+2024-08-31 15:51:18.812895     get_token_internal started
+2024-08-31 15:51:18.812949     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:51:18.812968 get_token ended (0.000104 seconds)
+2024-08-31 15:51:18.812990 b64encode_token started
+2024-08-31 15:51:18.813068 b64encode_token ended (0.000078 seconds)
+2024-08-31 15:51:18.813097 seal_message started
+2024-08-31 15:51:18.813583 seal_message ended (0.000486 seconds)
+2024-08-31 15:51:18.813612 mqtt_publish_qos0 started
+2024-08-31 15:51:18.983850 mqtt_publish_qos0 ended (0.170238 seconds)
+====================
+(1725087078)[10] 0.171041 sec (avg. 0.276312)
+[0;32mI (206937) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (207047) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (207047) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (207047) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (207047) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:51:22.032864 get_token started
+2024-08-31 15:51:22.032895     get_token_internal started
+2024-08-31 15:51:22.032949     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:51:22.032968 get_token ended (0.000104 seconds)
+2024-08-31 15:51:22.032989 b64encode_token started
+2024-08-31 15:51:22.033066 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:51:22.033095 seal_message started
+2024-08-31 15:51:22.033584 seal_message ended (0.000489 seconds)
+2024-08-31 15:51:22.033611 mqtt_publish_qos0 started
+2024-08-31 15:51:22.175208 mqtt_publish_qos0 ended (0.141597 seconds)
+====================
+(1725087082)[11] 0.142400 sec (avg. 0.265153)
+[0;32mI (210127) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (210217) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (210217) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (210217) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (210217) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:51:25.222864 get_token started
+2024-08-31 15:51:25.222895     get_token_internal started
+2024-08-31 15:51:25.222949     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:51:25.222968 get_token ended (0.000104 seconds)
+2024-08-31 15:51:25.222989 b64encode_token started
+2024-08-31 15:51:25.223066 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:51:25.223095 seal_message started
+2024-08-31 15:51:25.223582 seal_message ended (0.000487 seconds)
+2024-08-31 15:51:25.223610 mqtt_publish_qos0 started
+2024-08-31 15:51:25.337491 mqtt_publish_qos0 ended (0.113881 seconds)
+====================
+(1725087085)[12] 0.114683 sec (avg. 0.253578)
+[0;32mI (213287) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (213317) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (213317) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (213317) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (213327) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:51:28.382864 get_token started
+2024-08-31 15:51:28.382895     get_token_internal started
+2024-08-31 15:51:28.382949     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:51:28.382968 get_token ended (0.000104 seconds)
+2024-08-31 15:51:28.382989 b64encode_token started
+2024-08-31 15:51:28.383066 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:51:28.383095 seal_message started
+2024-08-31 15:51:28.383583 seal_message ended (0.000488 seconds)
+2024-08-31 15:51:28.383610 mqtt_publish_qos0 started
+2024-08-31 15:51:28.443004 mqtt_publish_qos0 ended (0.059394 seconds)
+====================
+(1725087088)[13] 0.060197 sec (avg. 0.239765)
+[0;32mI (216397) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (216447) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (216447) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (216447) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (216447) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:51:31.492864 get_token started
+2024-08-31 15:51:31.492895     get_token_internal started
+2024-08-31 15:51:31.492949     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:51:31.492968 get_token ended (0.000104 seconds)
+2024-08-31 15:51:31.492989 b64encode_token started
+2024-08-31 15:51:31.493066 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:51:31.493095 seal_message started
+2024-08-31 15:51:31.493583 seal_message ended (0.000488 seconds)
+2024-08-31 15:51:31.493610 mqtt_publish_qos0 started
+2024-08-31 15:51:31.564193 mqtt_publish_qos0 ended (0.070583 seconds)
+====================
+(1725087091)[14] 0.071385 sec (avg. 0.228540)
+[0;32mI (219517) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (219627) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (219627) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (219627) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (219637) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:51:34.612864 get_token started
+2024-08-31 15:51:34.612895     get_token_internal started
+2024-08-31 15:51:34.612949     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:51:34.612968 get_token ended (0.000104 seconds)
+2024-08-31 15:51:34.612989 b64encode_token started
+2024-08-31 15:51:34.613066 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:51:34.613095 seal_message started
+2024-08-31 15:51:34.613747 seal_message ended (0.000652 seconds)
+2024-08-31 15:51:34.613776 mqtt_publish_qos0 started
+2024-08-31 15:51:34.757966 mqtt_publish_qos0 ended (0.144190 seconds)
+====================
+(1725087094)[15] 0.145158 sec (avg. 0.223328)
+[0;32mI (222707) tokenmgr: No token in the token store[0m
+[0;32mI (223027) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (224417) tokenmgr: conn_write issuer_request success[0m
+[0;32mI (224547) tokenmgr: conn_read encryption key success[0m
+[0;32mI (224547) tokenmgr: conn_read timestamp success[0m
+[0;32mI (224547) tokenmgr: conn_read random bytes success[0m
+[0;32mI (224557) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (224587) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (224587) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (224587) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (224587) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:51:37.802864 get_token started
+2024-08-31 15:51:37.802895     get_token_internal started
+2024-08-31 15:51:37.803386         fetch_tokens started
+2024-08-31 15:51:39.652501         fetch_tokens ended (1.849115 seconds)
+2024-08-31 15:51:39.652623     get_token_internal ended (1.849728 seconds)
+2024-08-31 15:51:39.652645 get_token ended (1.849781 seconds)
+2024-08-31 15:51:39.652673 b64encode_token started
+2024-08-31 15:51:39.652751 b64encode_token ended (0.000078 seconds)
+2024-08-31 15:51:39.652780 seal_message started
+2024-08-31 15:51:39.653387 seal_message ended (0.000607 seconds)
+2024-08-31 15:51:39.653417 mqtt_publish_qos0 started
+2024-08-31 15:51:39.710236 mqtt_publish_qos0 ended (0.056819 seconds)
+====================
+(1725087099)[16] 1.907429 sec (avg. 0.322393)
+[0;32mI (227677) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (227707) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (227707) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (227707) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (227717) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:51:42.772864 get_token started
+2024-08-31 15:51:42.772895     get_token_internal started
+2024-08-31 15:51:42.772949     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:51:42.772968 get_token ended (0.000104 seconds)
+2024-08-31 15:51:42.772989 b64encode_token started
+2024-08-31 15:51:42.773066 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:51:42.773095 seal_message started
+2024-08-31 15:51:42.773583 seal_message ended (0.000488 seconds)
+2024-08-31 15:51:42.773610 mqtt_publish_qos0 started
+2024-08-31 15:51:42.829372 mqtt_publish_qos0 ended (0.055762 seconds)
+====================
+(1725087102)[17] 0.056564 sec (avg. 0.307625)
+[0;32mI (230777) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (230897) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (230897) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (230897) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (230897) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:51:45.872864 get_token started
+2024-08-31 15:51:45.872895     get_token_internal started
+2024-08-31 15:51:45.872949     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:51:45.872968 get_token ended (0.000104 seconds)
+2024-08-31 15:51:45.872989 b64encode_token started
+2024-08-31 15:51:45.873066 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:51:45.873095 seal_message started
+2024-08-31 15:51:45.873582 seal_message ended (0.000487 seconds)
+2024-08-31 15:51:45.873610 mqtt_publish_qos0 started
+2024-08-31 15:51:46.017902 mqtt_publish_qos0 ended (0.144292 seconds)
+====================
+(1725087106)[18] 0.145094 sec (avg. 0.299070)
+[0;32mI (233967) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (234067) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (234067) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (234067) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (234077) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:51:49.062864 get_token started
+2024-08-31 15:51:49.062895     get_token_internal started
+2024-08-31 15:51:49.062949     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:51:49.062968 get_token ended (0.000104 seconds)
+2024-08-31 15:51:49.062990 b64encode_token started
+2024-08-31 15:51:49.063067 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:51:49.063096 seal_message started
+2024-08-31 15:51:49.063584 seal_message ended (0.000488 seconds)
+2024-08-31 15:51:49.063611 mqtt_publish_qos0 started
+2024-08-31 15:51:49.198358 mqtt_publish_qos0 ended (0.134747 seconds)
+====================
+(1725087109)[19] 0.135550 sec (avg. 0.290894)
+[0;32mI (237147) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (237267) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (237267) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (237267) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (237277) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:51:52.242864 get_token started
+2024-08-31 15:51:52.242895     get_token_internal started
+2024-08-31 15:51:52.242949     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:51:52.242968 get_token ended (0.000104 seconds)
+2024-08-31 15:51:52.242989 b64encode_token started
+2024-08-31 15:51:52.243066 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:51:52.243095 seal_message started
+2024-08-31 15:51:52.243583 seal_message ended (0.000488 seconds)
+2024-08-31 15:51:52.243611 mqtt_publish_qos0 started
+2024-08-31 15:51:52.392694 mqtt_publish_qos0 ended (0.149083 seconds)
+====================
+(1725087112)[20] 0.149886 sec (avg. 0.284180)
+[0;32mI (240347) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (240417) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (240417) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (240417) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (240427) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:51:55.442864 get_token started
+2024-08-31 15:51:55.442895     get_token_internal started
+2024-08-31 15:51:55.442949     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:51:55.442969 get_token ended (0.000105 seconds)
+2024-08-31 15:51:55.442990 b64encode_token started
+2024-08-31 15:51:55.443067 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:51:55.443095 seal_message started
+2024-08-31 15:51:55.443583 seal_message ended (0.000488 seconds)
+2024-08-31 15:51:55.443612 mqtt_publish_qos0 started
+2024-08-31 15:51:55.540430 mqtt_publish_qos0 ended (0.096818 seconds)
+====================
+(1725087115)[21] 0.097623 sec (avg. 0.275700)
+[0;32mI (243487) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (243507) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (243507) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (243507) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (243507) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:51:58.582864 get_token started
+2024-08-31 15:51:58.582895     get_token_internal started
+2024-08-31 15:51:58.582949     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:51:58.582968 get_token ended (0.000104 seconds)
+2024-08-31 15:51:58.582990 b64encode_token started
+2024-08-31 15:51:58.583067 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:51:58.583095 seal_message started
+2024-08-31 15:51:58.583587 seal_message ended (0.000492 seconds)
+2024-08-31 15:51:58.583616 mqtt_publish_qos0 started
+2024-08-31 15:51:58.631105 mqtt_publish_qos0 ended (0.047489 seconds)
+====================
+(1725087118)[22] 0.048297 sec (avg. 0.265813)
+[0;32mI (246577) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (246667) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (246667) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (246667) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (246667) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:52:01.672864 get_token started
+2024-08-31 15:52:01.672895     get_token_internal started
+2024-08-31 15:52:01.672949     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:52:01.672969 get_token ended (0.000105 seconds)
+2024-08-31 15:52:01.672990 b64encode_token started
+2024-08-31 15:52:01.673067 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:52:01.673095 seal_message started
+2024-08-31 15:52:01.673588 seal_message ended (0.000493 seconds)
+2024-08-31 15:52:01.673616 mqtt_publish_qos0 started
+2024-08-31 15:52:01.786359 mqtt_publish_qos0 ended (0.112743 seconds)
+====================
+(1725087121)[23] 0.113551 sec (avg. 0.259468)
+[0;32mI (249737) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (249837) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (249837) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (249837) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (249847) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:52:04.832864 get_token started
+2024-08-31 15:52:04.832895     get_token_internal started
+2024-08-31 15:52:04.832949     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:52:04.832968 get_token ended (0.000104 seconds)
+2024-08-31 15:52:04.832989 b64encode_token started
+2024-08-31 15:52:04.833066 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:52:04.833094 seal_message started
+2024-08-31 15:52:04.833588 seal_message ended (0.000494 seconds)
+2024-08-31 15:52:04.833616 mqtt_publish_qos0 started
+2024-08-31 15:52:04.961117 mqtt_publish_qos0 ended (0.127501 seconds)
+====================
+(1725087124)[24] 0.128311 sec (avg. 0.254222)
+[0;32mI (252907) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (253017) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (253017) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (253027) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (253027) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:52:08.002864 get_token started
+2024-08-31 15:52:08.002895     get_token_internal started
+2024-08-31 15:52:08.002949     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:52:08.002968 get_token ended (0.000104 seconds)
+2024-08-31 15:52:08.002990 b64encode_token started
+2024-08-31 15:52:08.003067 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:52:08.003095 seal_message started
+2024-08-31 15:52:08.003588 seal_message ended (0.000493 seconds)
+2024-08-31 15:52:08.003616 mqtt_publish_qos0 started
+2024-08-31 15:52:08.144169 mqtt_publish_qos0 ended (0.140553 seconds)
+====================
+(1725087128)[25] 0.141362 sec (avg. 0.249881)
+[0;32mI (256097) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (256187) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (256187) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (256187) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (256197) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:52:11.192864 get_token started
+2024-08-31 15:52:11.192895     get_token_internal started
+2024-08-31 15:52:11.192949     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:52:11.192968 get_token ended (0.000104 seconds)
+2024-08-31 15:52:11.192989 b64encode_token started
+2024-08-31 15:52:11.193066 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:52:11.193094 seal_message started
+2024-08-31 15:52:11.193587 seal_message ended (0.000493 seconds)
+2024-08-31 15:52:11.193615 mqtt_publish_qos0 started
+2024-08-31 15:52:11.311052 mqtt_publish_qos0 ended (0.117437 seconds)
+====================
+(1725087131)[26] 0.118244 sec (avg. 0.245006)
+[0;32mI (259257) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (259277) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (259277) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (259277) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (259287) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:52:14.352864 get_token started
+2024-08-31 15:52:14.352895     get_token_internal started
+2024-08-31 15:52:14.352949     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:52:14.352968 get_token ended (0.000104 seconds)
+2024-08-31 15:52:14.352989 b64encode_token started
+2024-08-31 15:52:14.353066 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:52:14.353094 seal_message started
+2024-08-31 15:52:14.353586 seal_message ended (0.000492 seconds)
+2024-08-31 15:52:14.353613 mqtt_publish_qos0 started
+2024-08-31 15:52:14.403315 mqtt_publish_qos0 ended (0.049702 seconds)
+====================
+(1725087134)[27] 0.050507 sec (avg. 0.238059)
+[0;32mI (262357) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (262377) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (262377) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (262377) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (262387) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:52:17.452864 get_token started
+2024-08-31 15:52:17.452895     get_token_internal started
+2024-08-31 15:52:17.452949     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:52:17.452968 get_token ended (0.000104 seconds)
+2024-08-31 15:52:17.452989 b64encode_token started
+2024-08-31 15:52:17.453066 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:52:17.453094 seal_message started
+2024-08-31 15:52:17.453586 seal_message ended (0.000492 seconds)
+2024-08-31 15:52:17.453613 mqtt_publish_qos0 started
+2024-08-31 15:52:17.507889 mqtt_publish_qos0 ended (0.054276 seconds)
+====================
+(1725087137)[28] 0.055081 sec (avg. 0.231750)
+[0;32mI (265457) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (265497) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (265497) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (265497) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (265507) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:52:20.552864 get_token started
+2024-08-31 15:52:20.552895     get_token_internal started
+2024-08-31 15:52:20.552949     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:52:20.552968 get_token ended (0.000104 seconds)
+2024-08-31 15:52:20.552989 b64encode_token started
+2024-08-31 15:52:20.553066 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:52:20.553094 seal_message started
+2024-08-31 15:52:20.553586 seal_message ended (0.000492 seconds)
+2024-08-31 15:52:20.553613 mqtt_publish_qos0 started
+2024-08-31 15:52:20.620369 mqtt_publish_qos0 ended (0.066756 seconds)
+====================
+(1725087140)[29] 0.067561 sec (avg. 0.226277)
+[0;32mI (268577) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (268677) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (268677) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (268677) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (268687) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:52:23.672864 get_token started
+2024-08-31 15:52:23.672895     get_token_internal started
+2024-08-31 15:52:23.672949     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:52:23.672968 get_token ended (0.000104 seconds)
+2024-08-31 15:52:23.672989 b64encode_token started
+2024-08-31 15:52:23.673066 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:52:23.673094 seal_message started
+2024-08-31 15:52:23.673586 seal_message ended (0.000492 seconds)
+2024-08-31 15:52:23.673614 mqtt_publish_qos0 started
+2024-08-31 15:52:23.802228 mqtt_publish_qos0 ended (0.128614 seconds)
+====================
+(1725087143)[30] 0.129420 sec (avg. 0.223152)
+[0;32mI (271757) tokenmgr_mqtt: esp_mqtt_client_start triggered (plain)[0m
+[0;32mI (271857) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (plain)[0m
+[0;32mI (271857) tokenmgr_mqtt: MQTT (plain) connected[0m
+[0;32mI (271857) tokenmgr_mqtt: MQTT Publish (plain) success[0m
+[0;32mI (271867) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:52:26.852864 get_token started
+2024-08-31 15:52:26.852895     get_token_internal started
+2024-08-31 15:52:26.852949     get_token_internal ended (0.000054 seconds)
+2024-08-31 15:52:26.852968 get_token ended (0.000104 seconds)
+2024-08-31 15:52:26.852989 b64encode_token started
+2024-08-31 15:52:26.853066 b64encode_token ended (0.000077 seconds)
+2024-08-31 15:52:26.853094 seal_message started
+2024-08-31 15:52:26.853586 seal_message ended (0.000492 seconds)
+2024-08-31 15:52:26.853614 mqtt_publish_qos0 started
+2024-08-31 15:52:26.978954 mqtt_publish_qos0 ended (0.125340 seconds)
+====================
+(1725087146)[31] 0.126146 sec (avg. 0.220121)
+Plain(AEAD) Test End: 2024-08-31 15:52:30
+[0;32mI (274977) tokenmgr: tokenmgr deinitialized[0m
+[0;32mI (274977) pp: pp rom version: 9387209[0m
+[0;32mI (274977) net80211: net80211 rom version: 9387209[0m
+[0;32mI (274987) wifi_init: accept mbox: 6[0m
+[0;32mI (274987) wifi_init: tcpip mbox: 32[0m
+[0;32mI (274987) wifi_init: udp mbox: 6[0m
+[0;32mI (274987) wifi_init: tcp mbox: 6[0m
+[0;32mI (274997) wifi_init: tcp tx win: 5760[0m
+[0;32mI (274997) wifi_init: tcp rx win: 5760[0m
+[0;32mI (275007) wifi_init: tcp mss: 1440[0m
+[0;32mI (275007) wifi_init: WiFi IRAM OP enabled[0m
+[0;32mI (275017) wifi_init: WiFi RX IRAM OP enabled[0m
+[0;32mI (275027) tokenmgr_wifi: esp_wifi_start triggered[0m
+[0;32mI (276057) esp_netif_handlers: sta ip: 192.168.11.19, mask: 255.255.255.0, gw: 192.168.11.1[0m
+[0;32mI (276057) tokenmgr_wifi: IP address assigned:192.168.11.19[0m
+[0;32mI (276057) tokenmgr_wifi: connected to ap SSID:aBuffalo-T-E510[0m
+[0;32mI (276067) tokenmgr_wifi: mdns hostname set to client[0m
+[0;32mI (276067) tokenmgr_wifi: esp_netif_sntp_start triggered[0m
+[0;32mI (277077) tokenmgr_wifi: Waiting for system time to be set... (1/15)[0m
+[0;32mI (278077) tokenmgr_wifi: Waiting for system time to be set... (2/15)[0m
+[0;32mI (279077) tokenmgr_wifi: Waiting for system time to be set... (3/15)[0m
+[0;32mI (279897) tokenmgr_wifi: time fixed with SNTP[0m
+[0;32mI (279897) tokenmgr: tokenmgr initialized[0m
+Waiting for 30 sec...: 2024-08-31 15:52:34
+TLS Test Start: 2024-08-31 15:53:04
+[0;32mI (309907) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (310287) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (311707) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (311707) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (311707) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (311707) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:52:30.023641 tokenmgr_deinit started
+2024-08-31 15:52:34.998377 tokenmgr_init ended
+2024-08-31 15:53:04.999955 mqtt_publish_qos0 started
+2024-08-31 15:53:06.823030 mqtt_publish_qos0 ended (1.823075 seconds)
+====================
+(1725087186)[00] 1.823129 sec (avg. 1.823129)
+[0;32mI (314747) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (315207) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (316707) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (316717) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (316717) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (316717) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:53:09.839173 mqtt_publish_qos0 started
+2024-08-31 15:53:11.829110 mqtt_publish_qos0 ended (1.989937 seconds)
+====================
+(1725087191)[01] 1.989991 sec (avg. 1.906560)
+[0;32mI (319747) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (320107) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (321627) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (321627) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (321627) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (321637) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:53:14.839173 mqtt_publish_qos0 started
+2024-08-31 15:53:16.746211 mqtt_publish_qos0 ended (1.907038 seconds)
+====================
+(1725087196)[02] 1.907092 sec (avg. 1.906737)
+[0;32mI (324657) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (325147) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (326567) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (326567) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (326567) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (326577) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:53:19.749173 mqtt_publish_qos0 started
+2024-08-31 15:53:21.689836 mqtt_publish_qos0 ended (1.940663 seconds)
+====================
+(1725087201)[03] 1.940717 sec (avg. 1.915232)
+[0;32mI (329607) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (330057) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (331557) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (331557) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (331567) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (331567) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:53:24.699173 mqtt_publish_qos0 started
+2024-08-31 15:53:26.677779 mqtt_publish_qos0 ended (1.978606 seconds)
+====================
+(1725087206)[04] 1.978660 sec (avg. 1.927917)
+[0;32mI (334597) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (335087) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (336577) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (336587) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (336587) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (336587) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:53:29.689173 mqtt_publish_qos0 started
+2024-08-31 15:53:31.701881 mqtt_publish_qos0 ended (2.012708 seconds)
+====================
+(1725087211)[05] 2.012761 sec (avg. 1.942058)
+[0;32mI (339617) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (340097) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (341597) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (341597) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (341597) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (341607) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:53:34.709173 mqtt_publish_qos0 started
+2024-08-31 15:53:36.724469 mqtt_publish_qos0 ended (2.015296 seconds)
+====================
+(1725087216)[06] 2.015349 sec (avg. 1.952528)
+[0;32mI (344637) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (345137) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (346567) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (346567) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (346567) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (346567) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:53:39.729173 mqtt_publish_qos0 started
+2024-08-31 15:53:41.680879 mqtt_publish_qos0 ended (1.951706 seconds)
+====================
+(1725087221)[07] 1.951759 sec (avg. 1.952432)
+[0;32mI (349597) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (350007) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (351527) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (351527) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (351537) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (351537) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:53:44.689173 mqtt_publish_qos0 started
+2024-08-31 15:53:46.649780 mqtt_publish_qos0 ended (1.960607 seconds)
+====================
+(1725087226)[08] 1.960660 sec (avg. 1.953346)
+[0;32mI (354567) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (355057) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (356477) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (356477) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (356477) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (356477) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:53:49.659173 mqtt_publish_qos0 started
+2024-08-31 15:53:51.598395 mqtt_publish_qos0 ended (1.939222 seconds)
+====================
+(1725087231)[09] 1.939276 sec (avg. 1.951939)
+[0;32mI (359507) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (359957) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (361407) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (361417) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (361417) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (361417) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:53:54.599173 mqtt_publish_qos0 started
+2024-08-31 15:53:56.532354 mqtt_publish_qos0 ended (1.933181 seconds)
+====================
+(1725087236)[10] 1.933235 sec (avg. 1.950239)
+[0;32mI (364447) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (364887) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (366397) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (366397) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (366397) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (366397) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:53:59.539173 mqtt_publish_qos0 started
+2024-08-31 15:54:01.510368 mqtt_publish_qos0 ended (1.971195 seconds)
+====================
+(1725087241)[11] 1.971251 sec (avg. 1.951990)
+[0;32mI (369427) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (369907) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (371327) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (371327) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (371337) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (371337) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:54:04.519173 mqtt_publish_qos0 started
+2024-08-31 15:54:06.448538 mqtt_publish_qos0 ended (1.929365 seconds)
+====================
+(1725087246)[12] 1.929490 sec (avg. 1.950259)
+[0;32mI (374357) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (374717) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (376257) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (376257) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (376257) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (376267) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:54:09.449173 mqtt_publish_qos0 started
+2024-08-31 15:54:11.377605 mqtt_publish_qos0 ended (1.928432 seconds)
+====================
+(1725087251)[13] 1.928485 sec (avg. 1.948703)
+[0;32mI (379287) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (379737) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (381287) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (381287) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (381287) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (381287) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:54:14.379173 mqtt_publish_qos0 started
+2024-08-31 15:54:16.402004 mqtt_publish_qos0 ended (2.022831 seconds)
+====================
+(1725087256)[14] 2.022885 sec (avg. 1.953649)
+[0;32mI (384317) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (384687) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (386127) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (386127) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (386127) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (386127) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:54:19.409173 mqtt_publish_qos0 started
+2024-08-31 15:54:21.242401 mqtt_publish_qos0 ended (1.833228 seconds)
+====================
+(1725087261)[15] 1.833281 sec (avg. 1.946126)
+[0;32mI (389157) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (389537) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (391057) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (391057) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (391057) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (391067) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:54:24.249173 mqtt_publish_qos0 started
+2024-08-31 15:54:26.175372 mqtt_publish_qos0 ended (1.926199 seconds)
+====================
+(1725087266)[16] 1.926253 sec (avg. 1.944957)
+[0;32mI (394087) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (394577) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (396017) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (396027) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (396027) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (396027) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:54:29.179173 mqtt_publish_qos0 started
+2024-08-31 15:54:31.140575 mqtt_publish_qos0 ended (1.961402 seconds)
+====================
+(1725087271)[17] 1.961456 sec (avg. 1.945873)
+[0;32mI (399057) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (399467) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (400997) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (400997) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (400997) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (401007) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:54:34.149173 mqtt_publish_qos0 started
+2024-08-31 15:54:36.117584 mqtt_publish_qos0 ended (1.968411 seconds)
+====================
+(1725087276)[18] 1.968465 sec (avg. 1.947062)
+[0;32mI (404027) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (404607) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (406107) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (406107) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (406117) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (406117) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:54:39.119173 mqtt_publish_qos0 started
+2024-08-31 15:54:41.231244 mqtt_publish_qos0 ended (2.112071 seconds)
+====================
+(1725087281)[19] 2.112124 sec (avg. 1.955315)
+[0;32mI (409147) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (409727) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (411237) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (411237) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (411237) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (411237) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:54:44.239173 mqtt_publish_qos0 started
+2024-08-31 15:54:46.362581 mqtt_publish_qos0 ended (2.123408 seconds)
+====================
+(1725087286)[20] 2.123465 sec (avg. 1.963323)
+[0;32mI (414277) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (414647) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (416147) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (416147) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (416147) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (416147) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:54:49.369173 mqtt_publish_qos0 started
+2024-08-31 15:54:51.267650 mqtt_publish_qos0 ended (1.898477 seconds)
+====================
+(1725087291)[21] 1.898531 sec (avg. 1.960377)
+[0;32mI (419177) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (419677) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (421167) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (421167) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (421167) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (421167) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:54:54.269173 mqtt_publish_qos0 started
+2024-08-31 15:54:56.286042 mqtt_publish_qos0 ended (2.016869 seconds)
+====================
+(1725087296)[22] 2.016922 sec (avg. 1.962836)
+[0;32mI (424197) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (424567) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (426087) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (426087) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (426087) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (426097) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:54:59.289173 mqtt_publish_qos0 started
+2024-08-31 15:55:01.207054 mqtt_publish_qos0 ended (1.917881 seconds)
+====================
+(1725087301)[23] 1.917934 sec (avg. 1.960965)
+[0;32mI (429117) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (429587) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (431097) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (431097) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (431097) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (431107) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:55:04.209173 mqtt_publish_qos0 started
+2024-08-31 15:55:06.218538 mqtt_publish_qos0 ended (2.009365 seconds)
+====================
+(1725087306)[24] 2.009418 sec (avg. 1.962903)
+[0;32mI (434127) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (434627) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (436117) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (436117) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (436127) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (436127) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:55:09.219173 mqtt_publish_qos0 started
+2024-08-31 15:55:11.242674 mqtt_publish_qos0 ended (2.023501 seconds)
+====================
+(1725087311)[25] 2.023554 sec (avg. 1.965236)
+[0;32mI (439157) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (439527) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (441027) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (441027) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (441027) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (441037) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:55:14.249173 mqtt_publish_qos0 started
+2024-08-31 15:55:16.152575 mqtt_publish_qos0 ended (1.903402 seconds)
+====================
+(1725087316)[26] 1.903456 sec (avg. 1.962948)
+[0;32mI (444067) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (444547) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (446047) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (446047) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (446047) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (446057) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:55:19.159173 mqtt_publish_qos0 started
+2024-08-31 15:55:21.171060 mqtt_publish_qos0 ended (2.011887 seconds)
+====================
+(1725087321)[27] 2.011941 sec (avg. 1.964697)
+[0;32mI (449087) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (449577) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (451047) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (451047) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (451047) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (451057) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:55:24.179173 mqtt_publish_qos0 started
+2024-08-31 15:55:26.169236 mqtt_publish_qos0 ended (1.990063 seconds)
+====================
+(1725087326)[28] 1.990116 sec (avg. 1.965574)
+[0;32mI (454077) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (454447) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (455977) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (455977) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (455987) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (455987) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:55:29.169173 mqtt_publish_qos0 started
+2024-08-31 15:55:31.102070 mqtt_publish_qos0 ended (1.932897 seconds)
+====================
+(1725087331)[29] 1.932953 sec (avg. 1.964486)
+[0;32mI (459017) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (459497) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (460997) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (460997) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (460997) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (461007) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:55:34.109173 mqtt_publish_qos0 started
+2024-08-31 15:55:36.117695 mqtt_publish_qos0 ended (2.008522 seconds)
+====================
+(1725087336)[30] 2.008575 sec (avg. 1.965909)
+[0;32mI (464027) tokenmgr_mqtt: esp_mqtt_client_start triggered (tls)[0m
+[0;32mI (464527) esp-x509-crt-bundle: Certificate validated[0m
+[0;32mI (466117) tokenmgr_mqtt: Event MQTT_EVENT_CONNECTED (tls)[0m
+[0;32mI (466117) tokenmgr_mqtt: MQTT (tls) connected[0m
+[0;32mI (466117) tokenmgr_mqtt: MQTT Publish (tls) success[0m
+[0;32mI (466127) mqtt_client: Client asked to disconnect[0m
+Time Record Summary:
+====================
+2024-08-31 15:55:39.119173 mqtt_publish_qos0 started
+2024-08-31 15:55:41.237723 mqtt_publish_qos0 ended (2.118550 seconds)
+====================
+(1725087341)[31] 2.118603 sec (avg. 1.970680)
+TLS Test End: 2024-08-31 15:55:44
+[0;32mI (469207) tokenmgr: tokenmgr deinitialized[0m
+Test Ended: 2024-08-31 15:55:44
+[0;32mI (469207) main_task: Returned from app_main()[0m

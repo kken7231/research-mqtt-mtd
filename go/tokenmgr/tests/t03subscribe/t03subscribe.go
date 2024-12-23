@@ -1,8 +1,8 @@
 package t03subscribe
 
 import (
-	"go/tokenmgr"
-	"go/tokenmgr/tests/testutil"
+	"mqttmtd/tokenmgr/tests/testutil"
+	"mqttmtd/types"
 	"testing"
 )
 
@@ -14,28 +14,31 @@ var Benchmarks = []func(*testing.B){
 
 func BenchmarkSubscribe_Single(b *testing.B) {
 	topic := testutil.SAMPLE_TOPIC_SUB
-	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessSub)
+	testutil.LoadClientConfig(b)
+	fetchReq := testutil.PrepareFetchReq(false, types.PAYLOAD_AEAD_NONE)
 	b.StopTimer()
-	timestamp, randomBytes := testutil.GetTokenTest(b, topic, *fetchReq, true)
-	testutil.AutopahoSubscribe(b, timestamp, randomBytes, false, nil, []byte{})
+	_, _, token := testutil.GetTokenTest(b, topic, *fetchReq, true)
+	testutil.AutopahoSubscribe(b, token, false, nil, []byte{}, types.PAYLOAD_AEAD_NONE, nil)
 }
 
 func BenchmarkSubscribe_PubToken_Single(b *testing.B) {
 	topic := testutil.SAMPLE_TOPIC_PUB
-	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessPub)
+	testutil.LoadClientConfig(b)
+	fetchReq := testutil.PrepareFetchReq(true, types.PAYLOAD_AEAD_NONE)
 	b.StopTimer()
-	timestamp, randomBytes := testutil.GetTokenTest(b, topic, *fetchReq, true)
-	testutil.AutopahoSubscribe(b, timestamp, randomBytes, true, nil, []byte{})
+	_, _, token := testutil.GetTokenTest(b, topic, *fetchReq, true)
+	testutil.AutopahoSubscribe(b, token, true, nil, []byte{}, types.PAYLOAD_AEAD_NONE, nil)
 }
 
 func BenchmarkSubscribe_Cycle(b *testing.B) {
 	topic := testutil.SAMPLE_TOPIC_SUB
-	fetchReq := testutil.PrepareFetchReq(tokenmgr.AccessSub)
+	testutil.LoadClientConfig(b)
+	fetchReq := testutil.PrepareFetchReq(false, types.PAYLOAD_AEAD_NONE)
 	b.StopTimer()
 	testutil.RemoveTokenFile(topic, *fetchReq)
 	for i := 0; i < int(fetchReq.NumTokens); i++ {
-		timestamp, randomBytes := testutil.GetTokenTest(b, topic, *fetchReq, true)
-		testutil.AutopahoSubscribe(b, timestamp, randomBytes, false, nil, []byte{})
+		_, _, token := testutil.GetTokenTest(b, topic, *fetchReq, true)
+		testutil.AutopahoSubscribe(b, token, false, nil, []byte{}, types.PAYLOAD_AEAD_NONE, nil)
 	}
 	testutil.RemoveTokenFile(topic, *fetchReq)
 }

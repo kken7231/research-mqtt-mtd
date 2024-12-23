@@ -14,10 +14,10 @@ mosquitto -c /mosquitto/config/mosquitto-tls.conf 2>&1 | prepend_service_name "m
 sleep 1
 
 # Start the auth server and log its output
-/mqttmtd/authserver 2>&1 | prepend_service_name "authserver    " >> /mqttmtd/logs/combined.log &
+/mqttmtd/authserver -conf /mqttmtd/config/server_conf.yml 2>&1 | prepend_service_name "authserver    " >> /mqttmtd/logs/combined.log &
 
 # Start the MQTT interface and log its output
-/mqttmtd/mqttinterface 2>&1 | prepend_service_name "mqttinterface " >> /mqttmtd/logs/combined.log &
+/mqttmtd/mqttinterface -conf /mqttmtd/config/server_conf.yml  2>&1 | prepend_service_name "mqttinterface " >> /mqttmtd/logs/combined.log &
 
 # Tail the combined log file to keep the container running and display the logs
 tail -f /mqttmtd/logs/combined.log

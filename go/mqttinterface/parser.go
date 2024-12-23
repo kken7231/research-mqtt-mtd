@@ -1,26 +1,28 @@
 package main
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
-	"go/common"
+	"mqttmtd/funcs"
 	"net"
 	"time"
+	"unsafe"
 )
 
-func decodeVariableByteIntegerFromConn(conn net.Conn, timeout time.Duration, done <-chan struct{}) (value int, len int, err error) {
+func decodeVariableByteIntegerFromConn(ctx context.Context, conn net.Conn, timeout time.Duration) (value int, len int, err error) {
 	ended := false
 	var i int = 0
 	buf := make([]byte, 1)
 	for i < 4 {
 		select {
-		case <-done:
-			err = fmt.Errorf("interrupted by chan")
-			return
+		case <-ctx.Done():
+			err = fmt.Errorf("decodeVariableByteIntegerFromConn interrupted by context cancel")
+			goto decodeVariableByteIntegerFromConnError
 		default:
 		}
-		if _, err = common.ConnCancellableReadBase(conn, &buf, timeout, done); err != nil {
-			return
+		if _, err = funcs.ConnRead(ctx, conn, buf, timeout); err != nil {
+			goto decodeVariableByteIntegerFromConnError
 		} else {
 			encodedByte := int(buf[0])
 			value += (encodedByte & 0x7F) << (7 * i)
@@ -33,10 +35,43 @@ func decodeVariableByteIntegerFromConn(conn net.Conn, timeout time.Duration, don
 	}
 	if !ended {
 		err = fmt.Errorf("decoding of a variable byte integer ended unexpectedly. i=%d", i)
-		value = 0
-		i = 0
+		goto decodeVariableByteIntegerFromConnError
 	}
 	len = i
+	return
+
+decodeVariableByteIntegerFromConnError:
+	value = 0
+	len = 0
+	return
+}
+
+func decodeVariableByteInteger(buf []byte) (value int, length int, err error) {
+	ended := false
+	var i int = 0
+	for i < 4 {
+		if i > len(buf)-1 {
+			err = fmt.Errorf("decoding of a variable byte integer ended because buf len too short. i=%d", i)
+			goto decodeVariableByteIntegerError
+		}
+		encodedByte := int(buf[i])
+		value += (encodedByte & 0x7F) << (7 * i)
+		i++
+		if encodedByte&0x80 == 0 {
+			ended = true
+			break
+		}
+	}
+	if !ended {
+		err = fmt.Errorf("decoding of a variable byte integer ended unexpectedly. i=%d", i)
+		goto decodeVariableByteIntegerError
+	}
+	length = i
+	return
+
+decodeVariableByteIntegerError:
+	value = 0
+	length = 0
 	return
 }
 
@@ -107,16 +142,23 @@ type FixedHeader struct {
 	RemainingLength   int
 }
 
-func getFixedHeader(conn net.Conn, timeout time.Duration, done <-chan struct{}) (fixedHeader *FixedHeader, err error) {
+func getFixedHeader(ctx context.Context, conn net.Conn, timeout time.Duration) (fixedHeader *FixedHeader, err error) {
 	fixedHeader = &FixedHeader{}
-	var firstByte byte
-	if firstByte, err = connCancellableReadByte(conn, timeout, done); err != nil {
+	var (
+		n   int
+		buf []byte = make([]byte, 1)
+	)
+	if n, err = funcs.ConnRead(ctx, conn, buf, timeout); err != nil {
 		return
 	}
-	fixedHeader.ControlPacketType = MQTTControlPacketType(firstByte >> 4)
-	fixedHeader.Flags = firstByte & 0xF
+	if n != 1 {
+		err = fmt.Errorf("fixedHeader read nothing")
+		return
+	}
+	fixedHeader.ControlPacketType = MQTTControlPacketType(buf[0] >> 4)
+	fixedHeader.Flags = buf[0] & 0xF
 
-	remainingLength, remainingLengthLen, err := decodeVariableByteIntegerFromConn(conn, timeout, done)
+	remainingLength, remainingLengthLen, err := decodeVariableByteIntegerFromConn(ctx, conn, timeout)
 	if err != nil {
 		return
 	}
@@ -125,25 +167,64 @@ func getFixedHeader(conn net.Conn, timeout time.Duration, done <-chan struct{}) 
 	return
 }
 
-func getTopicNameFromPublish(varHdrAndPayload []byte) (topicName []byte, contentAfter []byte, err error) {
-	length := int(binary.BigEndian.Uint16(varHdrAndPayload[:2]))
-	if length > len(varHdrAndPayload)-2 {
-		err = fmt.Errorf("length not inadequate")
+func getMQTTVersionFromConnect(varHdrAndPayload []byte) (mqttVersion byte, err error) {
+	if len(varHdrAndPayload) < 7 {
+		err = fmt.Errorf("length inadequate")
 		return
 	}
-	topicName = varHdrAndPayload[2 : 2+length]
-	contentAfter = varHdrAndPayload[2+length:]
+	if unsafe.String(unsafe.SliceData(varHdrAndPayload[2:6]), 4) != "MQTT" {
+		err = fmt.Errorf("protocol not mqtt")
+		return
+	}
+	mqttVersion = varHdrAndPayload[6]
 	return
 }
 
-func getTopicFiltersFromSubscribe(varHdrAndPayload []byte) (contentBefore []byte, topicFiltersWithOptions [][]byte, contentAfter []byte, err error) {
-	if 4 > len(varHdrAndPayload) {
-		err = fmt.Errorf("length not inadequate")
+func getTopicNameFromPublish(mqttVersion byte, varHdrAndPayload []byte, qos int) (topicName []byte, contentBetween []byte, payload []byte, err error) {
+	if mqttVersion == 0xFF {
+		err = fmt.Errorf("mqttVersion  invalid")
 		return
 	}
-	propertiesLen := varHdrAndPayload[2]
-	contentBefore = varHdrAndPayload[:3+int(propertiesLen)]
-	offset := 3 + int(propertiesLen)
+	length := int(binary.BigEndian.Uint16(varHdrAndPayload[:2]))
+	if length > len(varHdrAndPayload)-2 {
+		err = fmt.Errorf("length inadequate")
+		return
+	}
+	topicName = varHdrAndPayload[2 : 2+length]
+	identifierLen := 0
+	if qos > 0 {
+		identifierLen = 2
+	}
+	var (
+		propertiesLen    int
+		propertiesLenLen int
+	)
+	if mqttVersion >= 5 {
+		propertiesLen, propertiesLenLen, err = decodeVariableByteInteger(varHdrAndPayload[2+length+identifierLen:])
+	}
+	contentBetween = varHdrAndPayload[2+length : 2+length+identifierLen+propertiesLenLen+propertiesLen]
+	payload = varHdrAndPayload[2+length+identifierLen+propertiesLenLen+propertiesLen:]
+	return
+}
+
+func getTopicFiltersFromSubscribe(mqttVersion byte, varHdrAndPayload []byte) (contentBefore []byte, topicFiltersWithOptions [][]byte, contentAfter []byte, err error) {
+	if mqttVersion == 0xFF {
+		err = fmt.Errorf("mqttVersion  invalid")
+		return
+	}
+	if 4 > len(varHdrAndPayload) {
+		err = fmt.Errorf("length inadequate")
+		return
+	}
+	var (
+		propertiesLen    int = 0
+		propertiesLenLen int = 0
+	)
+	if mqttVersion >= 5 {
+		propertiesLen, propertiesLenLen, err = decodeVariableByteInteger(varHdrAndPayload[2:])
+	}
+	contentBefore = varHdrAndPayload[:2+propertiesLenLen+propertiesLen]
+	offset := 2 + propertiesLenLen + propertiesLen
 	for offset < len(varHdrAndPayload) {
 		length := int(binary.BigEndian.Uint16(varHdrAndPayload[offset : offset+2]))
 		if offset+2+length+1 > len(varHdrAndPayload) {

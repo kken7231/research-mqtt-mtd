@@ -2,64 +2,68 @@
 
 #include "config.h"
 #include "esp_log.h"
+#include "mbedtls/ssl_ciphersuites.h"
 #include "nvs_flash.h"
+#include "test.h"
 #include "tokenmgr.h"
 
-static const char *TAG = "tokenmgr_app";
+static const char* TAG = "tokenmgr_app";
 
-token_store_t token_store = {0};
 const int CIPHERSUITES_LIST[] = {MBEDTLS_TLS1_3_AES_128_GCM_SHA256, 0};
-const esp_mqtt5_connection_property_config_t mqtt_connect_property = {
-	.session_expiry_interval = 10,
-	.maximum_packet_size = 1024,
-};
-static esp_netif_t *netif;
 
-static void app_init(void) {
-	tokenmgr_app_init();
-	tokenmgr_init();
+static time_t align_to_nearest_10_seconds(time_t t) {
+	return (t / 10) * 10;
 }
 
-static void app_deinit(void) {
-	tokenmgr_deinit();
+static void display_time(const char* label, time_t t) {
+	char buffer[64];
+	struct tm tm_time;
+
+	setenv("TZ", "JST-9", 1);
+	tzset();
+	localtime_r(&t, &tm_time);
+	strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &tm_time);
+	printf("%s: %s\n", label, buffer);
 }
 
 void app_main(void) {
-	printf("App started\n");
-	app_init();
+	tokenmgr_app_init();
+	tokenmgr_init();
+	display_time("Testing App started", time(NULL));
+	display_time("Waiting for 30 sec...", time(NULL));
+	sleep(30);
 
-	fetch_request_t fetch_req = {
-		.num_tokens = 8,
-		.access_type = ACCESS_PUBSUB,
-	};
-	const char *topic = "/sample/topic/pub";
+	display_time("Plain Test Start", time(NULL));
+	if (plain_none(1, 32) != 0) {
+		printf("Aborting...\n");
+		return;
+	}
+	display_time("Plain Test End", time(NULL));
+	tokenmgr_deinit();
+	tokenmgr_init();
 
-	uint8_t timestamp[TIMESTAMP_LEN], random_bytes[RANDOM_BYTES_LEN];
+	display_time("Waiting for 30 sec...", time(NULL));
+	sleep(30);
 
-	do {
-		esp_err_t ret = get_token(topic, fetch_req, timestamp, random_bytes);
+	display_time("Plain(AEAD) Test Start", time(NULL));
+	if (plain_aead(1, 32) != 0) {
+		printf("Aborting...\n");
+		return;
+	}
+	display_time("Plain(AEAD) Test End", time(NULL));
+	tokenmgr_deinit();
+	tokenmgr_init();
 
-		if (ret == ESP_OK) {
-			char timestamp_cstr[TIMESTAMP_LEN * 2 + 1] = {0}, random_bytes_cstr[RANDOM_BYTES_LEN * 2 + 1] = {0};
-			char first, second;
-			for (int i = 0; i < TIMESTAMP_LEN; i++) {
-				first = (timestamp[i] >> 4) & 0xF;
-				second = timestamp[i] & 0xF;
-				timestamp_cstr[2 * i] = first < 0xA ? first + '0' : first - 0xA + 'A';
-				timestamp_cstr[2 * i + 1] = second < 0xA ? second + '0' : second - 0xA + 'A';
-			}
-			for (int i = 0; i < RANDOM_BYTES_LEN; i++) {
-				first = (random_bytes[i] >> 4) & 0xF;
-				second = random_bytes[i] & 0xF;
-				random_bytes_cstr[2 * i] = first < 0xA ? first + '0' : first - 0xA + 'A';
-				random_bytes_cstr[2 * i + 1] = second < 0xA ? second + '0' : second - 0xA + 'A';
-			}
-			ESP_LOGI(TAG, "Successfully fetched token: %s:%s", timestamp_cstr, random_bytes_cstr);
-		} else {
-			ESP_LOGE(TAG, "Failed to fetch token");
-		}
-		sleep(2);
-	} while (true);
+	display_time("Waiting for 30 sec...", time(NULL));
+	sleep(30);
 
-	app_deinit();
+	display_time("TLS Test Start", time(NULL));
+	if (tls(32) != 0) {
+		printf("Aborting...\n");
+		return;
+	}
+	display_time("TLS Test End", time(NULL));
+	tokenmgr_deinit();
+
+	display_time("Test Ended", time(NULL));
 }

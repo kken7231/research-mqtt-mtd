@@ -2,7 +2,7 @@ package autorevoker
 
 import (
 	"fmt"
-	"go/authserver/types"
+	"mqttmtd/types"
 	"time"
 )
 
