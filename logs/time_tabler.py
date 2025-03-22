@@ -143,6 +143,8 @@ fig, axes = plt.subplots(nrows=n_testcases, ncols=1, figsize=(10, 4.5 * n_testca
 if n_testcases == 1:
     axes = [axes]
 
+data = pd.DataFrame()
+
 # Create a stacked bar chart for each testcase and add it to the subplot
 for ax, testcase in zip(axes, testcases):
     # Construct the file name based on the provided argument
@@ -165,22 +167,11 @@ for ax, testcase in zip(axes, testcases):
     stack_order_present = [col for col in stack_order if col in df_testcase.columns]
     colors_present = [color_map[col] for col in stack_order_present]
 
-    # Plot each column as a stacked bar in the subplot ax
-    df_testcase[stack_order_present].plot(kind='bar', stacked=True, color=colors_present, ax=ax)
-    ax.set_title(f"Publish Duration ({plot_type})", fontsize=title_font_size)
-    ax.set_xlabel("Iteration", fontsize=base_font_size * font_size_multiplier)
-    ax.set_ylabel("Duration (seconds)", fontsize=base_font_size * font_size_multiplier)
-    loc = 'upper right'
-    if testcase == "tls":
-        loc = 'lower right'
-    ax.legend(loc=loc, bbox_to_anchor=(0.5, 0, 0.5, 1))
-    ax.set_ylim(0, 2.5)
-    ax.set_xlim(-0.5, len(df_testcase) - 0.5)  # Set x-axis limits to fit all bars
+    df_testcase["sum"] = 0
+    for col in stack_order:
+        if col in df_testcase.columns:
+            df_testcase["sum"]  += df_testcase[col].fillna(0)
+    
+    data[testcase] =  df_testcase["sum"]
 
-# Adjust the layout to make sure everything fits without overlapping
-plt.tight_layout()
-
-# Save the concatenated plot as a single PNG file
-output_file = f'plots/time_concat.png'
-plt.savefig(output_file, format='png')
-
+print(data.to_string())
