@@ -1,1 +1,0 @@
-pushd ../certcreate; ./generate_certs.sh -c ../certs; ./gen_server.sh -c ../certs -a server; popd

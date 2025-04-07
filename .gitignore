@@ -1,11 +1,1 @@
-papers
-img
 .DS_Store
-*.pptx
-*.tex
-
-# certs
-certs/clients
-certs/server
-.mqttenv
-.mqttenvlogs
