@@ -1,0 +1,5 @@
+[workspace]
+members = [
+    "authserver", "libmqttmtd", "mqttinterface", "tokenmgr",
+]
+resolver = "3"

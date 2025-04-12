@@ -1,6 +1,0 @@
-[submodule "rust/mqttmtd-rs"]
-	path = rust/mqttmtd-rs
-	url = https://github.com/kken7231/mqttmtd-rs.git
-[submodule "esp/esp-mqttmtd-cli"]
-	path = esp/esp-mqttmtd-cli
-	url = https://github.com/kken7231/esp-mqttmtd-cli.git
