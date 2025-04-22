@@ -9,22 +9,12 @@ use tokio::{
 };
 use tokio_rustls::{TlsAcceptor, TlsConnector, client, server};
 
+use crate::{sock_cli_println, sock_serv_println};
+
 use super::{
-    err::SocketError,
+    error::SocketError,
     plain::{PlainClient, PlainServer},
 };
-
-macro_rules! server_println {
-    ($($arg:tt)*) => {
-        println!("server| {}", format!($($arg)*));
-    };
-}
-
-macro_rules! client_println {
-    ($($arg:tt)*) => {
-        println!("client| {}", format!($($arg)*));
-    };
-}
 
 ///////////////////////////////////////////////////////////
 ///
@@ -57,18 +47,18 @@ impl<A: ToSocketAddrs + Send + 'static> TlsServer<A> {
         let handler = Arc::new(handler);
 
         self.plain_server.spawn(move |socket| {
-            server_println!("doing tls...");
+            sock_serv_println!("doing tls...");
             let acceptor = acceptor.clone();
             let handler = handler.clone();
 
             async move {
                 match acceptor.accept(socket).await {
                     Ok(tls_stream) => {
-                        server_println!("TLS accepted!");
+                        sock_serv_println!("TLS accepted!");
                         handler(tls_stream).await
                     }
                     Err(e) => {
-                        server_println!("TLS accept error: {}", e);
+                        sock_serv_println!("TLS accept error: {}", e);
                     }
                 }
             }
@@ -102,7 +92,7 @@ impl<A: ToSocketAddrs + Send + 'static> TlsClient<A> {
         self,
         domain: &'static str,
     ) -> Result<client::TlsStream<TcpStream>, SocketError> {
-        client_println!("connecting to tls server...");
+        sock_cli_println!("connecting to tls server...");
 
         let connect_result = match self.plain_client.connect_timeout {
             Some(duration) if duration <= Duration::ZERO => {
@@ -114,16 +104,16 @@ impl<A: ToSocketAddrs + Send + 'static> TlsClient<A> {
 
         match connect_result {
             Ok(Ok(socket)) => {
-                client_println!("Socket connected!");
+                sock_cli_println!("Socket connected!");
                 let domain = ServerName::try_from(domain)?;
                 return Ok(self.connector.connect(domain, socket).await?);
             }
             Ok(Err(e)) => {
-                client_println!("Connect error: {}", e);
+                sock_cli_println!("Connect error: {}", e);
                 return Err(SocketError::IoError(e));
             }
             Err(_elapsed) => {
-                client_println!(
+                sock_cli_println!(
                     "Connect timed out after {:?}",
                     self.plain_client.connect_timeout
                 );
@@ -146,7 +136,7 @@ mod tests {
     use tempfile::tempdir;
     use tokio::time::Duration;
 
-    use crate::socket::tls_config::{load_client_config, load_server_config};
+    use crate::socket::tls_config::TlsConfigLoader;
 
     use super::*;
 
@@ -231,7 +221,7 @@ mod tests {
             key_pair: _cli_key,
         } = create_cert_key_file(&clients_dir, cli_domain, None);
 
-        let conf_serv = load_server_config(
+        let conf_serv = TlsConfigLoader::load_server_config(
             &server_dir.join("cert.crt"),
             &server_dir.join("key.pem"),
             &clients_dir,
@@ -239,7 +229,7 @@ mod tests {
         );
         assert!(conf_serv.is_ok());
 
-        let conf_cli = load_client_config(
+        let conf_cli = TlsConfigLoader::load_client_config(
             &clients_dir.join("cert.crt"),
             &clients_dir.join("key.pem"),
             &ca_dir,
@@ -366,126 +356,3 @@ mod tests {
         }
     }
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use std::thread::{self, sleep};
-
-//     use super::*;
-
-//     #[test]
-//     fn listen_conn_pass() {
-//         const ADDR: &str = "localhost:3000";
-//         let _ = thread::spawn(|| listen(ADDR, Some(Duration::from_secs(1)), |_| {}));
-//         sleep(Duration::from_millis(100));
-//         let stream = connect(ADDR);
-//         assert!(stream.is_ok());
-//     }
-
-//     #[test]
-//     fn listen_conn_zero_duration() {
-//         const ADDR: &str = "localhost:3001";
-
-//         // Try listening
-//         assert!(listen(ADDR, Some(Duration::from_secs(0)), |_| {}).is_err());
-//     }
-
-//     #[test]
-//     fn listen_conn_none_duration() {
-//         const ADDR: &str = "localhost:3002";
-//         let _ = thread::spawn(|| listen(ADDR, None, |_| {}));
-//         sleep(Duration::from_millis(100));
-
-//         // Try connecting
-//         assert!(connect(ADDR).is_ok());
-//     }
-
-//     #[test]
-//     fn listen_conn_not_listening() {
-//         const ADDR: &str = "localhost:3003";
-
-//         // Try connecting
-//         assert!(connect(ADDR).is_err());
-//     }
-
-//     #[test]
-//     fn listen_conn_after_deadline() {
-//         const ADDR: &str = "localhost:3004";
-
-//         // Socket server
-//         let _ = thread::spawn(|| listen(ADDR, Some(Duration::from_secs(1)), |_| {}));
-
-//         // Wait for the listener to set up and get timed out
-//         sleep(Duration::from_millis(1100));
-
-//         // Try connecting
-//         assert!(connect(ADDR).is_err());
-//     }
-
-//     #[test]
-//     fn send_recv_pass() {
-//         const ADDR: &str = "localhost:3005";
-//         const MESSAGE: &str = "hello, socket!";
-
-//         // Message sender (socket server)
-//         let _ = thread::spawn(|| {
-//             listen(ADDR, Some(Duration::from_secs(1)), |s| {
-//                 assert!(write(s, MESSAGE.as_bytes(), Some(Duration::from_millis(500)),).is_ok());
-//             })
-//         });
-
-//         // Wait for the listener to set up
-//         sleep(Duration::from_millis(100));
-
-//         // Message receiver (socket client)
-//         let stream = connect(ADDR).unwrap(); // already checked above
-//         let mut buf: [u8; 1024] = [0; 1024];
-//         assert!(read(stream, &mut buf[..], Some(Duration::from_millis(500))).is_ok());
-
-//         // Check message
-//         assert_eq!(
-//             std::str::from_utf8(&buf[..MESSAGE.as_bytes().len()]).unwrap(),
-//             MESSAGE
-//         );
-//         assert_eq!(buf[MESSAGE.as_bytes().len()], 0);
-//     }
-
-//     #[test]
-//     fn send_recv_send_timeout() {
-//         const ADDR: &str = "localhost:3006";
-//         const MESSAGE: &str = "hello, socket!";
-
-//         // Message sender (socket server)
-//         let _ = listen(ADDR, Some(Duration::from_secs(1)), |s| {
-//             let res = write(s, MESSAGE.as_bytes(), Some(Duration::from_nanos(1)));
-//             assert!(res.is_err());
-//             let res = res.err().unwrap().kind();
-//             assert!((res == io::ErrorKind::WouldBlock) || (res == io::ErrorKind::InvalidInput));
-//         });
-//     }
-
-//     #[test]
-//     fn send_recv_recv_timeout() {
-//         const ADDR: &str = "localhost:3007";
-//         const MESSAGE: &str = "hello, socket!";
-
-//         // Message sender (socket server)
-//         let _ = thread::spawn(|| {
-//             listen(ADDR, Some(Duration::from_secs(1)), |s| {
-//                 assert!(write(s, MESSAGE.as_bytes(), Some(Duration::from_millis(500)),).is_ok());
-//             })
-//         });
-
-//         // Wait for the listener to set up
-//         sleep(Duration::from_millis(100));
-
-//         // Message receiver (socket client)
-//         let stream = connect(ADDR).unwrap(); // already checked above
-//         let mut buf: [u8; 1024] = [0; 1024];
-
-//         let res = read(stream, &mut buf[..], Some(Duration::from_nanos(1)));
-//         assert!(res.is_err());
-//         let res = res.err().unwrap().kind();
-//         assert!((res == io::ErrorKind::WouldBlock) || (res == io::ErrorKind::InvalidInput));
-//     }
-// }

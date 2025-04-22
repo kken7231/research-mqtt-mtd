@@ -295,6 +295,7 @@ dependencies = [
 name = "libmqttmtd"
 version = "2.0.0"
 dependencies = [
+ "bytes",
  "rcgen",
  "ring",
  "rustls",
@@ -372,7 +373,10 @@ version = "2.0.0"
 name = "mqttmtd-authserver"
 version = "2.0.0"
 dependencies = [
+ "bytes",
  "libmqttmtd",
+ "ring",
+ "rustls",
 ]
 
 [[package]]

@@ -6,7 +6,7 @@ use tokio::{
     time::{Duration, timeout},
 };
 
-use super::err::SocketError;
+use super::error::SocketError;
 
 macro_rules! server_println {
     ($($arg:tt)*) => {
@@ -20,81 +20,16 @@ macro_rules! client_println {
     };
 }
 
-// pub async fn read_with_timeout(
-//     mut socket: TcpStream,
-//     mut buf: &mut [u8],
-//     read_timeout: impl Into<Option<Duration>>,
-// ) -> Result<usize, SocketError> {
-//     let read_timeout = read_timeout.into();
-//     let read_result = match read_timeout {
-//         Some(duration) if duration <= Duration::ZERO => {
-//             return Err(SocketError::InvalidTimeoutError(duration));
-//         }
-//         Some(duration) => timeout(duration, socket.read(&mut buf)).await,
-//         None => Ok(socket.read(&mut buf).await),
-//     };
-
-//     match read_result {
-//         Ok(Ok(n)) if n == 0 => {
-//             eprintln!("Connection closed by client");
-//             Ok(n)
-//         }
-//         Ok(Ok(n)) => {
-//             // println!("Received: {} bytes", n);
-//             Ok(n)
-//         }
-//         Ok(Err(e)) => {
-//             eprintln!("Read error: {}", e);
-//             Err(SocketError::IoError(e))
-//         }
-//         Err(_elapsed) => {
-//             eprintln!("Read timed out after {:?}", read_timeout);
-//             Err(SocketError::ElapsedError())
-//         }
-//     }
-// }
-
-// pub async fn write_with_timeout(
-//     mut socket: TcpStream,
-//     buf: &[u8],
-//     write_timeout: impl Into<Option<Duration>>,
-// ) -> Result<usize, SocketError> {
-//     let write_timeout = write_timeout.into();
-//     let read_result = match write_timeout {
-//         Some(duration) if duration <= Duration::ZERO => {
-//             return Err(SocketError::InvalidTimeoutError(duration));
-//         }
-//         Some(duration) => timeout(duration, socket.write(buf)).await,
-//         None => Ok(socket.write(buf).await),
-//     };
-
-//     match read_result {
-//         Ok(Ok(n)) => {
-//             // println!("Wrote: {} bytes", n);
-//             Ok(n)
-//         }
-//         Ok(Err(e)) => {
-//             println!("Write error: {}", e);
-//             Err(SocketError::IoError(e))
-//         }
-//         Err(_e) => {
-//             println!("Write timed out after {:?}", write_timeout);
-//             Err(SocketError::ElapsedError())
-//         }
-//     }
-// }
-
-///////////////////////////////////////////////////////////
+/// Plain TCP socket server
 ///
-/// Plain TCP Socket Server
-///
-///////////////////////////////////////////////////////////
+/// Plain socket connection from clients can be accepted through an instance.
 pub struct PlainServer<A: ToSocketAddrs + Send + 'static> {
     addr: A,
     listen_timeout: Option<Duration>,
 }
 
 impl<A: ToSocketAddrs + Send + 'static> PlainServer<A> {
+    /// Creates a new instance that will bind with an address `addr` until `listen_timeout` comes.
     pub fn new(addr: A, listen_timeout: impl Into<Option<Duration>>) -> Self {
         PlainServer {
             addr,
@@ -102,6 +37,26 @@ impl<A: ToSocketAddrs + Send + 'static> PlainServer<A> {
         }
     }
 
+    /// Spawns a [tokio::task::JoinHandle] task that will serve as a socket server.
+    /// Runs `handler` for each client.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use tokio::time::Duration;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), SocketError> {
+    ///     let server_task = PlainServer::new("localhost:3000", Duration::from_secs(1)).spawn(async |_| {});
+    ///
+    ///     match server_task {
+    ///         Ok(_) => println!("new server task: {}"),
+    ///         Err(e) => println!("couldn't get client: {:?}", e),
+    ///     }
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     pub fn spawn<F, Fut>(self, handler: F) -> JoinHandle<Result<(), SocketError>>
     where
         F: Fn(TcpStream) -> Fut + Send + Sync + 'static,
@@ -140,17 +95,16 @@ impl<A: ToSocketAddrs + Send + 'static> PlainServer<A> {
     }
 }
 
-///////////////////////////////////////////////////////////
+/// Plain TCP socket client
 ///
-/// Plain TCP Socket Client
-///
-///////////////////////////////////////////////////////////
+/// Client can make a connection to an already-listening plain TCP socket server.
 pub struct PlainClient<A: ToSocketAddrs> {
     pub(super) addr: A,
     pub(super) connect_timeout: Option<Duration>,
 }
 
 impl<A: ToSocketAddrs> PlainClient<A> {
+    /// Creates a new instance that will try connecting to an address `addr` until `connect_timeout` comes.
     pub fn new(addr: A, connect_timeout: impl Into<Option<Duration>>) -> Self {
         PlainClient {
             addr,
@@ -158,6 +112,26 @@ impl<A: ToSocketAddrs> PlainClient<A> {
         }
     }
 
+    /// Tries to connect to an address specified on instance creation.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use tokio::net::TcpStream;
+    /// use tokio::io::AsyncWriteExt;
+    /// use std::error::Error;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), Box<dyn Error>> {
+    ///     // Connect to a peer
+    ///     let mut cli_sock = PlainClient::new("localhost:3000", Duration::from_secs(1)).connect().await?;
+    ///
+    ///     // Write some data.
+    ///     stream.write_all(b"hello world!").await?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     pub async fn connect(self) -> Result<TcpStream, SocketError> {
         client_println!("connecting to server...");
 

@@ -3,11 +3,27 @@ use std::io;
 use rustls::{pki_types::InvalidDnsNameError, server::VerifierBuilderError};
 use tokio::time;
 
+/// Error for socket server & clients
+///
+/// Wraps two errors:
+/// - [std::io::Error]
+/// - [rustls::pki_types::InvalidDnsNameError]
+///
+/// Indicates unique errors:
+/// - timed out
+/// - invalid timeout
 #[derive(Debug)]
 pub enum SocketError {
+    /// Wraps [std::io::Error].
     IoError(io::Error),
+
+    /// Indicates a process was timed out.
     ElapsedError(),
+
+    /// Indicates a given timeout duration was invalid (e.g. negative).
     InvalidTimeoutError(time::Duration),
+
+    /// Wraps [rustls::pki_types::InvalidDnsNameError].
     InvalidDnsNameError(InvalidDnsNameError),
 }
 
@@ -65,11 +81,25 @@ impl From<InvalidDnsNameError> for SocketError {
     }
 }
 
+/// Error for TLS config generation
+///
+/// Wraps four errors:
+/// - [std::io::Error]
+/// - [rustls::pki_types::pem::Error]
+/// - [rustls::Error]
+/// - [rustls::server::VerifierBuilderError]
 #[derive(Debug)]
 pub enum LoadTLSConfigError {
+    /// Wraps [std::io::Error].
     IoError(io::Error),
+
+    /// Wraps [rustls::pki_types::pem::Error].
     PemError(rustls::pki_types::pem::Error),
+
+    /// Wraps [rustls::Error].
     RustlsError(rustls::Error),
+
+    /// Wraps [rustls::server::VerifierBuilderError].
     VerifierBuilderError(VerifierBuilderError),
 }
 
