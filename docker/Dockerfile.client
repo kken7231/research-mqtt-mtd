@@ -1,4 +1,2 @@
-FROM ubuntu:latest
-LABEL authors="kentarito"
-
-ENTRYPOINT ["top", "-b"]
+FROM alpine:3.21
+RUN apk add --no-cache mosquitto-clients

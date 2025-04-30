@@ -1,0 +1,3 @@
+port=11883
+broker_port=8081
+verifier_port=3001

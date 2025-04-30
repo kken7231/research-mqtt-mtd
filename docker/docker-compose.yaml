@@ -3,3 +3,6 @@ services:
     build:
       context: ..
       dockerfile: ./docker/Dockerfile.server
+    container_name: server
+    environment:
+      - PROTOCOL=wss

@@ -5,20 +5,9 @@ use tokio::{
     task::JoinHandle,
     time::timeout,
 };
-
+use crate::{sock_cli_println, sock_serv_println};
 use super::error::SocketError;
 
-macro_rules! server_println {
-    ($($arg:tt)*) => {
-        println!("server| {}", format!($($arg)*));
-    };
-}
-
-macro_rules! client_println {
-    ($($arg:tt)*) => {
-        println!("client| {}", format!($($arg)*));
-    };
-}
 
 /// Plain TCP socket server
 ///
@@ -64,7 +53,7 @@ impl PlainServer {
         F: Fn(TcpStream, SocketAddr) -> Fut + Send + Sync + 'static,
         Fut: std::future::Future<Output = ()> + Send + 'static,
     {
-        server_println!("spawning socket server...");
+        sock_serv_println!("spawning socket server...");
         tokio::spawn(async move {
             let listener = TcpListener::bind(format!("localhost:{}", self.port)).await?;
             let handler = Arc::new(handler);
@@ -80,15 +69,15 @@ impl PlainServer {
 
                 match accept_result {
                     Ok(Ok((stream, addr))) => {
-                        server_println!("Accepted connection from {}", addr);
+                        sock_serv_println!("Accepted connection from {}", addr);
                         let handler = Arc::clone(&handler);
                         tokio::spawn(async move { handler(stream, addr).await });
                     }
                     Ok(Err(e)) => {
-                        server_println!("Accept error: {}", e);
+                        sock_serv_println!("Accept error: {}", e);
                     }
                     Err(_elapsed) => {
-                        server_println!("Accept timeout expired, closing...");
+                        sock_serv_println!("Accept timeout expired, closing...");
                         return Ok(());
                     }
                 };
@@ -137,7 +126,7 @@ impl<A: ToSocketAddrs> PlainClient<A> {
     /// }
     /// ```
     pub async fn connect(self) -> Result<TcpStream, SocketError> {
-        client_println!("connecting to server...");
+        sock_cli_println!("connecting to server...");
 
         let connect_result = match self.connect_timeout {
             Some(duration) if duration <= Duration::ZERO => {
@@ -149,15 +138,15 @@ impl<A: ToSocketAddrs> PlainClient<A> {
 
         match connect_result {
             Ok(Ok(socket)) => {
-                client_println!("Socket connected!");
+                sock_cli_println!("Socket connected!");
                 Ok(socket)
             }
             Ok(Err(e)) => {
-                client_println!("Connect error: {}", e);
+                sock_cli_println!("Connect error: {}", e);
                 return Err(SocketError::IoError(e));
             }
             Err(_elapsed) => {
-                client_println!("Connect timed out after {:?}", self.connect_timeout);
+                sock_cli_println!("Connect timed out after {:?}", self.connect_timeout);
                 return Err(SocketError::ElapsedError());
             }
         }

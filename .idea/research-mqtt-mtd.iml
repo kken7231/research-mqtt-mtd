@@ -6,6 +6,7 @@
       <sourceFolder url="file://$MODULE_DIR$/rust-mqttmtd/libmqttmtd/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/rust-mqttmtd/mqttinterface/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/rust-mqttmtd/tokenmgr/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/rust-mqttmtd/certgen/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/rust-mqttmtd/target" />
     </content>
     <orderEntry type="inheritedJdk" />

@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 base64 = "0.22.1"
-clap ={ version = "4.5.37", default-features=false, features=["std", "derive"]}
+clap ={ version = "4.5.37", features=["derive"]}
 libmqttmtd = { path = "../libmqttmtd" }
 walkdir = "2.5.0"
 rustls = { version = "0.23.26",default-features = false, features = ["ring"] }
