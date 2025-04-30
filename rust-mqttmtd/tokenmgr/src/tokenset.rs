@@ -5,6 +5,7 @@ use std::{
     ffi::OsStr,
     fs,
     io::{Read, Seek, Write},
+    ops::Shl,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -100,7 +101,7 @@ impl TokenSetMetaData {
                 num_tokens_divided_by_4,
             ));
         }
-        let num_tokens = (num_tokens_divided_by_4 as u16).rotate_left(2);
+        let num_tokens = (num_tokens_divided_by_4 as u16).shl(2);
         all_randoms_offset += 1;
 
         // timestamp
@@ -177,7 +178,7 @@ impl TokenSetMetaData {
         // num_tokens_divided_by_4
         buf[0] = request.num_tokens_divided_by_4();
         file.write_all(&mut buf[0..1])?;
-        let num_tokens = (buf[0] as u16).rotate_left(2);
+        let num_tokens = (buf[0] as u16).shl(2);
         all_randoms_offset += 1;
 
         // timestamp

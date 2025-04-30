@@ -12,7 +12,7 @@ pub mod macros;
 pub mod verifier;
 
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
+#[command(version)]
 struct CliArgs {
     /// Path to the server certificate PEM file
     #[arg(long, default_value = "./certs/server/cert.crt")]
@@ -51,7 +51,7 @@ pub fn run_server() -> Result<(), Box<dyn Error>> {
 
     authserver_println!("Starting Auth Server...");
     authserver_println!("");
-    authserver_println!("--- Server Configuration ---");
+    authserver_println!("--- Auth Server Configuration ---");
     authserver_println!("Server Cert PEM:      {}", p_server_cert_pem);
     authserver_println!("Server Key PEM:       {}", p_server_key_pem);
     authserver_println!("Client Certs Dir:     {}", p_client_certs_dir);
@@ -59,6 +59,7 @@ pub fn run_server() -> Result<(), Box<dyn Error>> {
     authserver_println!("Issuer Server Port:   {}", args.issuer_port);
     authserver_println!("Verifier Server Port: {}", args.verifier_port);
     authserver_println!("--------------------------");
+    authserver_println!("");
 
     let atl = Arc::new(AccessTokenList::new());
 

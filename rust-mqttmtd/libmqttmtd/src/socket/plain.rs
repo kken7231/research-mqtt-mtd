@@ -44,13 +44,15 @@ impl PlainServer {
     ///
     /// ```no_run
     /// use std::time::Duration;
+    /// use crate::libmqttmtd::socket::error::SocketError;
+    /// use crate::libmqttmtd::socket::plain::PlainServer;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), SocketError> {
-    ///     let server_task = PlainServer::new(3000, Duration::from_secs(1)).spawn(async |_| {});
+    ///     let server_task = PlainServer::new(3000, Duration::from_secs(1)).spawn(|_, _| async {}).await;
     ///
     ///     match server_task {
-    ///         Ok(_) => println!("new server task: {}"),
+    ///         Ok(_) => println!("new server task: {:?}", server_task),
     ///         Err(e) => println!("couldn't get client: {:?}", e),
     ///     }
     ///
@@ -120,6 +122,8 @@ impl<A: ToSocketAddrs> PlainClient<A> {
     /// use tokio::net::TcpStream;
     /// use tokio::io::AsyncWriteExt;
     /// use std::error::Error;
+    /// use crate::libmqttmtd::socket::plain::PlainClient;
+    /// use std::time::Duration;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), Box<dyn Error>> {
@@ -127,7 +131,7 @@ impl<A: ToSocketAddrs> PlainClient<A> {
     ///     let mut cli_sock = PlainClient::new("localhost:3000", Duration::from_secs(1)).connect().await?;
     ///
     ///     // Write some data.
-    ///     stream.write_all(b"hello world!").await?;
+    ///     cli_sock.write_all(b"hello world!").await?;
     ///
     ///     Ok(())
     /// }

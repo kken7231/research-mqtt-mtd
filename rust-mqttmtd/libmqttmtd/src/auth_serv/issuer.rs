@@ -1,3 +1,5 @@
+use std::ops::Shl;
+
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 use crate::{
@@ -395,7 +397,7 @@ impl ResponseReader {
         stream: &mut R,
         num_tokens_divided_by_4: u8,
     ) -> Result<Box<[u8]>, AuthServerParserError> {
-        let mut all_randoms = vec![0u8; usize::from(num_tokens_divided_by_4) * 4 * RANDOM_LEN];
+        let mut all_randoms = vec![0u8; (usize::from(num_tokens_divided_by_4) * RANDOM_LEN).shl(2)];
         stream.read_exact(&mut all_randoms).await?;
         Ok(all_randoms.into_boxed_slice())
     }
@@ -470,7 +472,7 @@ mod tests {
         consts::RANDOM_LEN,
     };
 
-    use std::sync::Arc;
+    use std::{ops::Shr, sync::Arc};
     use tokio::io::AsyncReadExt;
     use tokio_test::io::Builder;
 
@@ -569,7 +571,8 @@ mod tests {
             0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF,
         ]; // Dummy nonce_base
         let all_randoms = vec![
-            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C,
+            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E,
+            0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
         ]
         .into_boxed_slice(); // Dummy randoms (e.g., 1 token * 8 bytes)
 
@@ -582,8 +585,9 @@ mod tests {
             0xFF, // nonce_base: [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]
             0xAA, 0xBB, 0xCC, 0xDD, 0xEE,
             0xFF, // timestamp: [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]
-            // all_randoms: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C]
-            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C,
+            // all_randoms: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18]
+            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E,
+            0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
         ];
 
         let original_resp_writer =
@@ -592,7 +596,7 @@ mod tests {
         // Mock stream to write to
         let mut mock_stream = Builder::new().write(&expected_bytes).read(&[]).build();
 
-        let mut write_buf = [0u8; 256]; // Provide buffer
+        let mut write_buf = [0u8; 8]; // Provide buffer
         let written_len = original_resp_writer
             .write_success_to(&mut mock_stream, &mut write_buf[..])
             .await
@@ -601,12 +605,13 @@ mod tests {
         // Now build a new mock stream with the expected bytes to read
         let mut read_stream = Builder::new().read(&expected_bytes).build();
 
-        let mut read_buf = [0u8; 256]; // Provide buffer
+        let mut read_buf = [0u8; 8]; // Provide buffer
+        println!("{}", (all_randoms.len() / RANDOM_LEN).shr(2));
         let parsed_resp_option = ResponseReader::read_from(
             &mut read_stream,
             &mut read_buf[..],
             SupportedAlgorithm::Aes128Gcm,
-            (all_randoms.len() / RANDOM_LEN / 4) as u8, // num_tokens_divided_dy_4
+            (all_randoms.len() / RANDOM_LEN).shr(2) as u8, // num_tokens_divided_dy_4
         )
         .await
         .expect("Failed to read response");

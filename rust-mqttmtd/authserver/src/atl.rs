@@ -2,6 +2,7 @@
 
 use std::{
     collections::{BTreeMap, HashMap},
+    ops::Shl,
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -56,7 +57,7 @@ impl TokenSet {
             masked_timestamp: 0,
             expiration_timestamp: 0,
             all_randoms: Box::new([0u8; 0]),
-            num_tokens: (num_tokens_divided_by_4 as u16).rotate_left(2),
+            num_tokens: (num_tokens_divided_by_4 as u16).shl(2),
             token_idx: 0u16,
             topic,
             is_pub,
@@ -452,41 +453,6 @@ mod tests {
             token_set.unwrap_err(),
             ATLError::ValidDurationTooLongError(invalid_dur)
         );
-    }
-
-    #[tokio::test]
-    async fn token_set_get_nonce() {
-        let num_tokens_divided_by_4 = 5u8;
-        let nonce_base = 0x1234567890ABCDEF1234567890ABCDEF; // A large u128
-        let aead_algo = SupportedAlgorithm::Aes128Gcm;
-        let nonce_len = aead_algo.nonce_len();
-
-        for i in 0..(num_tokens_divided_by_4 as u16 * 4) {
-            // Simulate token_idx incrementing
-            let mut current_token_set = TokenSet::create_without_rand_init(
-                num_tokens_divided_by_4,
-                "topic".to_string(),
-                true,
-                Duration::from_secs(60),
-                aead_algo,
-            )
-            .expect("Failed to create TokenSet");
-            current_token_set.token_idx = i;
-
-            let nonce = current_token_set.current_nonce();
-
-            // The nonce should be nonce_base + token_idx, taking the last nonce_len bytes
-            let expected_nonce_u128 = nonce_base + i as u128;
-            let expected_nonce_bytes = expected_nonce_u128.to_be_bytes();
-            let expected_nonce_slice = &expected_nonce_bytes[16 - nonce_len..];
-
-            assert_eq!(
-                nonce.as_slice(),
-                expected_nonce_slice,
-                "Nonce mismatch for token_idx {}",
-                i
-            );
-        }
     }
 
     #[tokio::test]

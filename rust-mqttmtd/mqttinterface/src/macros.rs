@@ -10,6 +10,6 @@ macro_rules! mqttinterface_println {
 macro_rules! mqttinterface_eprintln {
     ($($arg:tt)*) => {
         // eprintln!("mqtt_interface| {}", format!($($arg)*))
-        println!("{}", format!($($arg)*))
+        eprintln!("{}", format!($($arg)*))
     };
 }

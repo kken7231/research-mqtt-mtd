@@ -16,7 +16,7 @@ impl TlsConfigLoader {
         cli_certs_dir: impl AsRef<Path>,
         no_client_auth: bool,
     ) -> Result<Arc<rustls::ServerConfig>, LoadTLSConfigError> {
-        // Load server sertificate
+        // Load server certificate
         let serv_cert = CertificateDer::from_pem_file(&serv_cert_pem)?;
         println!(
             "Server certificate loaded from {:?}",
@@ -114,23 +114,21 @@ impl TlsConfigLoader {
 #[cfg(test)]
 mod tests {
     use rcgen::{CertifiedKey, generate_simple_self_signed};
-    use std::sync::Once;
+    use rustls::crypto::CryptoProvider;
     use std::{
         fs::{File, create_dir_all},
         io::Write,
     };
     use tempfile::tempdir;
 
-    static DEFAULT_PROVIDER_INSTALLED: Once = Once::new();
-
     use super::*;
 
     fn install_provider() {
-        DEFAULT_PROVIDER_INSTALLED.call_once(|| {
+        if let None = CryptoProvider::get_default() {
             rustls::crypto::ring::default_provider()
                 .install_default()
                 .expect("failed to install default provider");
-        });
+        };
     }
 
     fn create_cert_key_file(file_dir: impl AsRef<Path>) -> (File, File) {

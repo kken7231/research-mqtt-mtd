@@ -3,9 +3,9 @@ pub mod macros;
 pub mod publish;
 
 use clap::Parser;
-use std::error::Error;
-
 use libmqttmtd::socket::plain::PlainServer;
+use std::error::Error;
+use std::io::Write;
 
 #[derive(Parser, Debug)]
 #[command(version)]
@@ -34,6 +34,7 @@ pub fn run_server() -> Result<(), Box<dyn Error>> {
     mqttinterface_println!("Broker Port:   {}", args.broker_port);
     mqttinterface_println!("Verifier Port: {}", args.verifier_port);
     mqttinterface_println!("--------------------------");
+    mqttinterface_println!("");
 
     // open server
     let _server = PlainServer::new(args.port, None)
