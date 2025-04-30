@@ -5,14 +5,12 @@ edition = "2024"
 
 [dev-dependencies]
 tempfile = "3"
+tokio-test = "0.4.4"
+tokio = { version = "1.44.2", default-features = false, features = ["macros"]}
 
 [dependencies]
-bytes = "1.10.1"
 rcgen = "0.13.2"
 ring = "0.17.14"
-rustls = { version = "0.23.26", features = ["std", "ring"] }
-rustls-pemfile = "2.2.0"
-tokio = { version = "1.44.2", features = ["full"] }
-tokio-rustls = "0.26.2"
-tokio-stream = "0.1.17"
-tokio-util = { version = "0.7.14", features = ["io"] }
+rustls = { version = "0.23.26",default-features = false, features = ["ring"] }
+tokio = { version = "1.44.2", default-features = false, features = ["io-std","io-util", "net", "time", "rt", "sync"]}
+tokio-rustls = {version = "0.26.2",default-features = false, features = ["ring"] }

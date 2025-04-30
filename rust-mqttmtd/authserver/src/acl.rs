@@ -3,8 +3,9 @@
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
-use std::io;
 use std::path::Path;
+
+use crate::error::ACLError;
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub enum AccessType {
@@ -25,11 +26,10 @@ pub struct AccessControlList {
 }
 
 impl AccessControlList {
-    pub fn from_yaml<P: AsRef<Path>>(path: P) -> Result<Self, io::Error> {
+    pub fn from_yaml<P: AsRef<Path>>(path: P) -> Result<Self, ACLError> {
         let contents = fs::read_to_string(path)?;
         let hostnames: HashMap<String, HashMap<String, AccessType>> =
-            serde_yaml::from_str(&contents)
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+            serde_yaml::from_str(&contents)?;
         Ok(Self { hostnames })
     }
 
@@ -59,11 +59,14 @@ impl AccessControlList {
 
 #[cfg(test)]
 mod tests {
-    use std::fs::{self, create_dir_all};
+    use std::{
+        fs::{self, create_dir_all},
+        io::ErrorKind,
+    };
 
     use tempfile::tempdir;
 
-    use crate::acl::AccessControlList;
+    use crate::{acl::AccessControlList, authserver_println, error::ACLError};
 
     #[test]
     fn load_pass() {
@@ -90,12 +93,12 @@ client_b:
 
         // Load the hostnames from the YAML file
         let acl = AccessControlList::from_yaml(&temp_yaml);
-        println!("{:?}", &acl);
+        authserver_println!("{:?}", &acl);
         assert!(acl.is_ok());
         let acl = acl.unwrap();
-        println!("Successfully loaded hostnames:");
+        authserver_println!("Successfully loaded hostnames:");
         for hostname_map in acl.hostnames {
-            println!("{:?}", hostname_map);
+            authserver_println!("{:?}", hostname_map);
         }
 
         // Clean up the sample file
@@ -127,7 +130,7 @@ client_b:
 
         // Load the hostnames from the YAML file
         let acl = AccessControlList::from_yaml(&temp_yaml);
-        println!("{:?}", &acl);
+        authserver_println!("{:?}", &acl);
         assert!(acl.is_ok());
         let acl = acl.unwrap();
 
@@ -140,5 +143,115 @@ client_b:
 
         // Clean up the sample file
         assert!(fs::remove_file(&temp_yaml).is_ok());
+    }
+
+    #[tokio::test]
+    async fn from_yaml_non_existent_file() {
+        // Yaml file not exist
+        let temp_dir = tempdir().expect("failed to create temp dir").into_path();
+        let non_existent_path = temp_dir.join("non_existent.yaml");
+
+        let acl = AccessControlList::from_yaml(&non_existent_path);
+        assert!(acl.is_err());
+        let err = acl.unwrap_err();
+        assert!(err.eq(&crate::error::ACLError::IoError(std::io::Error::new(
+            ErrorKind::NotFound,
+            ""
+        ))));
+    }
+
+    #[tokio::test]
+    async fn from_yaml_invalid_yaml_syntax() {
+        // Invalid YAML
+        let yaml_content = r#"
+     client_a:
+         topic/*: PubOnly
+         invalid yaml syntax here: -
+             "#;
+        let temp_dir = tempdir().expect("failed to create temp dir").into_path();
+        let temp_yaml = temp_dir.join("invalid_syntax.yaml");
+        fs::write(&temp_yaml, yaml_content).expect("failed to write temp yaml");
+
+        let acl = AccessControlList::from_yaml(&temp_yaml);
+        assert!(acl.is_err());
+        let err = acl.unwrap_err();
+        match err {
+            ACLError::SerdeYamlError(_e) => assert!(true),
+            _ => panic!("invalid err"),
+        }
+
+        fs::remove_file(&temp_yaml).expect("failed to remove temp yaml");
+    }
+
+    #[tokio::test]
+    async fn from_yaml_invalid_data_structure() {
+        // YAML is valid, but the structure doesn't match HashMap<String, HashMap<String, AccessType>>
+        let yaml_content = r#"
+     client_a: "just a string"
+             "#;
+        let temp_dir = tempdir().expect("failed to create temp dir").into_path();
+        let temp_yaml = temp_dir.join("invalid_structure.yaml");
+        fs::write(&temp_yaml, yaml_content).expect("failed to write temp yaml");
+
+        let acl = AccessControlList::from_yaml(&temp_yaml);
+        assert!(acl.is_err());
+        let err = acl.unwrap_err();
+        match err {
+            ACLError::SerdeYamlError(_e) => assert!(true),
+            _ => panic!("invalid err"),
+        }
+
+        fs::remove_file(&temp_yaml).expect("failed to remove temp yaml");
+    }
+
+    #[tokio::test]
+    async fn check_if_allowed_edge_cases() {
+        let yaml_content = r#"
+     client_a:
+         topic/*: PubOnly
+     client_with_empty_topics: {}
+             "#;
+        let temp_dir = tempdir().expect("failed to create temp dir").into_path();
+        let temp_yaml = temp_dir.join("edge_cases.yaml");
+        fs::write(&temp_yaml, yaml_content).expect("failed to write temp yaml");
+
+        let acl = AccessControlList::from_yaml(&temp_yaml).expect("failed to load acl");
+
+        // Non-existent hostname
+        assert_eq!(
+            acl.check_if_allowed("non_existent_client", "some_topic", true),
+            false
+        );
+        assert_eq!(
+            acl.check_if_allowed("non_existent_client", "some_topic", false),
+            false
+        );
+
+        // Existing hostname, non-existent topic
+        assert_eq!(
+            acl.check_if_allowed("client_a", "non_existent_topic", true),
+            false
+        );
+        assert_eq!(
+            acl.check_if_allowed("client_a", "non_existent_topic", false),
+            false
+        );
+
+        // Existing hostname with empty topics map
+        assert_eq!(
+            acl.check_if_allowed("client_with_empty_topics", "some_topic", true),
+            false
+        );
+        assert_eq!(
+            acl.check_if_allowed("client_with_empty_topics", "some_topic", false),
+            false
+        );
+
+        // Empty hostname or topic strings (should not panic, return false)
+        assert_eq!(acl.check_if_allowed("", "some_topic", true), false);
+        assert_eq!(acl.check_if_allowed("client_a", "", true), false);
+        assert_eq!(acl.check_if_allowed("", "", true), false);
+
+        fs::remove_file(&temp_yaml).expect("failed to remove temp yaml");
     }
 }

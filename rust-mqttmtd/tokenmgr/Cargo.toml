@@ -4,3 +4,10 @@ version = "2.0.0"
 edition = "2024"
 
 [dependencies]
+base64 = "0.22.1"
+clap ={ version = "4.5.37", default-features=false, features=["std", "derive"]}
+libmqttmtd = { path = "../libmqttmtd" }
+walkdir = "2.5.0"
+rustls = { version = "0.23.26",default-features = false, features = ["ring"] }
+tokio = { version = "1.44.2", default-features = false, features = ["net", "fs", "rt-multi-thread", "macros"]}
+bytes = "1.10.1"

@@ -1,7 +1,6 @@
 use std::io;
 
 use rustls::{pki_types::InvalidDnsNameError, server::VerifierBuilderError};
-use tokio::time;
 
 /// Error for socket server & clients
 ///
@@ -21,7 +20,7 @@ pub enum SocketError {
     ElapsedError(),
 
     /// Indicates a given timeout duration was invalid (e.g. negative).
-    InvalidTimeoutError(time::Duration),
+    InvalidTimeoutError(std::time::Duration),
 
     /// Wraps [rustls::pki_types::InvalidDnsNameError].
     InvalidDnsNameError(InvalidDnsNameError),

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{net::SocketAddr, sync::Arc};
 
 use rustls::{ClientConfig, ServerConfig, pki_types::ServerName};
 
@@ -21,32 +21,32 @@ use super::{
 /// TLS-enabled TCP Socket Server
 ///
 ///////////////////////////////////////////////////////////
-pub struct TlsServer<A: ToSocketAddrs + Send + 'static> {
-    plain_server: PlainServer<A>,
+pub struct TlsServer {
+    plain_server: PlainServer,
     acceptor: Arc<TlsAcceptor>,
 }
 
-impl<A: ToSocketAddrs + Send + 'static> TlsServer<A> {
+impl TlsServer {
     pub fn new(
-        addr: A,
+        port: u16,
         listen_timeout: impl Into<Option<Duration>>,
         config: Arc<ServerConfig>,
     ) -> Self {
         TlsServer {
-            plain_server: PlainServer::new(addr, listen_timeout),
+            plain_server: PlainServer::new(port, listen_timeout),
             acceptor: Arc::new(TlsAcceptor::from(config)),
         }
     }
 
     pub fn spawn<F, Fut>(self, handler: F) -> JoinHandle<Result<(), SocketError>>
     where
-        F: Fn(server::TlsStream<TcpStream>) -> Fut + Send + Sync + 'static,
+        F: Fn(server::TlsStream<TcpStream>, SocketAddr) -> Fut + Send + Sync + 'static,
         Fut: std::future::Future<Output = ()> + Send + 'static,
     {
         let acceptor = self.acceptor.clone();
         let handler = Arc::new(handler);
 
-        self.plain_server.spawn(move |socket| {
+        self.plain_server.spawn(move |socket, addr| {
             sock_serv_println!("doing tls...");
             let acceptor = acceptor.clone();
             let handler = handler.clone();
@@ -54,11 +54,11 @@ impl<A: ToSocketAddrs + Send + 'static> TlsServer<A> {
             async move {
                 match acceptor.accept(socket).await {
                     Ok(tls_stream) => {
-                        sock_serv_println!("TLS accepted!");
-                        handler(tls_stream).await
+                        sock_serv_println!("TLS accepted at addr {}", addr);
+                        handler(tls_stream, addr).await
                     }
                     Err(e) => {
-                        sock_serv_println!("TLS accept error: {}", e);
+                        sock_serv_println!("TLS accept error at addr {}: {}", addr, e);
                     }
                 }
             }
@@ -130,11 +130,11 @@ mod tests {
         io::{self, Write},
         path::Path,
         sync::Once,
+        time::Duration,
     };
 
     use rcgen::CertifiedKey;
     use tempfile::tempdir;
-    use tokio::time::Duration;
 
     use crate::socket::tls_config::TlsConfigLoader;
 
@@ -242,20 +242,20 @@ mod tests {
 
     #[tokio::test]
     async fn spawn_serv_cli_pass() {
-        const ADDR: &str = "localhost:3000";
+        const PORT: u16 = 3000;
         const TO_SERVER: Duration = Duration::from_secs(1);
         const TO_CLIENT: Duration = Duration::from_secs(1);
         let (conf_server, conf_client) =
             create_load_sample_configs(true, DOMAIN_CA, DOMAIN_SERV, DOMAIN_CLI);
 
         // Spawn server
-        let _ = TlsServer::new(ADDR, TO_SERVER, conf_server).spawn(async |_| {});
+        let _ = TlsServer::new(PORT, TO_SERVER, conf_server).spawn(async |_, _| {});
 
         // Wait a while
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         // Spawn client and connect
-        let cli_sock = TlsClient::new(ADDR, TO_CLIENT, conf_client)
+        let cli_sock = TlsClient::new(format!("localhost:{}", PORT), TO_CLIENT, conf_client)
             .connect(DOMAIN_SERV)
             .await;
 
@@ -267,13 +267,13 @@ mod tests {
 
     #[tokio::test]
     async fn spawn_serv_zero_duration() {
-        const ADDR: &str = "localhost:3001";
+        const PORT: u16 = 3001;
         const TO_SERVER: Duration = Duration::ZERO;
         let (conf_server, _) = create_load_sample_configs(true, DOMAIN_CA, DOMAIN_SERV, DOMAIN_CLI);
 
         match timeout(
             Duration::from_secs(1),
-            TlsServer::new(ADDR, TO_SERVER, conf_server).spawn(async |_| {}),
+            TlsServer::new(PORT, TO_SERVER, conf_server).spawn(async |_, _| {}),
         )
         .await
         {
@@ -284,14 +284,14 @@ mod tests {
 
     #[tokio::test]
     async fn spawn_cli_none_duration() {
-        const ADDR: &str = "localhost:3002";
+        const PORT: u16 = 3002;
         const TO_SERVER: Duration = Duration::from_secs(1);
         const TO_CLIENT: Option<Duration> = None;
         let (conf_server, conf_client) =
             create_load_sample_configs(true, DOMAIN_CA, DOMAIN_SERV, DOMAIN_CLI);
 
         // Spawn server
-        let _ = TlsServer::new(ADDR, TO_SERVER, conf_server).spawn(async |_| {});
+        let _ = TlsServer::new(PORT, TO_SERVER, conf_server).spawn(async |_, _| {});
 
         // Wait a while
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -299,7 +299,8 @@ mod tests {
         // Spawn client
         match timeout(
             Duration::from_secs(1),
-            TlsClient::new(ADDR, TO_CLIENT, conf_client).connect(DOMAIN_SERV),
+            TlsClient::new(format!("localhost:{}", PORT), TO_CLIENT, conf_client)
+                .connect(DOMAIN_SERV),
         )
         .await
         {
@@ -310,14 +311,15 @@ mod tests {
 
     #[tokio::test]
     async fn listen_conn_not_listening() {
-        const ADDR: &str = "localhost:3003";
+        const PORT: u16 = 3003;
         const TO_CLIENT: Duration = Duration::from_secs(1);
         let (_, conf_client) = create_load_sample_configs(true, DOMAIN_CA, DOMAIN_SERV, DOMAIN_CLI);
 
         // Try connecting
         match timeout(
             Duration::from_secs(2),
-            TlsClient::new(ADDR, TO_CLIENT, conf_client).connect(DOMAIN_SERV),
+            TlsClient::new(format!("localhost:{}", PORT), TO_CLIENT, conf_client)
+                .connect(DOMAIN_SERV),
         )
         .await
         {
@@ -331,20 +333,20 @@ mod tests {
 
     #[tokio::test]
     async fn listen_conn_after_deadline() {
-        const ADDR: &str = "localhost:3004";
+        const PORT: u16 = 3004;
         const TO_SERVER: Duration = Duration::from_secs(1);
         const TO_CLIENT: Duration = Duration::from_secs(1);
         let (conf_server, conf_client) =
             create_load_sample_configs(true, DOMAIN_CA, DOMAIN_SERV, DOMAIN_CLI);
 
         // Spawn server
-        let _ = TlsServer::new(ADDR, TO_SERVER, conf_server).spawn(async |_| {});
+        let _ = TlsServer::new(PORT, TO_SERVER, conf_server).spawn(async |_, _| {});
 
         // Wait a while
         tokio::time::sleep(TO_SERVER + Duration::from_millis(100)).await;
 
         // Spawn client and connect
-        match TlsClient::new(ADDR, TO_CLIENT, conf_client)
+        match TlsClient::new(format!("localhost:{}", PORT), TO_CLIENT, conf_client)
             .connect(DOMAIN_SERV)
             .await
         {

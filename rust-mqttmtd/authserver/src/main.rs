@@ -1,15 +1,12 @@
-use std::net::TcpStream;
+use mqttmtd_authserver::{authserver_eprintln, authserver_println, run_server};
 
 extern crate libmqttmtd;
 
-// fn issuer_handler(stream: TcpStream) {
-//     return;
-// }
-
-// fn verifier_handler(stream: TcpStream) {
-//     return;
-// }
-
-fn main() {
-    println!("Hello, world!");
+#[tokio::main]
+async fn main() {
+    if let Err(_) = run_server() {
+        authserver_eprintln!("Auth Server ended with error");
+    } else {
+        authserver_println!("Auth Server ended (unexpected reach)");
+    }
 }

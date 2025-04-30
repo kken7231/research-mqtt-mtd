@@ -1,3 +1,6 @@
-fn main() {
-    println!("Hello, world!");
+use tokenmgr::process;
+
+#[tokio::main]
+async fn main() {
+    process().await;
 }

@@ -1,99 +1,3 @@
-/// Error for issuer request/response parsing
-///
-/// Wraps two errors:
-/// - [std::io::Error]
-/// - [std::str::Utf8Error]
-///
-/// Indicates unique errors:
-/// - buffer is too small
-/// - topic is too long
-#[derive(Debug)]
-pub enum IssuerParserError {
-    /// Indicates a buffer byte array (slice) is shorter than expected.
-    BufferTooSmallError(),
-
-    /// Indicates topic is longer than expected.
-    TopicTooLongError(),
-
-    /// Wraps [std::io::Error]
-    IoError(std::io::Error),
-
-    /// Wraps [std::str::Utf8Error]
-    Utf8Error(std::str::Utf8Error),
-
-    /// Wraps [libmqttmtd::aead::algo::AeadAlgorithmNotSupportedError]
-    AeadAlgorithmNotSupportedError(libmqttmtd::aead::algo::AeadAlgorithmNotSupportedError),
-}
-
-impl std::error::Error for IssuerParserError {}
-
-impl std::fmt::Display for IssuerParserError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            IssuerParserError::BufferTooSmallError() => {
-                write!(f, "index out of bounds")
-            }
-            IssuerParserError::TopicTooLongError() => {
-                write!(f, "token is too long")
-            }
-            IssuerParserError::IoError(e) => {
-                write!(f, "io error: {}", e)
-            }
-            IssuerParserError::Utf8Error(e) => {
-                write!(f, "utf8 error: {}", e)
-            }
-            IssuerParserError::AeadAlgorithmNotSupportedError(e) => {
-                write!(f, "aead algo not supported error: {}", e)
-            }
-        }
-    }
-}
-
-impl PartialEq for IssuerParserError {
-    fn eq(&self, other: &Self) -> bool {
-        match self {
-            IssuerParserError::BufferTooSmallError() => match other {
-                IssuerParserError::BufferTooSmallError() => true,
-                _ => false,
-            },
-            IssuerParserError::TopicTooLongError() => match other {
-                IssuerParserError::TopicTooLongError() => true,
-                _ => false,
-            },
-            IssuerParserError::IoError(e) => match other {
-                IssuerParserError::IoError(other_e) => e.kind() == other_e.kind(),
-                _ => false,
-            },
-            IssuerParserError::Utf8Error(e) => match other {
-                IssuerParserError::Utf8Error(other_e) => e.eq(other_e),
-                _ => false,
-            },
-            IssuerParserError::AeadAlgorithmNotSupportedError(_) => match other {
-                IssuerParserError::AeadAlgorithmNotSupportedError(_) => true,
-                _ => false,
-            },
-        }
-    }
-}
-
-impl From<std::io::Error> for IssuerParserError {
-    fn from(value: std::io::Error) -> Self {
-        IssuerParserError::IoError(value)
-    }
-}
-
-impl From<std::str::Utf8Error> for IssuerParserError {
-    fn from(value: std::str::Utf8Error) -> Self {
-        IssuerParserError::Utf8Error(value)
-    }
-}
-
-impl From<libmqttmtd::aead::algo::AeadAlgorithmNotSupportedError> for IssuerParserError {
-    fn from(value: libmqttmtd::aead::algo::AeadAlgorithmNotSupportedError) -> Self {
-        IssuerParserError::AeadAlgorithmNotSupportedError(value)
-    }
-}
-
 /// Error for ATL process.
 ///
 /// Wraps an error:
@@ -107,7 +11,7 @@ pub enum ATLError {
     TwoMapsNotConsistentError(),
 
     /// Indicates token index is out of bound
-    TokenIdxOutOfBoundError(usize),
+    TokenIdxOutOfBoundError(u16),
 
     /// Indicates too long valid duration
     ValidDurationTooLongError(std::time::Duration),
@@ -211,5 +115,61 @@ impl From<std::num::TryFromIntError> for ATLError {
 impl From<ring::error::Unspecified> for ATLError {
     fn from(value: ring::error::Unspecified) -> Self {
         ATLError::RingUnspecifiedError(value)
+    }
+}
+
+/// Error for ACL process.
+///
+/// Wraps two errors:
+/// - [std::io::Error]
+/// - [serde_yaml::Error]
+#[derive(Debug)]
+pub enum ACLError {
+    /// Wraps [std::io::Error]
+    IoError(std::io::Error),
+
+    /// Wraps [serde_yaml::Error]
+    SerdeYamlError(serde_yaml::Error),
+}
+
+impl std::error::Error for ACLError {}
+
+impl std::fmt::Display for ACLError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ACLError::IoError(e) => {
+                write!(f, "io error: {}", e)
+            }
+            ACLError::SerdeYamlError(e) => {
+                write!(f, "serde yaml error: {}", e)
+            }
+        }
+    }
+}
+
+impl PartialEq for ACLError {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            ACLError::IoError(e) => match other {
+                ACLError::IoError(other_e) => e.kind() == other_e.kind(),
+                _ => false,
+            },
+            ACLError::SerdeYamlError(e) => match other {
+                ACLError::SerdeYamlError(other_e) => e.to_string() == other_e.to_string(),
+                _ => false,
+            },
+        }
+    }
+}
+
+impl From<std::io::Error> for ACLError {
+    fn from(value: std::io::Error) -> Self {
+        ACLError::IoError(value)
+    }
+}
+
+impl From<serde_yaml::Error> for ACLError {
+    fn from(value: serde_yaml::Error) -> Self {
+        ACLError::SerdeYamlError(value)
     }
 }

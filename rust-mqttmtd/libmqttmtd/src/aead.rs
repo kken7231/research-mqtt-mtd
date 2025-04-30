@@ -1,5 +1,4 @@
-use algo::{SupportedAlgorithm, get_ring_algorithm};
-use bytes::{Bytes, BytesMut};
+use algo::SupportedAlgorithm;
 use ring::aead::{Aad, LessSafeKey, NONCE_LEN, Nonce, Tag, UnboundKey};
 
 pub mod algo;
@@ -7,12 +6,12 @@ pub mod algo;
 /// Seals a plaintext. `in_out` will be the ciphertext without the tag.
 /// Refer to [`ring::aead::SealingKey::seal_in_place_separate_tag()`]
 pub fn seal(
-    algo: &SupportedAlgorithm,
-    key: Bytes,
+    algo: SupportedAlgorithm,
+    key: &[u8],
     nonce: [u8; NONCE_LEN],
-    mut in_out: BytesMut,
+    mut in_out: &mut [u8],
 ) -> Result<Tag, ring::error::Unspecified> {
-    let key = UnboundKey::new(get_ring_algorithm(algo), &key[..])?;
+    let key = UnboundKey::new(algo.ring_algo(), &key[..])?;
     let key = LessSafeKey::new(key);
 
     let nonce = Nonce::try_assume_unique_for_key(&nonce)?;
@@ -25,12 +24,12 @@ pub fn seal(
 /// Opens a sealed message. `in_out` must be the ciphertext followed by the tag.
 /// Refer to [`ring::aead::OpeningKey::open_in_place()`]
 pub fn open(
-    algo: &SupportedAlgorithm,
-    key: Bytes,
-    nonce: [u8; NONCE_LEN],
-    mut in_out: BytesMut,
+    algo: SupportedAlgorithm,
+    key: &[u8],
+    nonce: &[u8],
+    mut in_out: &mut [u8],
 ) -> Result<(), ring::error::Unspecified> {
-    let key = UnboundKey::new(get_ring_algorithm(algo), &key[..])?;
+    let key = UnboundKey::new(algo.ring_algo(), &key[..])?;
     let key = LessSafeKey::new(key);
 
     let nonce = Nonce::try_assume_unique_for_key(&nonce)?;
