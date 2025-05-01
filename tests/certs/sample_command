@@ -1,2 +1,2 @@
 # in certgen crate
-cargo run -- -o /Users/kentarou/git/research-mqtt-mtd/tests/certs -k rsa --rsa-key-size 2048 --server-cn server --client-cn client1 --client-cn client2
+cargo run -- -o ~/git/research-mqtt-mtd/tests/certs -k rsa --rsa-key-size 4096 --server-cn server --client-cn client1 --client-cn client2

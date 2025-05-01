@@ -6,3 +6,7 @@ services:
     container_name: server
     environment:
       - PROTOCOL=wss
+  client:
+    build:
+      context: ..
+      dockerfile: ./docker/Dockerfile.client
