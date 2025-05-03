@@ -14,7 +14,7 @@ WORKDIR /rust-mqttmtd
 COPY ./rust-mqttmtd/Cargo.lock /rust-mqttmtd
 COPY ./rust-mqttmtd/Cargo.toml /rust-mqttmtd
 COPY ./rust-mqttmtd/authserver /rust-mqttmtd/authserver
-COPY ./rust-mqttmtd/certgen /rust-mqttmtd/certgen
+COPY ./rust-mqttmtd/testing /rust-mqttmtd/testing
 COPY ./rust-mqttmtd/libmqttmtd /rust-mqttmtd/libmqttmtd
 COPY ./rust-mqttmtd/mqttinterface /rust-mqttmtd/mqttinterface
 COPY ./rust-mqttmtd/tokenmgr /rust-mqttmtd/tokenmgr
@@ -23,7 +23,7 @@ COPY ./rust-mqttmtd/tokenmgr /rust-mqttmtd/tokenmgr
 RUN CC=gcc RUSTFLAGS="-C target-feature=+crt-static" cargo build --package mqttmtd-authserver --package mqttinterface --target aarch64-unknown-linux-musl
 
 ## -----------------------------------------------
-## runner scratch
+## runner alpine
 ## -----------------------------------------------
 FROM alpine:3.21 AS runner
 
@@ -43,13 +43,14 @@ COPY --from=builder /rust-mqttmtd/target/aarch64-unknown-linux-musl/debug/mqttmt
 COPY --from=builder /rust-mqttmtd/target/aarch64-unknown-linux-musl/debug/mqttinterface /mqttmtd/bin/
 
 # copy certs
-COPY ./tests/certs/server.crt /certs/
-COPY ./tests/certs/server.pem /certs/
-COPY ./tests/certs/ca.crt /certs/
+COPY ./tests/certs/server /certs/server
+COPY ./tests/certs/ca/ca.crt /certs/ca/ca.crt
 COPY ./tests/certs/clients /certs/clients
 
 # copy confs
 COPY ./tests/mqttmtd/conf /mqttmtd/conf
 COPY ./tests/mosquitto/conf /mosquitto/conf
+
+WORKDIR /scripts
 
 ENTRYPOINT ["/dumb-init", "--", "/bin/sh", "/run.sh"]

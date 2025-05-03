@@ -5,8 +5,24 @@ services:
       dockerfile: ./docker/Dockerfile.server
     container_name: server
     environment:
-      - PROTOCOL=wss
+      - PROTOCOL=${PROTOCOL}
+
+  subscriber:
+    build:
+      context: ..
+      dockerfile: ./docker/Dockerfile.subscriber
+    container_name: subscriber
+    environment:
+      - PROTOCOL=${PROTOCOL}
+      - CLIENT_NAME="subscriber"
+
   client:
     build:
       context: ..
       dockerfile: ./docker/Dockerfile.client
+    environment:
+      - PROTOCOL=${PROTOCOL}
+      - RUNNER_TYPE=${RUNNER_TYPE}
+      - CLIENT_NAME="client1"
+    tty: true
+    stdin_open: true

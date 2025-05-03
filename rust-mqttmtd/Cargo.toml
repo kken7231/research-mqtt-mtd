@@ -1,5 +1,5 @@
 [workspace]
 members = [
-    "authserver", "certgen", "libmqttmtd", "mqttinterface", "tokenmgr",
+    "authserver", "libmqttmtd", "mqttinterface", "testing", "tokenmgr",
 ]
 resolver = "3"

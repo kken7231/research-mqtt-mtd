@@ -1,2 +1,55 @@
+## -----------------------------------------------
+## builder rust alpine
+## -----------------------------------------------
+FROM rust:1.86-alpine AS builder
+
+# prepare packages for crosscompile
+RUN apk add --no-cache musl-dev gcc
+RUN rustup target add aarch64-unknown-linux-musl
+
+# copy necessary files
+# all modules stated in the root Cargo.toml are needed, not just server tasks
+RUN mkdir -p /rust-mqttmtd
+WORKDIR /rust-mqttmtd
+COPY ./rust-mqttmtd/Cargo.lock /rust-mqttmtd
+COPY ./rust-mqttmtd/Cargo.toml /rust-mqttmtd
+COPY ./rust-mqttmtd/authserver /rust-mqttmtd/authserver
+COPY ./rust-mqttmtd/testing /rust-mqttmtd/testing
+COPY ./rust-mqttmtd/libmqttmtd /rust-mqttmtd/libmqttmtd
+COPY ./rust-mqttmtd/mqttinterface /rust-mqttmtd/mqttinterface
+COPY ./rust-mqttmtd/tokenmgr /rust-mqttmtd/tokenmgr
+
+# build authserver & mqttinterface
+RUN CC=gcc RUSTFLAGS="-C target-feature=+crt-static" cargo build --package tokenmgr --target aarch64-unknown-linux-musl
+
+## -----------------------------------------------
+## runner alpine
+## -----------------------------------------------
 FROM alpine:3.21
+
+# install mosquitto
+RUN apk update && apk upgrade
 RUN apk add --no-cache mosquitto-clients
+
+# download dumb-init
+RUN wget -O /dumb-init https://github.com/Yelp/dumb-init/releases/download/v1.2.5/dumb-init_1.2.5_aarch64
+RUN chmod +x /dumb-init
+
+# copy entrypoint shellscript
+COPY ./docker/entrypoint_client.sh /run.sh
+
+# copy tokenmgr binary
+COPY --from=builder /rust-mqttmtd/target/aarch64-unknown-linux-musl/debug/tokenmgr /mqttmtd/bin/
+
+# copy certs
+COPY ./tests/certs/ca/ca.crt /certs/ca/ca.crt
+COPY ./tests/certs/clients /certs/clients
+
+# copy confs
+COPY ./tests/mqttmtd/conf /mqttmtd/conf
+COPY ./tests/mosquitto/conf /mosquitto/conf
+
+# copy test scripts
+COPY ./tests/scripts /scripts/
+
+ENTRYPOINT ["/dumb-init", "--", "/bin/sh", "/run.sh"]

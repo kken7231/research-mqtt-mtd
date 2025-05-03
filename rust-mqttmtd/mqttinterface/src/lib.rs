@@ -23,8 +23,8 @@ struct CliArgs {
     #[arg(long)]
     verifier_port: Option<u16>,
 
-    /// conf file that sets parameters
-    #[arg(long, default_value = "./conf/mqttinterface.conf")]
+    /// Conf file that sets parameters
+    #[arg(long, default_value = "")]
     conf: String,
 }
 
@@ -58,7 +58,13 @@ fn load_config() -> Result<AppConfig, ConfigError> {
 }
 pub async fn run_server() -> Result<(), Box<dyn Error>> {
     // Parse command-line arguments
-    let config = load_config()?;
+    let config = match load_config() {
+        Ok(cfg) => cfg,
+        Err(e) => {
+            eprintln!("Error loading configuration: {}", e);
+            return Err(Box::new(e));
+        }
+    };
 
     mqttinterface_println!("Starting MQTT Interface...");
     mqttinterface_println!("");

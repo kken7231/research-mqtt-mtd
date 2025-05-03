@@ -1,2 +1,2 @@
-# in certgen crate
-cargo run -- -o ~/git/research-mqtt-mtd/tests/certs -k rsa --rsa-key-size 4096 --server-cn server --client-cn client1 --client-cn client2
+# in testing crate
+cargo run -- certgen --conf ~/git/research-mqtt-mtd/tests/certs/certgen.toml

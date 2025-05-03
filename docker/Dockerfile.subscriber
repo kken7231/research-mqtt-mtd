@@ -1,0 +1,21 @@
+## -----------------------------------------------
+## runner alpine
+## -----------------------------------------------
+FROM alpine:3.21
+
+# install mosquitto
+RUN apk update && apk upgrade
+RUN apk add --no-cache mosquitto-clients
+
+# download dumb-init
+RUN wget -O /dumb-init https://github.com/Yelp/dumb-init/releases/download/v1.2.5/dumb-init_1.2.5_aarch64
+RUN chmod +x /dumb-init
+
+# copy entrypoint shellscript
+COPY ./docker/entrypoint_subscriber.sh /run.sh
+
+# copy certs
+COPY ./tests/certs/ca/ca.crt /certs/ca/ca.crt
+COPY ./tests/certs/clients /certs/clients
+
+ENTRYPOINT ["/dumb-init", "--", "/bin/sh", "/run.sh"]

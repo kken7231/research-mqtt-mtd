@@ -1,0 +1,20 @@
+# rustfmt.toml
+
+style_edition = "2024"
+max_width = 100
+ideal_width = 80
+
+tab_spaces = 4
+hard_tabs = false
+
+reorder_imports = true
+format_comments = true
+format_code_in_doc_comments = true
+
+blank_lines_lower_bound = 0
+blank_lines_upper_bound = 1
+
+space_within_parens = false
+space_within_brackets = false
+space_within_square_brackets = false
+

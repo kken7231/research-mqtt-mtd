@@ -1,7 +1,7 @@
 use clap::Parser;
-use std::{error::Error, sync::Arc};
 use config::{Config, ConfigError, File};
 use serde::Deserialize;
+use std::{error::Error, sync::Arc};
 
 use atl::AccessTokenList;
 use libmqttmtd::socket::{plain::PlainServer, tls::TlsServer, tls_config::TlsConfigLoader};
@@ -91,7 +91,13 @@ fn load_config() -> Result<AppConfig, ConfigError> {
 
 pub async fn run_server() -> Result<(), Box<dyn Error>> {
     // Parse command-line arguments
-    let config = load_config()?;
+    let config = match load_config() {
+        Ok(cfg) => cfg,
+        Err(e) => {
+            eprintln!("Error loading configuration: {}", e);
+            return Err(Box::new(e));
+        }
+    };
 
     authserver_println!("Starting Auth Server...");
     authserver_println!("");
@@ -144,6 +150,6 @@ pub async fn run_server() -> Result<(), Box<dyn Error>> {
         _ = issuer => {
             eprintln!("issuer interface ended. stopping verifier as well...")
         },
-    };
+    }
     Ok(())
 }

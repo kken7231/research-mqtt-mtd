@@ -2,42 +2,56 @@
 
 case "$RUNNER_TYPE" in
     "once")
-        mqttinterface_toml="/mqttmtd/conf/mqttinterface_plain.toml"
-        mosquitto_conf="/mosquitto/conf/plain.conf"
+        export TOKENMGR_TOML="/mqttmtd/conf/tokenmgr_once.toml"
         ;;
 
     "server")
-        mqttinterface_toml="/mqttmtd/conf/mqttinterface_tls.toml"
-        mosquitto_conf="/mosquitto/conf/tls.conf"
+        export TOKENMGR_TOML="/mqttmtd/conf/tokenmgr_server.toml"
         ;;
 
     *)
-        echo "Error: Unrecognizable runner type RUNNER_TYPE=\"$PROTOCOL\"" >&2 # Send error to standard error
+        echo "Error: Unrecognizable runner type RUNNER_TYPE=\"$RUNNER_TYPE\"" >&2 # Send error to standard error
+        exit 255
+        ;;
+esac
+
+
+case "$PROTOCOL" in
+    "plain")
+        export SERVER_PORT=1883
+        ;;
+
+    "tls")
+        export SERVER_PORT=8883
+       ;;
+
+    "websocket")
+        export SERVER_PORT=8080
+        ;;
+
+    "wss")
+        export SERVER_PORT=8081
+        ;;
+
+    *)
+        echo "Error: Unrecognizable protocol PROTOCOL=\"$PROTOCOL\"" >&2 # Send error to standard error
         exit 255
         ;;
 
 esac
 
-echo "Protocol: $PROTOCOL"
-echo "MQTT Interface toml: $mqttinterface_toml"
-echo "Mosquitto conf:      $mosquitto_conf"
-echo "Starting server..."
-echo ""
+echo "Runner type: $RUNNER_TYPE"
+echo "Protocol:    $PROTOCOL"
+echo "TOKENMGR_TOML: $TOKENMGR_TOML"
+echo "Client:             $CLIENT_NAME"
+echo "Port:               $SERVER_PORT"
+echo "mosquitto tls args: \"$MOSQUITTO_TLS_ARGS_EMPTY_IF_BROKER_IS_PLAIN\""
 
-mosquitto -v -c $mosquitto_conf 2>&1 | awk '{ print "(mosquitto) ", $0 }' &
-MOSQUITTO=$!
-echo "Mosquitto started with PID ${MOSQUITTO}"
-
-sleep 1
-
-/mqttmtd/bin/mqttmtd-authserver --conf /mqttmtd/conf/authserver.toml 2>&1 | awk '{ print "(authserver) ", $0 }' &
-AUTH_SERVER_PID=$!
-echo "Auth server started with PID ${AUTH_SERVER_PID}"
-
-sleep 1
-
-/mqttmtd/bin/mqttinterface --conf $mqttinterface_toml 2>&1 | awk '{ print "(mqttinterface) ", $0 }' &
-MQTT_INTERFACE_PID=$!
-echo "MQTT interface started with PID ${MQTT_INTERFACE_PID}"
+if [ "$RUNNER_TYPE" = "server" ]; then
+  echo "Starting server..."
+  /mqttmtd/bin/tokenmgr --conf $TOKENMGR_TOML 2>&1 | awk '{ print "(tokenmgr) ", $0 }' &
+  TOKENMGR=$!
+  echo "Mosquitto started with PID ${TOKENMGR}"
+fi
 
 wait -n
