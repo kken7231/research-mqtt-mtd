@@ -1,3 +1,5 @@
+//! Defines algorithms supported by MQTTMTD.
+
 use ring::aead::{MAX_TAG_LEN, NONCE_LEN};
 
 /// Enumerates algorithms supported. TLSv1.3 compatible.

@@ -7,6 +7,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::{atl::AccessTokenList, authserver_verifier_eprintln, authserver_verifier_println};
 
+/// Minimum required buffer length for the buf for both request parsing and response parsing.
 const REQ_RESP_MIN_BUFLEN: usize = if verifier::REQUEST_MIN_BUFLEN > verifier::RESPONSE_MIN_BUFLEN {
     verifier::RESPONSE_MIN_BUFLEN
 } else {
@@ -29,7 +30,8 @@ macro_rules! send_verifier_err_resp_if_err {
     };
 }
 
-pub async fn handler(
+/// Handler function that handles a new connection with a client through verifier interface.
+pub(crate) async fn handler(
     atl: Arc<AccessTokenList>,
     mut stream: impl AsyncRead + AsyncWrite + Unpin,
     addr: SocketAddr,
@@ -64,8 +66,8 @@ pub async fn handler(
             token_set.topic(),
             token_set.enc_key(),
         )
-        .write_success_to(&mut stream, &mut buf[..])
-        .await
+            .write_success_to(&mut stream, &mut buf[..])
+            .await
     } else {
         verifier::ResponseWriter::write_failure_to(&mut stream, &mut buf[..]).await
     };

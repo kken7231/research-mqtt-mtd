@@ -1,12 +1,5 @@
 //! Defines Access Token List (ATL).
 
-use std::{
-    collections::{BTreeMap, HashMap},
-    ops::Shl,
-    sync::Arc,
-    time::{Duration, SystemTime, UNIX_EPOCH},
-};
-
 use libmqttmtd::{
     aead::algo::SupportedAlgorithm,
     consts::{RANDOM_LEN, TIMESTAMP_LEN, TOKEN_LEN},
@@ -14,6 +7,13 @@ use libmqttmtd::{
 use ring::{
     aead::NONCE_LEN,
     rand::{SecureRandom, SystemRandom},
+};
+use std::collections::HashSet;
+use std::{
+    collections::{BTreeMap, HashMap},
+    ops::Shl,
+    sync::Arc,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tokio::sync::RwLock;
 
@@ -23,7 +23,7 @@ use crate::error::ATLError;
 /// Owns various parameters for a set of token. To be added in [self::AccessTokenList]
 ///  after wrapped with [std::sync::RwLock] and [std::sync::Arc].
 #[derive(Debug)]
-pub struct TokenSet {
+pub(crate) struct TokenSet {
     masked_timestamp: u64,
     expiration_timestamp: u64,
 
@@ -42,7 +42,7 @@ pub struct TokenSet {
 impl TokenSet {
     /// # Parameters:
     /// - `valid_dur`: must be less than one year, otherwise error thrown
-    pub fn create_without_rand_init(
+    pub(crate) fn create_without_rand_init(
         num_tokens_divided_by_4: u8,
         topic: String,
         is_pub: bool,
@@ -136,7 +136,7 @@ type MaskedTimestamp = u64;
 
 /// !important: Locking order is 1) inner_sorted and 2) inner_lookup.
 #[derive(Debug)]
-pub struct AccessTokenList {
+pub(crate) struct AccessTokenList {
     /// Arc for shared ownership across threads.
     /// RwLock for concurrent readers or exclusive writer access.
     /// Key: expiration datetime
@@ -152,7 +152,7 @@ pub struct AccessTokenList {
 }
 
 impl AccessTokenList {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             inner_sorted: Arc::new(RwLock::new(BTreeMap::new())),
             inner_lookup: Arc::new(RwLock::new(HashMap::new())),
@@ -163,34 +163,29 @@ impl AccessTokenList {
     /// Helper function to get the current timestamp as u64 nanoseconds since epoch.
     fn get_current_timestamp() -> Result<u64, ATLError> {
         Ok(SystemTime::now()
-            .duration_since(UNIX_EPOCH)?
-            .as_nanos()
-            .try_into()?)
+            .duration_since(UNIX_EPOCH)
+            .map_err(|e| ATLError::NegativeTimeDifferenceError(e))?
+            .as_nanos() as u64)
     }
 
     /// Helper function to get the masked timestamp (bytes [2:8] as u64) from a full u64 timestamp.
     /// Assumes Big Endian byte order for slicing.
     fn get_masked_timestamp(full_timestamp: FullTimestamp) -> MaskedTimestamp {
-        // Mask to keep only bits corresponding to bytes 2 through 7
         full_timestamp & 0x0000FFFFFFFFFF00u64
     }
 
     /// Helper function to assemble a masked u64 from a [u8; 6] timestamp part.
     /// Assumes Big Endian byte order for placement.
-    pub fn assemble_masked_u64_from_part(part: &[u8; 6]) -> MaskedTimestamp {
+    fn assemble_masked_u64_from_part(part: &[u8; 6]) -> MaskedTimestamp {
         let mut bytes = [0u8; 8];
-        // Place the 6 bytes into bytes 2-7 positions (indices 2 to 7)
-        // Assumes Big Endian interpretation for this layout
         bytes[2..8].copy_from_slice(part);
         u64::from_be_bytes(bytes)
     }
 
     /// Helper function to sparse a masked u64 to a [u8; 6] timestamp part.
     /// Assumes Big Endian byte order for placement.
-    pub fn sparse_masked_u64_to_part(masked_timestamp: MaskedTimestamp) -> [u8; 6] {
+    fn sparse_masked_u64_to_part(masked_timestamp: MaskedTimestamp) -> [u8; 6] {
         let mut bytes = [0u8; 6];
-        // Place the 6 bytes into bytes 2-7 positions (indices 2 to 7)
-        // Assumes Big Endian interpretation for this layout
         bytes[..].copy_from_slice(&masked_timestamp.to_be_bytes()[2..8]);
         bytes
     }
@@ -204,18 +199,33 @@ impl AccessTokenList {
     ) -> Result<(Arc<RwLock<TokenSet>>, u64), ATLError> {
         // Fill all_randoms
         let mut all_randoms = vec![0u8; token_set.num_tokens as usize * RANDOM_LEN];
-        self.rng.fill(&mut all_randoms)?;
+        let mut generated_tokens: HashSet<[u8; RANDOM_LEN]> = HashSet::new();
+        let mut cur_idx = 0usize;
+        // To ensure uniquness of all_randoms, we use hashset
+        while generated_tokens.len() < token_set.num_tokens as usize {
+            let mut current_token_bytes = [0u8; RANDOM_LEN];
+            self.rng
+                .fill(&mut current_token_bytes)
+                .map_err(|e| ATLError::RandGenError(e))?;
+            if generated_tokens.insert(current_token_bytes.clone()) {
+                all_randoms[cur_idx..(cur_idx + RANDOM_LEN)].copy_from_slice(&current_token_bytes);
+                cur_idx += RANDOM_LEN;
+            }
+        }
         token_set.all_randoms = all_randoms.into_boxed_slice();
 
         // Fill enc_key
         let mut enc_key = vec![0u8; token_set.algo.key_len()];
-        self.rng.fill(&mut enc_key)?;
+        self.rng
+            .fill(&mut enc_key)
+            .map_err(|e| ATLError::RandGenError(e))?;
         token_set.enc_key = enc_key.into_boxed_slice();
 
         // Fill nonce_base
         let mut nonce_base = [0u8; 16];
         self.rng
-            .fill(&mut nonce_base[16 - token_set.algo.nonce_len()..])?;
+            .fill(&mut nonce_base[16 - token_set.algo.nonce_len()..])
+            .map_err(|e| ATLError::RandGenError(e))?;
         token_set.nonce_base = u128::from_be_bytes(nonce_base);
 
         self.file_without_rand_init(token_set).await
@@ -239,7 +249,7 @@ impl AccessTokenList {
         let full_timestamp = Self::get_current_timestamp()?;
         let masked_timestamp = Self::get_masked_timestamp(full_timestamp.clone());
         let expiration_timestamp =
-            match full_timestamp.checked_add(token_set.valid_dur.as_nanos().try_into()?) {
+            match full_timestamp.checked_add(token_set.valid_dur.as_nanos() as u64) {
                 None => return Err(ATLError::ValidDurationTooLongError(token_set.valid_dur)),
                 Some(ts) => ts,
             };
@@ -366,9 +376,9 @@ impl AccessTokenList {
 
             // For expiration check
             let current_timestamp: u64 = SystemTime::now()
-                .duration_since(UNIX_EPOCH)?
-                .as_nanos()
-                .try_into()?;
+                .duration_since(UNIX_EPOCH)
+                .map_err(|e| ATLError::NegativeTimeDifferenceError(e))?
+                .as_nanos() as u64;
 
             // Verify random
             let cur_random = token_set.current_random()?;
@@ -421,7 +431,7 @@ mod tests {
             valid_dur,
             SupportedAlgorithm::Aes128Gcm,
         )
-        .expect("Failed to create test TokenSet")
+            .expect("Failed to create test TokenSet")
     }
 
     #[tokio::test]
@@ -449,10 +459,10 @@ mod tests {
             SupportedAlgorithm::Aes128Gcm,
         );
         assert!(token_set.is_err());
-        assert_eq!(
-            token_set.unwrap_err(),
-            ATLError::ValidDurationTooLongError(invalid_dur)
-        );
+        assert!(match token_set.unwrap_err() {
+            ATLError::ValidDurationTooLongError(d) if d == invalid_dur => true,
+            _ => false,
+        });
     }
 
     #[tokio::test]

@@ -1,3 +1,5 @@
+//! Defines errors in the module.
+
 use std::io;
 
 use rustls::{pki_types::InvalidDnsNameError, server::VerifierBuilderError};
@@ -13,8 +15,11 @@ use rustls::{pki_types::InvalidDnsNameError, server::VerifierBuilderError};
 /// - invalid timeout
 #[derive(Debug)]
 pub enum SocketError {
-    /// Wraps [std::io::Error].
-    IoError(io::Error),
+    /// Wraps [std::io::Error] error on server bind
+    BindError(std::io::Error),
+
+    /// Wraps [std::io::Error] error on client connect
+    ConnectError(std::io::Error),
 
     /// Indicates a process was timed out.
     ElapsedError(),
@@ -31,9 +36,12 @@ impl std::error::Error for SocketError {}
 impl std::fmt::Display for SocketError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SocketError::IoError(e) => write!(f, "io::Error found: {}", e),
+            SocketError::BindError(e) => write!(f, "socket failed on server bind: {}", e),
+            SocketError::ConnectError(e) => {
+                write!(f, "socket failed on client connect: {}", e)
+            }
             SocketError::ElapsedError() => {
-                write!(f, "timed out")
+                write!(f, "operation timed out")
             }
             SocketError::InvalidTimeoutError(d) => {
                 write!(f, "invalid timeout of : {:?}", d)
@@ -42,35 +50,6 @@ impl std::fmt::Display for SocketError {
                 write!(f, "invalid dns name: {}", e)
             }
         }
-    }
-}
-
-impl PartialEq for SocketError {
-    fn eq(&self, other: &Self) -> bool {
-        match self {
-            SocketError::IoError(e) => match other {
-                SocketError::IoError(other_e) => e.kind() == other_e.kind(),
-                _ => false,
-            },
-            SocketError::ElapsedError() => match other {
-                SocketError::ElapsedError() => true,
-                _ => false,
-            },
-            SocketError::InvalidTimeoutError(d) => match other {
-                SocketError::InvalidTimeoutError(other_d) => d.eq(other_d),
-                _ => false,
-            },
-            SocketError::InvalidDnsNameError(e) => match other {
-                SocketError::InvalidDnsNameError(other_e) => e.to_string() == other_e.to_string(),
-                _ => false,
-            },
-        }
-    }
-}
-
-impl From<io::Error> for SocketError {
-    fn from(error: io::Error) -> Self {
-        SocketError::IoError(error)
     }
 }
 

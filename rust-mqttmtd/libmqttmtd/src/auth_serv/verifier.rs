@@ -51,7 +51,10 @@ impl Request {
         stream: &mut R,
     ) -> Result<Self, AuthServerParserError> {
         let mut token = [0u8; TOKEN_LEN];
-        stream.read_exact(&mut token).await?;
+        stream
+            .read_exact(&mut token)
+            .await
+            .map_err(|e| AuthServerParserError::SocketReadError(e))?;
 
         Ok(Self { token })
     }
@@ -60,7 +63,10 @@ impl Request {
         self,
         stream: &mut W,
     ) -> Result<usize, AuthServerParserError> {
-        stream.write_all(&self.token).await?;
+        stream
+            .write_all(&self.token)
+            .await
+            .map_err(|e| AuthServerParserError::SocketWriteError(e))?;
         Ok(self.token.len())
     }
 }
@@ -121,7 +127,10 @@ impl ResponseReader {
         stream: &mut R,
         buf: &mut [u8],
     ) -> Result<ResponseStatus, AuthServerParserError> {
-        stream.read_exact(&mut buf[0..1]).await?;
+        stream
+            .read_exact(&mut buf[0..1])
+            .await
+            .map_err(|e| AuthServerParserError::SocketReadError(e))?;
         Ok(ResponseStatus::from(buf[0]))
     }
 
@@ -129,7 +138,10 @@ impl ResponseReader {
         stream: &mut R,
         buf: &mut [u8],
     ) -> Result<(bool, SupportedAlgorithm), AuthServerParserError> {
-        stream.read_exact(&mut buf[0..1]).await?;
+        stream
+            .read_exact(&mut buf[0..1])
+            .await
+            .map_err(|e| AuthServerParserError::SocketReadError(e))?;
         Ok((
             buf[0] & 0x80 != 0,
             SupportedAlgorithm::try_from(buf[0] & 0xF)?,
@@ -141,7 +153,10 @@ impl ResponseReader {
         nonce_len: usize,
     ) -> Result<Box<[u8]>, AuthServerParserError> {
         let mut nonce = vec![0u8; nonce_len];
-        stream.read_exact(&mut nonce).await?;
+        stream
+            .read_exact(&mut nonce)
+            .await
+            .map_err(|e| AuthServerParserError::SocketReadError(e))?;
         Ok(nonce.into_boxed_slice())
     }
 
@@ -150,12 +165,18 @@ impl ResponseReader {
         buf: &mut [u8],
     ) -> Result<String, AuthServerParserError> {
         // topic_len
-        stream.read_exact(&mut buf[0..2]).await?;
+        stream
+            .read_exact(&mut buf[0..2])
+            .await
+            .map_err(|e| AuthServerParserError::SocketReadError(e))?;
         let topic_len = (usize::from(buf[0]) << 8) | (usize::from(buf[1]));
 
         // topic
         let mut topic = vec![0u8; topic_len];
-        stream.read_exact(&mut topic).await?;
+        stream
+            .read_exact(&mut topic)
+            .await
+            .map_err(|e| AuthServerParserError::SocketReadError(e))?;
 
         Ok(std::str::from_utf8(&topic[..])?.to_owned())
     }
@@ -165,7 +186,10 @@ impl ResponseReader {
         enc_key_len: usize,
     ) -> Result<Box<[u8]>, AuthServerParserError> {
         let mut enc_key = vec![0u8; enc_key_len];
-        stream.read_exact(&mut enc_key).await?;
+        stream
+            .read_exact(&mut enc_key)
+            .await
+            .map_err(|e| AuthServerParserError::SocketReadError(e))?;
         Ok(enc_key.into_boxed_slice())
     }
 
@@ -243,7 +267,10 @@ impl<'a, 'b, 'c> ResponseWriter<'a, 'b, 'c> {
         status: &ResponseStatus,
     ) -> Result<usize, AuthServerParserError> {
         buf[0] = *status as u8;
-        stream.write_all(&mut buf[0..1]).await?;
+        stream
+            .write_all(&mut buf[0..1])
+            .await
+            .map_err(|e| AuthServerParserError::SocketWriteError(e))?;
         Ok(1)
     }
 
@@ -258,7 +285,10 @@ impl<'a, 'b, 'c> ResponseWriter<'a, 'b, 'c> {
             0x00
         };
         buf[0] |= self.aead_algo as u8;
-        stream.write_all(&mut buf[0..1]).await?;
+        stream
+            .write_all(&mut buf[0..1])
+            .await
+            .map_err(|e| AuthServerParserError::SocketWriteError(e))?;
         Ok(1)
     }
 
@@ -266,7 +296,10 @@ impl<'a, 'b, 'c> ResponseWriter<'a, 'b, 'c> {
         &self,
         stream: &mut W,
     ) -> Result<usize, AuthServerParserError> {
-        stream.write_all(&self.nonce).await?;
+        stream
+            .write_all(&self.nonce)
+            .await
+            .map_err(|e| AuthServerParserError::SocketWriteError(e))?;
         Ok(self.nonce.len())
     }
 
@@ -278,10 +311,16 @@ impl<'a, 'b, 'c> ResponseWriter<'a, 'b, 'c> {
         // topic_len
         let topic_len_bytes = self.topic.len().to_be_bytes();
         buf[0..2].copy_from_slice(&topic_len_bytes[topic_len_bytes.len() - 2..]);
-        stream.write_all(&buf[0..2]).await?;
+        stream
+            .write_all(&buf[0..2])
+            .await
+            .map_err(|e| AuthServerParserError::SocketWriteError(e))?;
 
         // topic
-        stream.write_all(&self.topic.as_bytes()).await?;
+        stream
+            .write_all(&self.topic.as_bytes())
+            .await
+            .map_err(|e| AuthServerParserError::SocketWriteError(e))?;
 
         Ok(2 + self.topic.len())
     }
@@ -290,7 +329,10 @@ impl<'a, 'b, 'c> ResponseWriter<'a, 'b, 'c> {
         &self,
         stream: &mut W,
     ) -> Result<usize, AuthServerParserError> {
-        stream.write_all(&self.enc_key).await?;
+        stream
+            .write_all(&self.enc_key)
+            .await
+            .map_err(|e| AuthServerParserError::SocketWriteError(e))?;
         Ok(self.enc_key.len())
     }
 
@@ -429,12 +471,11 @@ mod tests {
 
         assert!(result.is_err());
         // Expect an IO error indicating unexpected EOF
-        let err = result.unwrap_err();
-        if let AuthServerParserError::IoError(io_err) = err {
-            assert_eq!(io_err.kind(), std::io::ErrorKind::UnexpectedEof);
-        } else {
-            panic!("Expected IoError::UnexpectedEof, but got {:?}", err);
-        }
+        assert!(match result.unwrap_err() {
+            AuthServerParserError::SocketReadError(e) =>
+                e.kind() == std::io::ErrorKind::UnexpectedEof,
+            _ => false,
+        });
 
         // Write in all the remained bytes
         let mut read_buf = [0u8; 3];
@@ -568,10 +609,10 @@ mod tests {
         let result = ResponseReader::read_from(&mut mock_stream, &mut small_buf[..]).await;
 
         assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err(),
-            AuthServerParserError::BufferTooSmallError()
-        );
+        assert!(match result.unwrap_err() {
+            AuthServerParserError::BufferTooSmallError() => true,
+            _ => false,
+        });
 
         // Write in all the remained bytes
         let mut read_buf = [0u8; 8];

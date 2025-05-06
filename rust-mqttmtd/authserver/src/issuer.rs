@@ -5,11 +5,13 @@ use std::{net::SocketAddr, sync::Arc, time::Duration};
 use libmqttmtd::auth_serv::issuer;
 use tokio::io::{AsyncRead, AsyncWrite};
 
+use crate::acl::AccessControlList;
 use crate::{
     atl::{AccessTokenList, TokenSet},
     authserver_verifier_eprintln, authserver_verifier_println,
 };
 
+/// Minimum required buffer length for the buf for both request parsing and response parsing.
 const REQ_RESP_MIN_BUFLEN: usize = if issuer::REQUEST_MIN_BUFLEN > issuer::RESPONSE_MIN_BUFLEN {
     issuer::RESPONSE_MIN_BUFLEN
 } else {
@@ -17,14 +19,19 @@ const REQ_RESP_MIN_BUFLEN: usize = if issuer::REQUEST_MIN_BUFLEN > issuer::RESPO
 };
 
 macro_rules! send_issuer_err_resp_if_err {
-    ($result:expr, $err_str:expr, $stream:expr, $addr:expr, $buf:expr) => { // Accept two expressions: the Result and the error string
+    ($result:expr, $err_str:expr, $stream:expr, $addr:expr, $buf:expr) => {
         match $result {
             Ok(v) => v,
             Err(e) => {
-                authserver_verifier_eprintln!($addr, $err_str, e); // Use the provided error string expression
-                // Assuming ResponseWriter, stream, and buf are available in the scope where the macro is used
-                if let Err(send_err) = issuer::ResponseWriter::write_error_to(&mut $stream, &mut $buf[..]).await {
-                    authserver_verifier_eprintln!($addr, "Error sending out issuer (error) response: {}", send_err);
+                authserver_verifier_eprintln!($addr, $err_str, e);
+                if let Err(send_err) =
+                    issuer::ResponseWriter::write_error_to(&mut $stream, &mut $buf[..]).await
+                {
+                    authserver_verifier_eprintln!(
+                        $addr,
+                        "Error sending out issuer (error) response: {}",
+                        send_err
+                    );
                 };
                 return;
             }
@@ -32,7 +39,9 @@ macro_rules! send_issuer_err_resp_if_err {
     };
 }
 
-pub async fn handler(
+/// Handler function that handles a new connection with a client through issuer interface.
+pub(crate) async fn handler(
+    acl: Arc<AccessControlList>,
     atl: Arc<AccessTokenList>,
     mut stream: impl AsyncRead + AsyncWrite + Unpin,
     addr: SocketAddr,
@@ -47,6 +56,21 @@ pub async fn handler(
         addr,
         buf
     );
+
+    // Check with ACL if access can be granted
+    if !acl.check_if_allowed("localhost", req.topic(), req.is_pub()) {
+        authserver_verifier_eprintln!(addr, "failed ACL verification");
+        if let Err(send_err) =
+            issuer::ResponseWriter::write_error_to(&mut stream, &mut buf[..]).await
+        {
+            authserver_verifier_eprintln!(
+                addr,
+                "Error sending out issuer (error) response: {}",
+                send_err
+            );
+        };
+        return;
+    }
 
     // Create a token set
     let token_set = send_issuer_err_resp_if_err!(
@@ -78,7 +102,8 @@ pub async fn handler(
     // Get parameters
     let enc_key = token_set.enc_key();
     let nonce_base = token_set.nonce_base();
-    let timestamp = AccessTokenList::sparse_masked_u64_to_part(masked_timestamp);
+    let mut timestamp = [0u8; 6];
+    timestamp[..].copy_from_slice(&masked_timestamp.to_be_bytes()[2..8]);
     let all_randoms = token_set.all_randoms();
 
     // Send success response

@@ -4,7 +4,7 @@ use libmqttmtd::auth_serv::issuer;
 use rustls::ClientConfig;
 use tokio::io::stdout;
 
-use crate::tokenset::get_current_token_from_file;
+use crate::tokenset_old::get_current_token_from_file;
 
 pub async fn run_once(
     tls_config: Arc<ClientConfig>,
@@ -18,7 +18,7 @@ pub async fn run_once(
         tls_config,
         &request,
     )
-    .await
+        .await
     {
         Ok(token_set) => token_set,
         Err(e) => {

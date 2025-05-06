@@ -6,12 +6,12 @@ use std::net::SocketAddr;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-use crate::publish::publish_decode;
+use crate::publish::freeze_publish;
 use crate::{mqttinterface_eprintln, mqttinterface_println};
 
-// Define the port the monitor will listen on and the actual broker address
 const BUF_SIZE: usize = 4096;
 
+/// Intermediates an external client and an internal broker.
 pub async fn handler(
     broker_port: u16,
     verifier_port: u16,
@@ -40,8 +40,8 @@ pub async fn handler(
     let (mut broker_reader, mut broker_writer) = broker_stream.split();
 
     // Buffers for incoming data
-    let mut client_buf = BytesMut::with_capacity(BUF_SIZE);
-    let mut broker_buf = BytesMut::with_capacity(BUF_SIZE);
+    let mut client_buf = BytesMut::zeroed(BUF_SIZE);
+    let mut broker_buf = BytesMut::zeroed(BUF_SIZE);
 
     // Task to handle data flow from client to broker
     let client_to_broker = async move {
@@ -76,7 +76,7 @@ pub async fn handler(
                             Packet::ConnAck(connack) => connack.write(&mut encoded_packet),
                             Packet::Publish(publish) => {
                                 mqttinterface_println!("Intercepted PUBLISH packet from {}.", addr);
-                                match publish_decode(verifier_port, publish).await {
+                                match freeze_publish(verifier_port, publish).await {
                                     Ok(Some(modified)) => {
                                         mqttinterface_println!(
                                             "verification succeeded on PUBLISH packet from {}.",

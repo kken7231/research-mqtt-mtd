@@ -1,9 +1,9 @@
 /// Error for issuer/verifier request/response parsing
 ///
 /// Wraps three errors:
-/// - [std::io::Error]
-/// - [std::str::Utf8Error]
-/// - [crate::aead::algo::AeadAlgorithmNotSupportedError]
+/// - [std::io::Error]: Read/write failed
+/// - [std::str::Utf8Error]: UTF8 conversion failed
+/// - [crate::aead::algo::AeadAlgorithmNotSupportedError]: AEAD algorithm is not supported
 ///
 /// Indicates unique errors:
 /// - buffer is too small
@@ -16,14 +16,17 @@ pub enum AuthServerParserError {
     /// Indicates topic is longer than expected.
     TopicTooLongError(),
 
-    /// Wraps [std::io::Error]
-    IoError(std::io::Error),
+    /// Wraps [std::io::Error] error in reading a socket
+    SocketReadError(std::io::Error),
+
+    /// Wraps [std::io::Error] error in writing to a socket
+    SocketWriteError(std::io::Error),
 
     /// Wraps [std::str::Utf8Error]
     Utf8Error(std::str::Utf8Error),
 
     /// Wraps [crate::aead::algo::AeadAlgorithmNotSupportedError]
-    AeadAlgorithmNotSupportedError(crate::aead::algo::AeadAlgorithmNotSupportedError),
+    AlgoNotSupportedError(crate::aead::algo::AeadAlgorithmNotSupportedError),
 }
 
 impl std::error::Error for AuthServerParserError {}
@@ -37,52 +40,21 @@ impl std::fmt::Display for AuthServerParserError {
             AuthServerParserError::TopicTooLongError() => {
                 write!(f, "token is too long")
             }
-            AuthServerParserError::IoError(e) => {
-                write!(f, "io error: {}", e)
+            AuthServerParserError::SocketReadError(e) => {
+                write!(f, "reading a socket failed: {}", e)
+            }
+            AuthServerParserError::SocketWriteError(e) => {
+                write!(f, "writing to a socket failed: {}", e)
             }
             AuthServerParserError::Utf8Error(e) => {
-                write!(f, "utf8 error: {}", e)
+                write!(f, "utf8 conversion error: {}", e)
             }
-            AuthServerParserError::AeadAlgorithmNotSupportedError(e) => {
+            AuthServerParserError::AlgoNotSupportedError(e) => {
                 write!(f, "aead algo not supported error: {}", e)
             }
         }
     }
 }
-
-impl PartialEq for AuthServerParserError {
-    fn eq(&self, other: &Self) -> bool {
-        match self {
-            AuthServerParserError::BufferTooSmallError() => match other {
-                AuthServerParserError::BufferTooSmallError() => true,
-                _ => false,
-            },
-            AuthServerParserError::TopicTooLongError() => match other {
-                AuthServerParserError::TopicTooLongError() => true,
-                _ => false,
-            },
-            AuthServerParserError::IoError(e) => match other {
-                AuthServerParserError::IoError(other_e) => e.kind() == other_e.kind(),
-                _ => false,
-            },
-            AuthServerParserError::Utf8Error(e) => match other {
-                AuthServerParserError::Utf8Error(other_e) => e.eq(other_e),
-                _ => false,
-            },
-            AuthServerParserError::AeadAlgorithmNotSupportedError(_) => match other {
-                AuthServerParserError::AeadAlgorithmNotSupportedError(_) => true,
-                _ => false,
-            },
-        }
-    }
-}
-
-impl From<std::io::Error> for AuthServerParserError {
-    fn from(value: std::io::Error) -> Self {
-        AuthServerParserError::IoError(value)
-    }
-}
-
 impl From<std::str::Utf8Error> for AuthServerParserError {
     fn from(value: std::str::Utf8Error) -> Self {
         AuthServerParserError::Utf8Error(value)
@@ -91,6 +63,6 @@ impl From<std::str::Utf8Error> for AuthServerParserError {
 
 impl From<crate::aead::algo::AeadAlgorithmNotSupportedError> for AuthServerParserError {
     fn from(value: crate::aead::algo::AeadAlgorithmNotSupportedError) -> Self {
-        AuthServerParserError::AeadAlgorithmNotSupportedError(value)
+        AuthServerParserError::AlgoNotSupportedError(value)
     }
 }

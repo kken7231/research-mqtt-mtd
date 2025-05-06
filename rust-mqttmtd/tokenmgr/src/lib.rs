@@ -2,8 +2,9 @@ pub mod config;
 pub mod once;
 pub mod server;
 pub mod tokenset;
+pub mod errors;
 
-use crate::config::{CliArgs, load_config};
+use crate::config::{load_config, CliArgs};
 use clap::Parser;
 use libmqttmtd::{
     aead::algo::SupportedAlgorithm, auth_serv::issuer, socket::tls_config::TlsConfigLoader,

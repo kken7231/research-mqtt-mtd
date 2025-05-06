@@ -7,33 +7,38 @@ use std::path::Path;
 
 use crate::error::ACLError;
 
+/// Access type which can be granted
 #[derive(Debug, Deserialize, PartialEq)]
-pub enum AccessType {
+pub(crate) enum AccessType {
     PubOnly,
     SubOnly,
     PubSub,
 }
 
+/// Entry in the Access Control List.
 #[derive(Debug, Deserialize)]
-pub struct HostnameEntry {
-    pub topic: String,
-    pub access: AccessType,
+pub(crate) struct HostnameEntry {
+    topic: String,
+    access: AccessType,
 }
 
+/// Access Control List. Manages the scope of Publish/Subscribe access per topic per user.
 #[derive(Debug)]
-pub struct AccessControlList {
+pub(crate) struct AccessControlList {
     hostnames: HashMap<String, HashMap<String, AccessType>>,
 }
 
 impl AccessControlList {
-    pub fn from_yaml<P: AsRef<Path>>(path: P) -> Result<Self, ACLError> {
-        let contents = fs::read_to_string(path)?;
+    /// Reads a yaml file at the given path and returns deserialized instance.
+    pub(crate) fn from_yaml<P: AsRef<Path>>(path: P) -> Result<Self, ACLError> {
+        let contents = fs::File::open(path).map_err(|e| ACLError::OpenYamlFailedError(e))?;
         let hostnames: HashMap<String, HashMap<String, AccessType>> =
-            serde_yaml::from_str(&contents)?;
+            serde_yaml::from_reader(contents).map_err(|e| ACLError::ParseYamlFailedError(e))?;
         Ok(Self { hostnames })
     }
 
-    pub fn check_if_allowed(
+    /// Checks if the given access kind is allowed.
+    pub(crate) fn check_if_allowed(
         &self,
         hostname: impl Into<String>,
         topic: impl Into<String>,
@@ -154,10 +159,10 @@ client_b:
         let acl = AccessControlList::from_yaml(&non_existent_path);
         assert!(acl.is_err());
         let err = acl.unwrap_err();
-        assert!(err.eq(&crate::error::ACLError::IoError(std::io::Error::new(
-            ErrorKind::NotFound,
-            ""
-        ))));
+        match err {
+            ACLError::OpenYamlFailedError(e) => assert_eq!(e.kind(), ErrorKind::NotFound),
+            _ => panic!("error type invalid")
+        }
     }
 
     #[tokio::test]
@@ -176,7 +181,7 @@ client_b:
         assert!(acl.is_err());
         let err = acl.unwrap_err();
         match err {
-            ACLError::SerdeYamlError(_e) => assert!(true),
+            ACLError::ParseYamlFailedError(_e) => assert!(true),
             _ => panic!("invalid err"),
         }
 
@@ -197,7 +202,7 @@ client_b:
         assert!(acl.is_err());
         let err = acl.unwrap_err();
         match err {
-            ACLError::SerdeYamlError(_e) => assert!(true),
+            ACLError::ParseYamlFailedError(_e) => assert!(true),
             _ => panic!("invalid err"),
         }
 

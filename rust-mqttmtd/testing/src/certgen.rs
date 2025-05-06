@@ -39,7 +39,7 @@ pub struct CertgenArgs {
     #[arg(long)]
     server_cn: Option<String>,
 
-    /// Common Names for client certificates (can be specified multiple times). Overrides config file.s
+    /// Common Names for client certificates (can be specified multiple times). Overrides config file.
     #[arg(short, long)]
     client_cn: Vec<String>,
 
@@ -146,8 +146,7 @@ pub fn certgen(args: CertgenArgs) -> Result<(), CertgenError> {
     for line in display_config("certgen", &config).map_err(|_e| CertgenError::DisplayConfigFailedError())?.iter() {
         println!("{}", line);
     }
-    println!("");
-
+    
     // Create output directories
     if let Err(_) = fs::create_dir_all(&config.output_dir) {
         return Err(CertgenError::DirCreationFailedError(

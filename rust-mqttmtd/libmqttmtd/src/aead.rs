@@ -1,5 +1,7 @@
+//! States Seal/Open functions
+
 use algo::SupportedAlgorithm;
-use ring::aead::{Aad, LessSafeKey, NONCE_LEN, Nonce, Tag, UnboundKey};
+use ring::aead::{Aad, LessSafeKey, Nonce, Tag, UnboundKey, NONCE_LEN};
 
 pub mod algo;
 

@@ -1,9 +1,14 @@
+//! Defines a helper function to display config values.
+
 use serde::Serialize;
 use serde_yaml::Value;
 use std::collections::HashMap;
 use std::fmt::Display;
 
-pub fn display_config(title: impl Display, config: impl Serialize) -> Result<Vec<String>, serde_yaml::Error> {
+pub fn display_config(
+    title: impl Display,
+    config: impl Serialize,
+) -> Result<Vec<String>, serde_yaml::Error> {
     let mut fields_map: HashMap<String, Value> = HashMap::new();
 
     // Extract keys and values
@@ -26,7 +31,12 @@ pub fn display_config(title: impl Display, config: impl Serialize) -> Result<Vec
     let mut lines = Vec::<String>::with_capacity(fields_map.len() + 2);
     lines.push(format!("--- {} configuration ---", title));
     for entry in fields_map.iter() {
-        lines.push(format!("  {:width$}: {:?}", entry.0, entry.1, width = max_key_str_len));
+        lines.push(format!(
+            "  {:width$}: {:?}",
+            entry.0,
+            entry.1,
+            width = max_key_str_len
+        ));
     }
     lines.push("-".repeat(lines.get(0).unwrap().len()));
 

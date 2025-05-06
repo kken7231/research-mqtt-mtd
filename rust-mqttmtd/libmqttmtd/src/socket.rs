@@ -1,5 +1,4 @@
 //! Functions regarding plain/TLS sockets.
-
 pub mod error;
 pub(crate) mod macros;
 pub mod plain;

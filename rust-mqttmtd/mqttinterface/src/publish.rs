@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use base64::{Engine, engine::general_purpose};
+use base64::{engine::general_purpose, Engine};
 use bytes::BytesMut;
 use libmqttmtd::{
     aead::{self},
@@ -9,31 +9,40 @@ use libmqttmtd::{
 };
 use mqttbytes::v5::Publish;
 
-pub async fn publish_decode(
+/// Decodes publish packet from clients, replaces token and passes it down to Broker.
+pub async fn freeze_publish(
     verifier_port: u16,
     mut publish: Publish,
-) -> Result<Option<Publish>, PublishDecodeError> {
+) -> Result<Option<Publish>, PublishFreezeError> {
     // topic
     let token = publish.topic;
-    let decoded = general_purpose::STANDARD_NO_PAD.decode(token)?;
+    let decoded = general_purpose::STANDARD_NO_PAD
+        .decode(token)
+        .map_err(|e| PublishFreezeError::TokenDecodeError(e))?;
 
     // verify
     let res: Option<verifier::ResponseReader>;
     {
+        let req = verifier::Request::new(&decoded)
+            .map_err(|e| PublishFreezeError::VerifierRequestCreateError(e))?;
         let mut stream = PlainClient::new(format!("localhost:{}", verifier_port), None)
             .connect()
-            .await?;
-        let _req = verifier::Request::new(&decoded)?
+            .await
+            .map_err(|e| PublishFreezeError::VerifierConnectError(e))?;
+        let _ = req
             .write_to(&mut stream)
-            .await?;
-        let mut buf = BytesMut::with_capacity(1024);
-        res = verifier::ResponseReader::read_from(&mut stream, &mut buf[..]).await?;
+            .await
+            .map_err(|e| PublishFreezeError::VerifierRequestWriteError(e))?;
+        let mut buf = BytesMut::zeroed(1024);
+        res = verifier::ResponseReader::read_from(&mut stream, &mut buf[..])
+            .await
+            .map_err(|e| PublishFreezeError::VerifierResponseReadError(e))?;
     } // stream
 
     if let Some(response) = res {
         let nonce_len = response.aead_algo.nonce_len();
         if nonce_len > response.nonce.len() {
-            return Err(PublishDecodeError::NonceTooShortError);
+            return Err(PublishFreezeError::NonceTooShortError);
         }
 
         let mut in_out = BytesMut::from(publish.payload);
@@ -44,7 +53,8 @@ pub async fn publish_decode(
             &response.enc_key,
             &response.nonce,
             &mut in_out[..],
-        )?;
+        )
+            .map_err(|e| PublishFreezeError::PayloadOpenError(e))?;
         let tag_len = response.aead_algo.tag_len();
 
         publish.payload = in_out.split_to(tag_len).freeze();
@@ -57,66 +67,54 @@ pub async fn publish_decode(
 }
 
 #[derive(Debug)]
-pub enum PublishDecodeError {
+pub enum PublishFreezeError {
     /// Wraps [base64::DecodeError]
-    Base64DecodeError(base64::DecodeError),
+    TokenDecodeError(base64::DecodeError),
 
-    /// Wraps [libmqttmtd::auth_serv::error::AuthServerParserError]
-    AuthServerPacketParseError(libmqttmtd::auth_serv::error::AuthServerParserError),
+    /// Wraps [libmqttmtd::auth_serv::error::AuthServerParserError] error on request generation
+    VerifierRequestCreateError(libmqttmtd::auth_serv::error::AuthServerParserError),
 
-    /// Wraps [ring::error::Unspecified]
-    RingDecodeError(ring::error::Unspecified),
+    /// Wraps [libmqttmtd::socket::error::SocketError] error on client connect
+    VerifierConnectError(libmqttmtd::socket::error::SocketError),
 
-    /// Wraps [libmqttmtd::socket::error::SocketError]
-    AuthServerSocketError(libmqttmtd::socket::error::SocketError),
+    /// Wraps [libmqttmtd::auth_serv::error::AuthServerParserError] error on writing request
+    VerifierRequestWriteError(libmqttmtd::auth_serv::error::AuthServerParserError),
+
+    /// Wraps [libmqttmtd::auth_serv::error::AuthServerParserError] error on reading response
+    VerifierResponseReadError(libmqttmtd::auth_serv::error::AuthServerParserError),
+
+    /// Wraps [ring::error::Unspecified] on opening sealed payload
+    PayloadOpenError(ring::error::Unspecified),
 
     /// Indicates that the nonce is too short
     NonceTooShortError,
 }
 
-impl std::error::Error for PublishDecodeError {}
-impl Display for PublishDecodeError {
+impl std::error::Error for PublishFreezeError {}
+impl Display for PublishFreezeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PublishDecodeError::Base64DecodeError(e) => {
-                write!(f, "base64 decode failed: {}", e)
+            PublishFreezeError::TokenDecodeError(e) => {
+                write!(f, "token decoding (base64) failed: {}", e)
             }
-            PublishDecodeError::AuthServerPacketParseError(e) => {
-                write!(f, "auth server packet parsing failed: {}", e)
+            PublishFreezeError::VerifierRequestCreateError(e) => {
+                write!(f, "failed to create a verifier request: {}", e)
             }
-            PublishDecodeError::RingDecodeError(e) => {
-                write!(f, "decoding with ring failed: {}", e)
+            PublishFreezeError::VerifierConnectError(e) => {
+                write!(f, "failed to connect to verifier: {}", e)
             }
-            PublishDecodeError::AuthServerSocketError(e) => {
-                write!(f, "auth server socket failed: {}", e)
+            PublishFreezeError::VerifierRequestWriteError(e) => {
+                write!(f, "failed to write request to verifier: {}", e)
             }
-            PublishDecodeError::NonceTooShortError => {
+            PublishFreezeError::VerifierResponseReadError(e) => {
+                write!(f, "failed to read response from verifier: {}", e)
+            }
+            PublishFreezeError::PayloadOpenError(e) => {
+                write!(f, "failed to open a sealed message: {}", e)
+            }
+            PublishFreezeError::NonceTooShortError => {
                 write!(f, "nonce is too short")
             }
         }
-    }
-}
-
-impl From<base64::DecodeError> for PublishDecodeError {
-    fn from(value: base64::DecodeError) -> Self {
-        PublishDecodeError::Base64DecodeError(value)
-    }
-}
-
-impl From<libmqttmtd::auth_serv::error::AuthServerParserError> for PublishDecodeError {
-    fn from(value: libmqttmtd::auth_serv::error::AuthServerParserError) -> Self {
-        PublishDecodeError::AuthServerPacketParseError(value)
-    }
-}
-
-impl From<ring::error::Unspecified> for PublishDecodeError {
-    fn from(value: ring::error::Unspecified) -> Self {
-        PublishDecodeError::RingDecodeError(value)
-    }
-}
-
-impl From<libmqttmtd::socket::error::SocketError> for PublishDecodeError {
-    fn from(value: libmqttmtd::socket::error::SocketError) -> Self {
-        PublishDecodeError::AuthServerSocketError(value)
     }
 }
