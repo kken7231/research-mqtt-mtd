@@ -2,12 +2,18 @@ use std::ops::Shl;
 
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
+use super::error::AuthServerParserError;
 use crate::{
     aead::algo::SupportedAlgorithm,
     consts::{RANDOM_LEN, TIMESTAMP_LEN},
 };
 
-use super::error::AuthServerParserError;
+/// Minimum required buffer length for the buf for both request parsing and response parsing.
+pub const REQ_RESP_MIN_BUFLEN: usize = if REQUEST_MIN_BUFLEN > RESPONSE_MIN_BUFLEN {
+    REQUEST_MIN_BUFLEN
+} else {
+    RESPONSE_MIN_BUFLEN
+};
 
 /// # Request for Issuer interface
 ///
@@ -54,13 +60,13 @@ impl Request {
         is_pub: bool,
         num_tokens_divided_by_4: u8,
         aead_algo: SupportedAlgorithm,
-        topic: String,
+        topic: impl Into<String>,
     ) -> Self {
         Self {
             is_pub,
             num_tokens_divided_by_4,
             aead_algo,
-            topic,
+            topic: topic.into(),
         }
     }
 
@@ -315,8 +321,7 @@ impl<'a, 'b, 'c> ResponseWriter<'a, 'b, 'c> {
         stream: &mut W,
         buf: impl Into<Option<&mut [u8]>>,
     ) -> Result<usize, AuthServerParserError> {
-        Self::write_to(None, stream, buf, ResponseStatus::Error)
-            .await
+        Self::write_to(None, stream, buf, ResponseStatus::Error).await
     }
 
     pub async fn write_success_to<W: AsyncWrite + Unpin>(
@@ -582,12 +587,10 @@ mod tests {
         let result = Request::read_from(&mut mock_stream, &mut small_buf[..]).await;
 
         assert!(result.is_err());
-        assert!(
-            match result.unwrap_err() {
-                AuthServerParserError::BufferTooSmallError() => true,
-                _ => false,
-            }
-        );
+        assert!(match result.unwrap_err() {
+            AuthServerParserError::BufferTooSmallError() => true,
+            _ => false,
+        });
 
         // Read out all the remained bytes
         let mut read_buf = [0u8; 2];
@@ -604,12 +607,10 @@ mod tests {
         let result = original_req.write_to(&mut mock_stream, &mut buf[..]).await;
 
         assert!(result.is_err());
-        assert!(
-            match result.unwrap_err() {
-                AuthServerParserError::TopicTooLongError() => true,
-                _ => false,
-            }
-        );
+        assert!(match result.unwrap_err() {
+            AuthServerParserError::TopicTooLongError() => true,
+            _ => false,
+        });
     }
 
     #[tokio::test]
@@ -618,7 +619,7 @@ mod tests {
             0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22,
             0x33, 0x44,
         ]
-            .into_boxed_slice(); // Dummy key
+        .into_boxed_slice(); // Dummy key
         let timestamp = [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]; // Dummy timestamp
         let nonce_base = [
             0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF,
@@ -627,7 +628,7 @@ mod tests {
             0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E,
             0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
         ]
-            .into_boxed_slice(); // Dummy randoms (e.g., 1 token * 8 bytes)
+        .into_boxed_slice(); // Dummy randoms (e.g., 1 token * 8 bytes)
 
         let expected_bytes = [
             0x00, // Status: Success (0)
@@ -666,8 +667,8 @@ mod tests {
             SupportedAlgorithm::Aes128Gcm,
             (all_randoms.len() / RANDOM_LEN).shr(2) as u8, // num_tokens_divided_dy_4
         )
-            .await
-            .expect("Failed to read response");
+        .await
+        .expect("Failed to read response");
 
         assert!(parsed_resp_option.is_some());
         let parsed_resp = parsed_resp_option.unwrap();
@@ -702,8 +703,8 @@ mod tests {
             SupportedAlgorithm::Aes128Gcm, // Dummy aead_algo (not used for error)
             1,                             // Dummy num_tokens_divided_dy_4 (not used for error)
         )
-            .await
-            .expect("Failed to read response");
+        .await
+        .expect("Failed to read response");
 
         assert!(
             parsed_resp_option.is_none(),
@@ -722,15 +723,13 @@ mod tests {
             SupportedAlgorithm::Aes128Gcm,
             1,
         )
-            .await;
+        .await;
 
         assert!(result.is_err());
-        assert!(
-            match result.unwrap_err() {
-                AuthServerParserError::BufferTooSmallError() => true,
-                _ => false,
-            }
-        );
+        assert!(match result.unwrap_err() {
+            AuthServerParserError::BufferTooSmallError() => true,
+            _ => false,
+        });
 
         // Write in all the remained bytes
         let mut read_buf = [0u8; 3];

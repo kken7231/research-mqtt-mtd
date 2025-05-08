@@ -1,6 +1,7 @@
 use clap::Parser;
 use config::{Config, File};
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about)]
@@ -41,13 +42,13 @@ pub(super) struct CliArgs {
 /// Expresses a collection of configurable values.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(super) struct AppConfig {
-    pub server_cert_pem: String,
-    pub server_key_pem: String,
-    pub client_certs_dir: String,
+    pub server_cert_pem: PathBuf,
+    pub server_key_pem: PathBuf,
+    pub client_certs_dir: PathBuf,
     pub client_auth_disabled: bool,
     pub issuer_port: u16,
     pub verifier_port: u16,
-    pub acl: String,
+    pub acl: PathBuf,
 }
 
 /// Loads config variables from both CLI arguments and a config file.

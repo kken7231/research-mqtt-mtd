@@ -4,13 +4,13 @@ version = "2.0.0"
 edition = "2024"
 
 [dependencies]
-clap ={ version = "4.5.37", features=["derive"]}
+clap = { version = "4.5.37", features = ["derive"] }
 libmqttmtd = { path = "../libmqttmtd" }
 ring = "0.17.14"
-serde = { version = "1.0.219", default-features=false,features = ["derive"] }
+serde = { version = "1.0.219", default-features = false, features = ["derive"] }
 serde_yaml = "0.9.34"
-tokio = { version = "1.44.2", default-features=false,features = ["io-util", "rt-multi-thread", "macros"] }
-config = { version="0.15.11" , default-features=false, features = ["toml", "yaml"]}
+tokio = { version = "1.44.2", default-features = false, features = ["io-util", "rt-multi-thread", "macros"] }
+config = { version = "0.15.11", default-features = false, features = ["toml", "yaml"] }
 
 [dev-dependencies]
 tempfile = "3.19.1"

@@ -3,7 +3,7 @@ use std::{error::Error, sync::Arc};
 use crate::acl::AccessControlList;
 use crate::config::load_config;
 use atl::AccessTokenList;
-use libmqttmtd::printer::display_config;
+use libmqttmtd::config_helper::display_config;
 use libmqttmtd::socket::{plain::PlainServer, tls::TlsServer, tls_config::TlsConfigLoader};
 
 mod acl;
@@ -71,12 +71,15 @@ pub async fn run_server() -> Result<(), Box<dyn Error>> {
 
     // Wait till either one of two ends
     tokio::select! {
-        _ = verifier => {
-            eprintln!("verifier interface ended. stopping issuer as well...")
+        result = verifier => {
+            eprintln!("verifier interface ended. stopping issuer as well...");
+            result
         },
-        _ = issuer => {
-            eprintln!("issuer interface ended. stopping verifier as well...")
+        result = issuer => {
+            eprintln!("issuer interface ended. stopping verifier as well...");
+            result
         },
     }
-    Ok(())
+    .unwrap()
+    .map_err(|e| Box::new(e) as Box<dyn Error>)
 }

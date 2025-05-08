@@ -36,7 +36,7 @@ RUN wget -O /dumb-init https://github.com/Yelp/dumb-init/releases/download/v1.2.
 RUN chmod +x /dumb-init
 
 # copy entrypoint shellscript
-COPY ./docker/entrypoint_client.sh /run.sh
+COPY ./docker/entrypoints/entrypoint_client.sh /run.sh
 
 # copy tokenmgr binary
 COPY --from=builder /rust-mqttmtd/target/aarch64-unknown-linux-musl/debug/tokenmgr /mqttmtd/bin/
@@ -48,8 +48,5 @@ COPY ./tests/certs/clients /certs/clients
 # copy confs
 COPY ./tests/mqttmtd/conf /mqttmtd/conf
 COPY ./tests/mosquitto/conf /mosquitto/conf
-
-# copy test scripts
-COPY ./tests/scripts /scripts/
 
 ENTRYPOINT ["/dumb-init", "--", "/bin/sh", "/run.sh"]

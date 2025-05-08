@@ -2,7 +2,7 @@ services:
   server:
     build:
       context: ..
-      dockerfile: ./docker/Dockerfile.server
+      dockerfile: ./docker/Dockerfiles/Dockerfile.server
     container_name: server
     environment:
       - PROTOCOL=${PROTOCOL}
@@ -22,7 +22,6 @@ services:
       dockerfile: ./docker/Dockerfile.client
     environment:
       - PROTOCOL=${PROTOCOL}
-      - RUNNER_TYPE=${RUNNER_TYPE}
       - CLIENT_NAME="client1"
     tty: true
     stdin_open: true

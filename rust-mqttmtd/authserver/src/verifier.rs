@@ -2,17 +2,10 @@
 
 use std::{net::SocketAddr, sync::Arc};
 
-use libmqttmtd::auth_serv::verifier;
+use libmqttmtd::auth_serv::{issuer, verifier};
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::{atl::AccessTokenList, authserver_verifier_eprintln, authserver_verifier_println};
-
-/// Minimum required buffer length for the buf for both request parsing and response parsing.
-const REQ_RESP_MIN_BUFLEN: usize = if verifier::REQUEST_MIN_BUFLEN > verifier::RESPONSE_MIN_BUFLEN {
-    verifier::RESPONSE_MIN_BUFLEN
-} else {
-    verifier::REQUEST_MIN_BUFLEN
-};
 
 macro_rules! send_verifier_err_resp_if_err {
     ($result:expr, $err_str:expr, $stream:expr, $addr:expr, $buf:expr) => { // Accept two expressions: the Result and the error string
@@ -36,7 +29,7 @@ pub(crate) async fn handler(
     mut stream: impl AsyncRead + AsyncWrite + Unpin,
     addr: SocketAddr,
 ) {
-    let mut buf = [0u8; REQ_RESP_MIN_BUFLEN];
+    let mut buf = [0u8; verifier::REQ_RESP_MIN_BUFLEN];
 
     // Parse request
     let req = send_verifier_err_resp_if_err!(
@@ -66,8 +59,8 @@ pub(crate) async fn handler(
             token_set.topic(),
             token_set.enc_key(),
         )
-            .write_success_to(&mut stream, &mut buf[..])
-            .await
+        .write_success_to(&mut stream, &mut buf[..])
+        .await
     } else {
         verifier::ResponseWriter::write_failure_to(&mut stream, &mut buf[..]).await
     };

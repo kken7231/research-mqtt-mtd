@@ -12,7 +12,7 @@ RUN wget -O /dumb-init https://github.com/Yelp/dumb-init/releases/download/v1.2.
 RUN chmod +x /dumb-init
 
 # copy entrypoint shellscript
-COPY ./docker/entrypoint_subscriber.sh /run.sh
+COPY ./docker/entrypoints/entrypoint_subscriber.sh /run.sh
 
 # copy certs
 COPY ./tests/certs/ca/ca.crt /certs/ca/ca.crt

@@ -4,6 +4,13 @@ use crate::{aead::algo::SupportedAlgorithm, consts::TOKEN_LEN};
 
 use super::error::AuthServerParserError;
 
+/// Minimum required buffer length for the buf for both request parsing and response parsing.
+pub const REQ_RESP_MIN_BUFLEN: usize = if REQUEST_MIN_BUFLEN > RESPONSE_MIN_BUFLEN {
+    RESPONSE_MIN_BUFLEN
+} else {
+    REQUEST_MIN_BUFLEN
+};
+
 /// # Request for Verifier interface
 ///
 /// # Structure:

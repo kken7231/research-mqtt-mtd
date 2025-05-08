@@ -52,11 +52,11 @@ impl PlainServer {
     pub fn spawn<F, Fut>(self, handler: F) -> JoinHandle<Result<(), SocketError>>
     where
         F: Fn(TcpStream, SocketAddr) -> Fut + Send + Sync + 'static,
-        Fut: std::future::Future<Output=()> + Send + 'static,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
     {
         sock_serv_println!("spawning socket server...");
         tokio::spawn(async move {
-            let listener = TcpListener::bind(format!("localhost:{}", self.port))
+            let listener = TcpListener::bind(format!("0.0.0.0:{}", self.port))
                 .await
                 .map_err(|e| SocketError::BindError(e))?;
             let handler = Arc::new(handler);
@@ -191,7 +191,7 @@ mod tests {
             Duration::from_secs(1),
             PlainServer::new(PORT, TO_SERVER).spawn(|_, _| async {}),
         )
-            .await
+        .await
         {
             Ok(Ok(Err(SocketError::InvalidTimeoutError(e)))) => e == TO_SERVER,
             _ => false,
@@ -215,7 +215,7 @@ mod tests {
             Duration::from_secs(1),
             PlainClient::new(format!("localhost:{}", PORT), TO_CLIENT).connect(),
         )
-            .await
+        .await
         {
             Ok(Ok(_)) => true,
             _ => false,
@@ -232,7 +232,7 @@ mod tests {
             Duration::from_secs(2),
             PlainClient::new(format!("localhost:{}", PORT), TO_CLIENT).connect(),
         )
-            .await
+        .await
         {
             Ok(Err(SocketError::ConnectError(e))) => e.kind() == ErrorKind::ConnectionRefused,
             _ => false,

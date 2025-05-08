@@ -4,8 +4,8 @@ extern crate libmqttmtd;
 
 #[tokio::main]
 async fn main() {
-    if let Err(_) = run_server().await {
-        authserver_eprintln!("Auth Server ended with error");
+    if let Err(e) = run_server().await {
+        authserver_eprintln!("Auth Server ended with error: {}", e);
     } else {
         authserver_println!("Auth Server ended (unexpected reach)");
     }

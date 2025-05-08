@@ -1,78 +1,44 @@
-pub mod config;
-pub mod once;
-pub mod server;
-pub mod tokenset;
+use crate::errors::TokenFetchError;
+use libmqttmtd::auth_serv::issuer;
+use libmqttmtd::socket::tls::TlsClient;
+use std::sync::Arc;
+use tokio::net::ToSocketAddrs;
+
+// pub mod config;
 pub mod errors;
+pub mod tokenset;
 
-use crate::config::{load_config, CliArgs};
-use clap::Parser;
-use libmqttmtd::{
-    aead::algo::SupportedAlgorithm, auth_serv::issuer, socket::tls_config::TlsConfigLoader,
-};
-use once::run_once;
-use server::run_server;
-use std::{net::ToSocketAddrs, path::Path, sync::Arc};
+pub async fn fetch_tokens<A: ToSocketAddrs + Send + 'static>(
+    issuer_addr: A,
+    tls_config: Arc<rustls::ClientConfig>,
+    request: &issuer::Request,
+) -> Result<issuer::ResponseReader, TokenFetchError> {
+    // Connect to the issuer
+    let mut issuer_stream = TlsClient::new(issuer_addr, None, tls_config)
+        .connect("server")
+        .await
+        .map_err(|e| TokenFetchError::IssuerConnectError(e))?;
+    let mut buf = [0u8; issuer::REQ_RESP_MIN_BUFLEN];
 
-pub async fn process() {
-    let cli_args: CliArgs = CliArgs::parse();
+    // Write a request
+    request
+        .write_to(&mut issuer_stream, &mut buf[..])
+        .await
+        .map_err(|e| TokenFetchError::SocketWriteError(e))?;
 
-    // Load configuration from file, allowing overrides from command line
-    let config = match load_config(&cli_args) {
-        Ok(cfg) => cfg,
-        Err(e) => {
-            eprintln!("Error loading configuration: {}", e);
-            return;
-        }
-    };
-
-    let tls_config = match TlsConfigLoader::load_client_config(
-        &config.cli_cert,
-        &config.cli_key,
-        &config.ca_certs_dir,
-        config.client_auth_disabled,
-    ) {
-        Ok(cfg) => cfg,
-        Err(e) => {
-            eprintln!("error when constructing tls client config: {}", e);
-            return;
-        }
-    };
-
-    let token_sets_dir = Arc::new(Path::new(&config.token_sets_dir).to_owned());
-    let issuer_addr =
-        match format!("{}:{}", config.issuer_host, config.issuer_port).to_socket_addrs() {
-            Ok(mut addr) => match addr.next() {
-                Some(addr) => addr,
-                None => {
-                    eprintln!("address not found when formatting issuer address");
-                    return;
-                }
-            },
-            Err(e) => {
-                eprintln!("error when formatting issuer address: {}", e);
-                return;
-            }
-        };
-
-    if config.run_server {
-        run_server(tls_config, token_sets_dir, issuer_addr, config.server_port);
+    // Read the response
+    if let Some(success_response) = issuer::ResponseReader::read_from(
+        &mut issuer_stream,
+        &mut buf[..],
+        request.aead_algo(),
+        request.num_tokens_divided_by_4(),
+    )
+    .await
+    .map_err(|e| TokenFetchError::SocketReadError(e))?
+    {
+        Ok(success_response)
     } else {
-        let aead_algo = match cli_args.algo.as_str() {
-            "AES_128_GCM" => SupportedAlgorithm::Aes128Gcm,
-            "AES_256_GCM" => SupportedAlgorithm::Aes256Gcm,
-            "CHACHA20_POLY1305" => SupportedAlgorithm::Chacha20Poly1305,
-            _ => {
-                eprintln!("invalid AEAD algorithm: {}", cli_args.algo);
-                return;
-            }
-        };
-
-        let request = issuer::Request::new(
-            cli_args.is_pub,
-            ((cli_args.num_tokens / 4) & 0x7F) as u8,
-            aead_algo,
-            cli_args.topic,
-        );
-        run_once(tls_config, token_sets_dir, issuer_addr, &request).await;
+        eprintln!("issuing tokens failed on server side");
+        Err(TokenFetchError::ErrorResponseFromIssuer)
     }
 }

@@ -2,21 +2,13 @@
 
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
-use libmqttmtd::auth_serv::issuer;
-use tokio::io::{AsyncRead, AsyncWrite};
-
 use crate::acl::AccessControlList;
 use crate::{
     atl::{AccessTokenList, TokenSet},
     authserver_verifier_eprintln, authserver_verifier_println,
 };
-
-/// Minimum required buffer length for the buf for both request parsing and response parsing.
-const REQ_RESP_MIN_BUFLEN: usize = if issuer::REQUEST_MIN_BUFLEN > issuer::RESPONSE_MIN_BUFLEN {
-    issuer::RESPONSE_MIN_BUFLEN
-} else {
-    issuer::REQUEST_MIN_BUFLEN
-};
+use libmqttmtd::auth_serv::issuer;
+use tokio::io::{AsyncRead, AsyncWrite};
 
 macro_rules! send_issuer_err_resp_if_err {
     ($result:expr, $err_str:expr, $stream:expr, $addr:expr, $buf:expr) => {
@@ -46,7 +38,7 @@ pub(crate) async fn handler(
     mut stream: impl AsyncRead + AsyncWrite + Unpin,
     addr: SocketAddr,
 ) {
-    let mut buf = [0u8; REQ_RESP_MIN_BUFLEN];
+    let mut buf = [0u8; issuer::REQ_RESP_MIN_BUFLEN];
 
     // Parse request
     let req = send_issuer_err_resp_if_err!(

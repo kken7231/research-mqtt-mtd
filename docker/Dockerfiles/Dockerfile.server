@@ -36,7 +36,7 @@ RUN wget -O /dumb-init https://github.com/Yelp/dumb-init/releases/download/v1.2.
 RUN chmod +x /dumb-init
 
 # copy entrypoint shellscript
-COPY ./docker/entrypoint_server.sh /run.sh
+COPY ./docker/entrypoints/entrypoint_server.sh /run.sh
 
 # copy authserver & mqttinterface binary
 COPY --from=builder /rust-mqttmtd/target/aarch64-unknown-linux-musl/debug/mqttmtd-authserver /mqttmtd/bin/
@@ -50,6 +50,9 @@ COPY ./tests/certs/clients /certs/clients
 # copy confs
 COPY ./tests/mqttmtd/conf /mqttmtd/conf
 COPY ./tests/mosquitto/conf /mosquitto/conf
+
+# copy acl
+COPY ./tests/mqttmtd/acl.yaml /mqttmtd/acl.yaml
 
 WORKDIR /scripts
 

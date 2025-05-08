@@ -1,11 +1,10 @@
 use clap::Args;
 use config::{Config, ConfigError, File};
-use libmqttmtd::printer::display_config;
+use libmqttmtd::config_helper::display_config;
 use rcgen::{
     BasicConstraints, Certificate, CertificateParams, DistinguishedName, DnType,
-    ExtendedKeyUsagePurpose, IsCa, KeyPair, KeyUsagePurpose,
-    PKCS_ECDSA_P256_SHA256, PKCS_ECDSA_P384_SHA384, PKCS_ED25519, PKCS_RSA_SHA256, PKCS_RSA_SHA384,
-    PKCS_RSA_SHA512,
+    ExtendedKeyUsagePurpose, IsCa, KeyPair, KeyUsagePurpose, PKCS_ECDSA_P256_SHA256,
+    PKCS_ECDSA_P384_SHA384, PKCS_ED25519, PKCS_RSA_SHA256, PKCS_RSA_SHA384, PKCS_RSA_SHA512,
 };
 use serde::{Deserialize, Serialize};
 use std::fmt::Formatter;
@@ -53,7 +52,7 @@ pub struct CertgenArgs {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct AppConfig {
+pub struct CertgenConfig {
     pub output_dir: PathBuf,
     pub key_algo: String,
     pub rsa_key_size: usize,
@@ -63,7 +62,7 @@ pub struct AppConfig {
     pub client_cn: Vec<String>,
     pub validity_days: i64,
 }
-fn load_config(args: CertgenArgs) -> Result<AppConfig, ConfigError> {
+fn load_config(args: CertgenArgs) -> Result<CertgenConfig, ConfigError> {
     let mut builder = Config::builder()
         .set_default("output_dir", "./")?
         .set_default("key_algo", "rsa")?
@@ -100,7 +99,33 @@ fn load_config(args: CertgenArgs) -> Result<AppConfig, ConfigError> {
         builder = builder.set_override("validity_days", value)?;
     }
 
-    builder.build()?.try_deserialize()
+    let mut config: CertgenConfig = builder.build()?.try_deserialize()?;
+
+    // Replace ~ with homedir
+    if let Some(resolved) = resolve_tilde(&config.output_dir) {
+        config.output_dir = resolved;
+    }
+
+    Ok(config)
+}
+
+fn resolve_tilde(path: &Path) -> Option<PathBuf> {
+    if path.starts_with("~") {
+        let mut new_path = path
+            .to_str()
+            .expect("failed to convert PathBuf to string")
+            .to_owned();
+        new_path.replace_range(
+            0..1,
+            dirs::home_dir()
+                .expect("failed to get home dir")
+                .to_str()
+                .expect("failed to convert home dir to str"),
+        );
+        Some(PathBuf::from(new_path))
+    } else {
+        None
+    }
 }
 
 /// Generates a key pair based on the specified algorithm and RSA key size, using the 'ring' crate.
@@ -143,15 +168,16 @@ pub fn certgen(args: CertgenArgs) -> Result<(), CertgenError> {
     // Parse command-line arguments
     let config = load_config(args).map_err(|e| CertgenError::LoadConfigFailedError(e))?;
 
-    for line in display_config("certgen", &config).map_err(|_e| CertgenError::DisplayConfigFailedError())?.iter() {
+    for line in display_config("certgen", &config)
+        .map_err(|_e| CertgenError::DisplayConfigFailedError())?
+        .iter()
+    {
         println!("{}", line);
     }
-    
+
     // Create output directories
     if let Err(_) = fs::create_dir_all(&config.output_dir) {
-        return Err(CertgenError::DirCreationFailedError(
-            config.output_dir.to_owned(),
-        ));
+        return Err(CertgenError::DirCreationFailedError(config.output_dir));
     }
     let ca_dir = config.output_dir.join("ca");
     if let Err(_) = fs::create_dir_all(&ca_dir) {
@@ -223,7 +249,7 @@ pub fn certgen(args: CertgenArgs) -> Result<(), CertgenError> {
         &server_key_path,
         &server_cert_path,
     )
-        .map_err(|e| CertgenError::SaveKeyCertFailedError(e))?;
+    .map_err(|e| CertgenError::SaveKeyCertFailedError(e))?;
     println!(
         "Server certificate and key saved to {:?} and {:?}",
         server_cert_path, server_key_path
@@ -259,7 +285,7 @@ pub fn certgen(args: CertgenArgs) -> Result<(), CertgenError> {
             &client_key_path,
             &client_cert_path,
         )
-            .map_err(|e| CertgenError::SaveKeyCertFailedError(e))?;
+        .map_err(|e| CertgenError::SaveKeyCertFailedError(e))?;
         println!(
             "  Client certificate and key saved to {:?} and {:?}",
             client_cert_path, client_key_path

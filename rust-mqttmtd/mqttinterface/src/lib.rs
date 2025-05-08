@@ -4,7 +4,7 @@ mod macros;
 mod publish;
 
 use crate::config::load_config;
-use libmqttmtd::printer::display_config;
+use libmqttmtd::config_helper::display_config;
 use libmqttmtd::socket::plain::PlainServer;
 use std::error::Error;
 

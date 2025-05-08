@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
-pub(super) struct CliArgs {
+pub(crate) struct CliArgs {
     /// Run server if true, otherwise run once. Overrides config file.
     #[arg(long)]
     run_server: Option<bool>,

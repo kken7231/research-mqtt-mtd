@@ -1,0 +1,4 @@
+client1:
+  "topic/pubsub": PubSub
+  "topic/pubonly": PubOnly
+  "topic/subonly": SubOnly

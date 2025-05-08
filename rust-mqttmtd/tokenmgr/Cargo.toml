@@ -5,11 +5,11 @@ edition = "2024"
 
 [dependencies]
 base64 = "0.22.1"
-clap ={ version = "4.5.37", features=["derive"]}
+clap = { version = "4.5.37", features = ["derive"] }
 libmqttmtd = { path = "../libmqttmtd" }
 walkdir = "2.5.0"
-rustls = { version = "0.23.26",default-features = false, features = ["ring"] }
-tokio = { version = "1.44.2", default-features = false, features = ["net", "fs", "rt-multi-thread", "macros"]}
+rustls = { version = "0.23.26", default-features = false, features = ["ring"] }
+tokio = { version = "1.44.2", default-features = false, features = ["net", "fs", "rt-multi-thread", "macros"] }
 bytes = "1.10.1"
 config = "0.15.11"
 serde = { version = "1.0.219", features = ["derive"] }

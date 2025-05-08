@@ -1,8 +1,7 @@
-use crate::certgen::{certgen, CertgenArgs};
+use crate::certgen::{CertgenArgs, certgen};
 use clap::{Parser, Subcommand};
-use std::error::Error;
 
-pub(crate) mod certgen;
+mod certgen;
 
 /// Command-line arguments for the certificate generator.
 #[derive(Parser)]
@@ -18,10 +17,9 @@ enum Commands {
     Certgen(CertgenArgs),
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() {
     let args: Args = Args::parse();
     match args.command {
-        Commands::Certgen(args) => certgen(args)?,
+        Commands::Certgen(args) => certgen(args).expect("failed to generate certs"),
     };
-    Ok(())
 }
