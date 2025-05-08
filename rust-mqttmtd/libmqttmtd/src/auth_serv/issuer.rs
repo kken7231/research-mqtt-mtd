@@ -1,5 +1,4 @@
 use std::ops::Shl;
-
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 use super::error::AuthServerParserError;
@@ -67,6 +66,24 @@ impl Request {
             num_tokens_divided_by_4,
             aead_algo,
             topic: topic.into(),
+        }
+    }
+
+    pub fn validate(&self) -> Option<Vec<String>> {
+        let num_token_check = self.num_tokens_divided_by_4 == 0 || self.num_tokens_divided_by_4 > 0x7F;
+        let topic_len_check = self.topic.len() == 0;
+
+        if num_token_check || topic_len_check {
+            let mut errs: Vec<String> = vec![];
+            if num_token_check {
+                errs.push(format!("invalid number of tokens: {}", (self.num_tokens_divided_by_4 as u16).rotate_left(2)));
+            }
+            if topic_len_check {
+                errs.push("topic length is zero".to_string());
+            }
+            Some(errs)
+        } else {
+            None
         }
     }
 
@@ -619,7 +636,7 @@ mod tests {
             0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22,
             0x33, 0x44,
         ]
-        .into_boxed_slice(); // Dummy key
+            .into_boxed_slice(); // Dummy key
         let timestamp = [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]; // Dummy timestamp
         let nonce_base = [
             0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF,
@@ -628,7 +645,7 @@ mod tests {
             0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E,
             0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
         ]
-        .into_boxed_slice(); // Dummy randoms (e.g., 1 token * 8 bytes)
+            .into_boxed_slice(); // Dummy randoms (e.g., 1 token * 8 bytes)
 
         let expected_bytes = [
             0x00, // Status: Success (0)
@@ -667,8 +684,8 @@ mod tests {
             SupportedAlgorithm::Aes128Gcm,
             (all_randoms.len() / RANDOM_LEN).shr(2) as u8, // num_tokens_divided_dy_4
         )
-        .await
-        .expect("Failed to read response");
+            .await
+            .expect("Failed to read response");
 
         assert!(parsed_resp_option.is_some());
         let parsed_resp = parsed_resp_option.unwrap();
@@ -703,8 +720,8 @@ mod tests {
             SupportedAlgorithm::Aes128Gcm, // Dummy aead_algo (not used for error)
             1,                             // Dummy num_tokens_divided_dy_4 (not used for error)
         )
-        .await
-        .expect("Failed to read response");
+            .await
+            .expect("Failed to read response");
 
         assert!(
             parsed_resp_option.is_none(),
@@ -723,7 +740,7 @@ mod tests {
             SupportedAlgorithm::Aes128Gcm,
             1,
         )
-        .await;
+            .await;
 
         assert!(result.is_err());
         assert!(match result.unwrap_err() {

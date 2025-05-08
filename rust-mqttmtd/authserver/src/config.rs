@@ -14,9 +14,9 @@ pub(super) struct CliArgs {
     #[arg(long)]
     server_key_pem: Option<String>,
 
-    /// Directory containing client certificates for authentication. Default: "./certs/clients". Overrides config file.
+    /// Directory containing CA certificates for authentication. Default: "./certs/ca". Overrides config file.
     #[arg(long)]
-    client_certs_dir: Option<String>,
+    ca_certs_dir: Option<String>,
 
     /// Disable client certificate authentication. Default: false. Overrides config file.
     #[arg(long)]
@@ -44,7 +44,7 @@ pub(super) struct CliArgs {
 pub(super) struct AppConfig {
     pub server_cert_pem: PathBuf,
     pub server_key_pem: PathBuf,
-    pub client_certs_dir: PathBuf,
+    pub ca_certs_dir: PathBuf,
     pub client_auth_disabled: bool,
     pub issuer_port: u16,
     pub verifier_port: u16,
@@ -58,7 +58,7 @@ pub(super) fn load_config() -> Result<AppConfig, config::ConfigError> {
     let mut builder = Config::builder()
         .set_default("server_cert_pem", "./certs/server/cert.crt")?
         .set_default("server_key_pem", "./certs/server/key.pem")?
-        .set_default("client_certs_dir", "./certs/clients")?
+        .set_default("ca_certs_dir", "./certs/ca")?
         .set_default("client_auth_disabled", false)?
         .set_default("issuer_port", 3000)?
         .set_default("verifier_port", 3001)?
@@ -71,8 +71,8 @@ pub(super) fn load_config() -> Result<AppConfig, config::ConfigError> {
     if let Some(value) = args.server_key_pem {
         builder = builder.set_override("server_key_pem", value)?;
     }
-    if let Some(value) = args.client_certs_dir {
-        builder = builder.set_override("client_certs_dir", value)?;
+    if let Some(value) = args.ca_certs_dir {
+        builder = builder.set_override("ca_certs_dir", value)?;
     }
     if let Some(value) = args.client_auth_disabled {
         builder = builder.set_override("client_auth_disabled", value)?;

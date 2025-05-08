@@ -1,6 +1,6 @@
 server_cert_pem = "/certs/server/server.crt"
 server_key_pem = "/certs/server/server.pem"
-client_certs_dir = "/certs/clients"
+ca_certs_dir = "/certs/ca"
 acl = "/mqttmtd/acl.yaml"
 client_auth_disabled = false
 issuer_port = 3000

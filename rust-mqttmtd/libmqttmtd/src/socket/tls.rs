@@ -230,7 +230,7 @@ mod tests {
         let conf_serv = TlsConfigLoader::load_server_config(
             &server_dir.join("cert.crt"),
             &server_dir.join("key.pem"),
-            &clients_dir,
+            &ca_dir,
             no_client_auth,
         );
         assert!(conf_serv.is_ok());

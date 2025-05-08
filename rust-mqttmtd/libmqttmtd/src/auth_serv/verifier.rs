@@ -54,6 +54,11 @@ impl Request {
         }
     }
 
+    pub fn validate(&self) -> Vec<String> {
+        vec![]
+    }
+
+
     pub async fn read_from<R: AsyncRead + Unpin>(
         stream: &mut R,
     ) -> Result<Self, AuthServerParserError> {

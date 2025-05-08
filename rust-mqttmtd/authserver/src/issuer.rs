@@ -5,21 +5,25 @@ use std::{net::SocketAddr, sync::Arc, time::Duration};
 use crate::acl::AccessControlList;
 use crate::{
     atl::{AccessTokenList, TokenSet},
-    authserver_verifier_eprintln, authserver_verifier_println,
+    authserver_issuer_eprintln, authserver_issuer_println,
 };
 use libmqttmtd::auth_serv::issuer;
 use tokio::io::{AsyncRead, AsyncWrite};
+use tokio_rustls::server::TlsStream;
+use x509_parser::extensions::GeneralName;
+use x509_parser::nom::AsBytes;
+use x509_parser::parse_x509_certificate;
 
 macro_rules! send_issuer_err_resp_if_err {
     ($result:expr, $err_str:expr, $stream:expr, $addr:expr, $buf:expr) => {
         match $result {
             Ok(v) => v,
             Err(e) => {
-                authserver_verifier_eprintln!($addr, $err_str, e);
+                authserver_issuer_eprintln!($addr, $err_str, e);
                 if let Err(send_err) =
                     issuer::ResponseWriter::write_error_to(&mut $stream, &mut $buf[..]).await
                 {
-                    authserver_verifier_eprintln!(
+                    authserver_issuer_eprintln!(
                         $addr,
                         "Error sending out issuer (error) response: {}",
                         send_err
@@ -32,10 +36,10 @@ macro_rules! send_issuer_err_resp_if_err {
 }
 
 /// Handler function that handles a new connection with a client through issuer interface.
-pub(crate) async fn handler(
+pub(crate) async fn handler<IO: AsyncRead + AsyncWrite + Unpin>(
     acl: Arc<AccessControlList>,
     atl: Arc<AccessTokenList>,
-    mut stream: impl AsyncRead + AsyncWrite + Unpin,
+    mut stream: TlsStream<IO>,
     addr: SocketAddr,
 ) {
     let mut buf = [0u8; issuer::REQ_RESP_MIN_BUFLEN];
@@ -49,13 +53,67 @@ pub(crate) async fn handler(
         buf
     );
 
-    // Check with ACL if access can be granted
-    if !acl.check_if_allowed("localhost", req.topic(), req.is_pub()) {
-        authserver_verifier_eprintln!(addr, "failed ACL verification");
+    if let Some(errs) = req.validate() {
+        authserver_issuer_eprintln!(addr, "failed to validate request: {:?}", errs);
         if let Err(send_err) =
             issuer::ResponseWriter::write_error_to(&mut stream, &mut buf[..]).await
         {
-            authserver_verifier_eprintln!(
+            authserver_issuer_eprintln!(
+                addr,
+                "Error sending out issuer (error) response: {}",
+                send_err
+            );
+        };
+        return;
+    }
+
+    // Get the peer certificates
+    let user_hostname =
+        stream
+            .get_ref()
+            .1
+            .peer_certificates()
+            .and_then(|certificates| {
+                certificates.get(0).and_then(|cert_der| {
+                    parse_x509_certificate(cert_der.as_bytes())
+                        .ok()
+                        .and_then(|(_, certificate)| {
+                            certificate.subject_alternative_name().ok().and_then(|opt| {
+                                opt.and_then(|san_extension| {
+                                    // Get the first DNS SAN
+                                    san_extension.value.general_names.iter().find_map(
+                                        |general_name| match general_name {
+                                            GeneralName::DNSName(name) => Some(name.to_string()),
+                                            _ => None,
+                                        },
+                                    )
+                                })
+                            })
+                        })
+                })
+            });
+    if user_hostname == None {
+        authserver_issuer_eprintln!(addr, "failed to extract DNS name from SAN extension");
+        if let Err(send_err) =
+            issuer::ResponseWriter::write_error_to(&mut stream, &mut buf[..]).await
+        {
+            authserver_issuer_eprintln!(
+                addr,
+                "Error sending out issuer (error) response: {}",
+                send_err
+            );
+        };
+        return;
+    }
+    let user_hostname = user_hostname.unwrap();
+
+    // Check with ACL if access can be granted
+    if !acl.check_if_allowed(user_hostname, req.topic(), req.is_pub()) {
+        authserver_issuer_eprintln!(addr, "failed ACL verification");
+        if let Err(send_err) =
+            issuer::ResponseWriter::write_error_to(&mut stream, &mut buf[..]).await
+        {
+            authserver_issuer_eprintln!(
                 addr,
                 "Error sending out issuer (error) response: {}",
                 send_err
@@ -103,8 +161,8 @@ pub(crate) async fn handler(
         .write_success_to(&mut stream, &mut buf[..])
         .await
     {
-        authserver_verifier_eprintln!(addr, "error sending out issuer response: {}", e);
+        authserver_issuer_eprintln!(addr, "error sending out issuer response: {}", e);
     } else {
-        authserver_verifier_println!(addr, "Issuer response sent out");
+        authserver_issuer_println!(addr, "Issuer response sent out");
     }
 }

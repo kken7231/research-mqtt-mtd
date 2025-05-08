@@ -1,6 +1,6 @@
 use crate::errors::TokenSetError;
-use base64::Engine;
 use base64::engine::general_purpose;
+use base64::Engine;
 use bytes::{Bytes, BytesMut};
 use libmqttmtd::aead::algo::SupportedAlgorithm;
 use libmqttmtd::auth_serv::issuer;
@@ -27,20 +27,24 @@ pub struct TokenSet {
 }
 
 impl TokenSet {
-    /// Helper function to encode topic string
+    /// Helper function to encode topic string.
     fn topic_b64encode(topic: &str) -> String {
         general_purpose::URL_SAFE_NO_PAD.encode(topic)
     }
 
-    /// Gets the current token
-    pub fn get_current_b64token(&self) -> String {
-        let mut cur_token = [0u8; TOKEN_LEN];
-        cur_token[..TIMESTAMP_LEN].copy_from_slice(&self.timestamp[..]);
-        cur_token[TIMESTAMP_LEN..].copy_from_slice(&self.all_randoms[self.token_idx as usize]);
-        general_purpose::URL_SAFE_NO_PAD.encode(&cur_token)
+    /// Gets the current token. `None` if `token_idx` has reached `num_tokens`, otherwise `Some`.
+    pub fn get_current_b64token(&self) -> Option<String> {
+        if self.num_tokens > self.token_idx {
+            let mut cur_token = [0u8; TOKEN_LEN];
+            cur_token[..TIMESTAMP_LEN].copy_from_slice(&self.timestamp[..]);
+            cur_token[TIMESTAMP_LEN..].copy_from_slice(&self.all_randoms[self.token_idx as usize]);
+            Some(general_purpose::URL_SAFE_NO_PAD.encode(&cur_token))
+        } else {
+            None
+        }
     }
 
-    /// Constructs a token set from Issuer Request & Response. Takes response's ownership but
+    /// Constructs a token set from Issuer Request & Response. intentionally takes response's ownership.
     pub fn from_issuer_req_resp(
         request: &issuer::Request,
         response: issuer::ResponseReader,
@@ -97,7 +101,7 @@ impl TokenSet {
         })
     }
 
-    /// Construct a token set from an existing file.
+    /// Constructs a token set from an existing file.
     pub fn from_file(path: PathBuf, is_pub: bool, topic: String) -> Result<Self, TokenSetError> {
         let topic_encoded = Self::topic_b64encode(&topic);
 

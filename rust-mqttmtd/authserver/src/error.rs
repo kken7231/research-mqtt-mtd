@@ -24,6 +24,12 @@ pub enum ATLError {
 
     /// Indicates too long valid duration
     ValidDurationTooLongError(std::time::Duration),
+
+    /// Indicates invalid number of tokens (divided by four)
+    InvalidNumTokensDiv4Error(u8),
+
+    /// Indicates empty topic
+    EmptyTopicError,
 }
 
 impl std::error::Error for ATLError {}
@@ -45,6 +51,12 @@ impl std::fmt::Display for ATLError {
             }
             ATLError::ValidDurationTooLongError(d) => {
                 write!(f, "valid duration is too long: {} secs", d.as_secs())
+            }
+            ATLError::InvalidNumTokensDiv4Error(n) => {
+                write!(f, "invalid number of tokens: {}", (*n as u16).rotate_left(2))
+            }
+            ATLError::EmptyTopicError => {
+                write!(f, "empty token not allowed")
             }
         }
     }

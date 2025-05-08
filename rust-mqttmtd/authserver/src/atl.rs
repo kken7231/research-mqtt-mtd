@@ -52,6 +52,12 @@ impl TokenSet {
         if valid_dur >= Duration::from_secs(60 * 60 * 24 * 365) {
             return Err(ATLError::ValidDurationTooLongError(valid_dur));
         }
+        if num_tokens_divided_by_4 == 0 || num_tokens_divided_by_4 > 0x7F {
+            return Err(ATLError::InvalidNumTokensDiv4Error(num_tokens_divided_by_4));
+        }
+        if topic.len() == 0 {
+            return Err(ATLError::EmptyTopicError);
+        }
 
         Ok(Self {
             masked_timestamp: 0,

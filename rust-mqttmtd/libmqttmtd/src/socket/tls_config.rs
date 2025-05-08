@@ -12,10 +12,31 @@ use super::error::LoadTLSConfigError;
 pub struct TlsConfigLoader {}
 
 impl TlsConfigLoader {
+    /// Helper function to load CA certificates in the directory.
+    fn load_ca_certs(
+        ca_certs_dir: impl AsRef<Path>,
+    ) -> Result<Arc<RootCertStore>, LoadTLSConfigError> {
+        let mut ca_roots = RootCertStore::empty();
+        for entry in fs::read_dir(ca_certs_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+
+            if path.is_file() && path.extension() == Some(OsStr::new("crt")) {
+                let ca_cert = CertificateDer::from_pem_file(&path)?;
+                ca_roots.add(ca_cert)?;
+                println!(
+                    "CA cert loaded from {}",
+                    path.to_str().unwrap_or("FILENAME_UNAVAILABLE")
+                );
+            }
+        }
+        Ok(Arc::new(ca_roots))
+    }
+
     pub fn load_server_config(
         serv_cert_pem: impl AsRef<Path>,
         serv_key_pem: impl AsRef<Path>,
-        cli_certs_dir: impl AsRef<Path>,
+        ca_certs_dir: impl AsRef<Path>,
         no_client_auth: bool,
     ) -> Result<Arc<rustls::ServerConfig>, LoadTLSConfigError> {
         // Load server certificate
@@ -29,23 +50,8 @@ impl TlsConfigLoader {
         let key = PrivateKeyDer::from_pem_file(&serv_key_pem)?;
         println!("Server key loaded from {:?}", serv_key_pem.as_ref());
 
-        // Load client sertificates for mutual authentication
-        let mut cli_roots = RootCertStore::empty();
-        if !no_client_auth {
-            for entry in fs::read_dir(cli_certs_dir)? {
-                let entry = entry?;
-                let path = entry.path();
-
-                if path.is_file() && path.extension() == Some(OsStr::new("crt")) {
-                    let cli_cert = CertificateDer::from_pem_file(&path)?;
-                    cli_roots.add(cli_cert)?;
-                    println!(
-                        "Client cert loaded from {}",
-                        path.to_str().unwrap_or("FILENAME_UNAVAILABLE")
-                    );
-                }
-            }
-        }
+        // Load CA certs for client authentication
+        let ca_roots = Self::load_ca_certs(ca_certs_dir)?;
 
         // Create server config
         let config = rustls::ServerConfig::builder_with_provider(
@@ -54,7 +60,7 @@ impl TlsConfigLoader {
             .with_protocol_versions(&[&rustls::version::TLS13])?;
 
         let config = if !no_client_auth {
-            let cli_cert_verfier = WebPkiClientVerifier::builder(cli_roots.into()).build()?;
+            let cli_cert_verfier = WebPkiClientVerifier::builder(ca_roots).build()?;
             /* (!important) Making one of these is cheap, though one of the inputs may be expensive:
             gathering trust roots from the operating system to add to the RootCertStore passed to a
             ClientCertVerifier builder may take on the order of a few hundred milliseconds.*/
@@ -82,20 +88,7 @@ impl TlsConfigLoader {
         println!("Client key loaded from {:?}", cli_key_pem.as_ref());
 
         // Load CA certs
-        let mut ca_roots = RootCertStore::empty();
-        for entry in fs::read_dir(ca_certs_dir)? {
-            let entry = entry?;
-            let path = entry.path();
-
-            if path.is_file() && path.extension() == Some(OsStr::new("crt")) {
-                let ca_cert = CertificateDer::from_pem_file(&path)?;
-                ca_roots.add(ca_cert)?;
-                println!(
-                    "CA cert loaded from {}",
-                    path.to_str().unwrap_or("FILENAME_UNAVAILABLE")
-                );
-            }
-        }
+        let ca_roots = Self::load_ca_certs(ca_certs_dir)?;
 
         let config = rustls::ClientConfig::builder_with_provider(
             rustls::crypto::ring::default_provider().into(),
@@ -171,16 +164,16 @@ mod tests {
             .join("sample_serv_cert");
         let _ = create_cert_key_file(&temp_dir);
 
-        let cli_certs_dir = tempdir()
+        let ca_certs_dir = tempdir()
             .expect("failed to create temp dir")
             .as_ref()
-            .join("sample_cli_certs");
-        let _ = create_cert_key_file(&cli_certs_dir);
+            .join("sample_ca_certs");
+        let _ = create_cert_key_file(&ca_certs_dir);
 
         let config = TlsConfigLoader::load_server_config(
             temp_dir.join("cert.crt"),
             temp_dir.join("key.pem"),
-            cli_certs_dir,
+            ca_certs_dir,
             NO_CLIENT_AUTH,
         );
 
@@ -198,16 +191,16 @@ mod tests {
             .join("sample_serv_cert");
         let _ = create_cert_key_file(&temp_dir);
 
-        let cli_certs_dir = tempdir()
+        let ca_certs_dir = tempdir()
             .expect("failed to create temp dir")
             .as_ref()
-            .join("sample_cli_certs");
-        let _ = create_cert_key_file(&cli_certs_dir);
+            .join("sample_ca_certs");
+        let _ = create_cert_key_file(&ca_certs_dir);
 
         let config = TlsConfigLoader::load_server_config(
             temp_dir.join("cert.crt"),
             temp_dir.join("key.pem"),
-            cli_certs_dir,
+            ca_certs_dir,
             NO_CLIENT_AUTH,
         );
 

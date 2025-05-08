@@ -39,7 +39,7 @@ pub async fn run_server() -> Result<(), Box<dyn Error>> {
     let issuer_config = match TlsConfigLoader::load_server_config(
         config.server_cert_pem,
         config.server_key_pem,
-        config.client_certs_dir,
+        config.ca_certs_dir,
         config.client_auth_disabled,
     ) {
         Err(e) => {
