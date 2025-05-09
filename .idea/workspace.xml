@@ -23,32 +23,7 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="1bc01236-a6ec-4cbd-8cf4-711f3ebc56a4" name="Changes" comment="sync">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker/Dockerfiles/Dockerfile.client_wrapper" beforeDir="false" afterPath="$PROJECT_DIR$/docker/Dockerfiles/Dockerfile.client_wrapper" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/Cargo.lock" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/Cargo.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/authserver/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/authserver/Cargo.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/atl.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/atl.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/issuer.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/issuer.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/lib.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/verifier.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/verifier.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/libmqttmtd/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/libmqttmtd/Cargo.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/libmqttmtd/src/auth_serv/error.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/libmqttmtd/src/auth_serv/error.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/libmqttmtd/src/auth_serv/issuer.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/libmqttmtd/src/auth_serv/issuer.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/libmqttmtd/src/socket/plain.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/libmqttmtd/src/socket/plain.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/libmqttmtd/src/socket/tls.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/libmqttmtd/src/socket/tls.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/mqttinterface/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/mqttinterface/src/lib.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/Cargo.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/src/config.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/src/errors.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/src/errors.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/src/lib.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/src/tokenset.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/src/tokenset.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/tests/integration_tests.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/tests/integration_tests.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/mosquitto/conf/plain.conf" beforeDir="false" afterPath="$PROJECT_DIR$/tests/mosquitto/conf/plain.conf" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/mosquitto/conf/tls.conf" beforeDir="false" afterPath="$PROJECT_DIR$/tests/mosquitto/conf/tls.conf" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/mosquitto/conf/websocket.conf" beforeDir="false" afterPath="$PROJECT_DIR$/tests/mosquitto/conf/websocket.conf" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/mosquitto/conf/wss.conf" beforeDir="false" afterPath="$PROJECT_DIR$/tests/mosquitto/conf/wss.conf" afterDir="false" />
-    </list>
+    <list default="true" id="1bc01236-a6ec-4cbd-8cf4-711f3ebc56a4" name="Changes" comment="sync" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -326,8 +301,17 @@
       <workItem from="1746751174973" duration="111000" />
       <workItem from="1746751292948" duration="474000" />
       <workItem from="1746751823995" duration="12334000" />
-      <workItem from="1746769511634" duration="6251000" />
+      <workItem from="1746769511634" duration="7457000" />
     </task>
+    <task id="LOCAL-00001" summary="sync">
+      <option name="closed" value="true" />
+      <created>1746786751198</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1746786751198</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
