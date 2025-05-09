@@ -1,17 +1,14 @@
 //! Defines Access Token List (ATL).
 
+use bytes::{Bytes, BytesMut};
 use libmqttmtd::{
     aead::algo::SupportedAlgorithm,
     consts::{RANDOM_LEN, TIMESTAMP_LEN, TOKEN_LEN},
 };
-use ring::{
-    aead::NONCE_LEN,
-    rand::{SecureRandom, SystemRandom},
-};
+use ring::rand::{SecureRandom, SystemRandom};
 use std::collections::HashSet;
 use std::{
     collections::{BTreeMap, HashMap},
-    ops::Shl,
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -27,7 +24,7 @@ pub(crate) struct TokenSet {
     masked_timestamp: u64,
     expiration_timestamp: u64,
 
-    all_randoms: Box<[u8]>,
+    all_randoms: Bytes,
     num_tokens: u16,
     token_idx: u16,
     topic: String,
@@ -35,7 +32,7 @@ pub(crate) struct TokenSet {
     valid_dur: Duration,
 
     algo: SupportedAlgorithm,
-    enc_key: Box<[u8]>,
+    enc_key: Bytes,
     nonce_base: u128,
 }
 
@@ -62,14 +59,14 @@ impl TokenSet {
         Ok(Self {
             masked_timestamp: 0,
             expiration_timestamp: 0,
-            all_randoms: Box::new([0u8; 0]),
-            num_tokens: (num_tokens_divided_by_4 as u16).shl(2),
+            all_randoms: Bytes::new(),
+            num_tokens: (num_tokens_divided_by_4 as u16).rotate_left(2),
             token_idx: 0u16,
             topic,
             is_pub,
             valid_dur,
             algo,
-            enc_key: Box::new([0u8; 0]),
+            enc_key: Bytes::new(),
             nonce_base: 0u128,
         })
     }
@@ -120,16 +117,16 @@ impl TokenSet {
         Ok(token)
     }
 
-    pub fn current_nonce(&self) -> [u8; NONCE_LEN] {
+    pub fn current_nonce(&self) -> Bytes {
         let nonce = self.nonce_base + self.token_idx as u128;
-        let mut nonce_bytes = [0u8; NONCE_LEN];
+        let mut nonce_bytes = BytesMut::zeroed(self.algo.nonce_len());
         nonce
             .to_be_bytes()
             .iter()
-            .skip(128 / 8 - NONCE_LEN)
+            .skip(128 / 8 - self.algo.nonce_len())
             .enumerate()
             .for_each(|(i, b)| nonce_bytes[i] = *b);
-        nonce_bytes
+        nonce_bytes.freeze()
     }
 
     pub fn aead_algo(&self) -> SupportedAlgorithm {
@@ -204,7 +201,7 @@ impl AccessTokenList {
         mut token_set: TokenSet,
     ) -> Result<(Arc<RwLock<TokenSet>>, u64), ATLError> {
         // Fill all_randoms
-        let mut all_randoms = vec![0u8; token_set.num_tokens as usize * RANDOM_LEN];
+        let mut all_randoms = BytesMut::zeroed(token_set.num_tokens as usize * RANDOM_LEN);
         let mut generated_tokens: HashSet<[u8; RANDOM_LEN]> = HashSet::new();
         let mut cur_idx = 0usize;
         // To ensure uniquness of all_randoms, we use hashset
@@ -218,14 +215,14 @@ impl AccessTokenList {
                 cur_idx += RANDOM_LEN;
             }
         }
-        token_set.all_randoms = all_randoms.into_boxed_slice();
+        token_set.all_randoms = all_randoms.freeze();
 
         // Fill enc_key
-        let mut enc_key = vec![0u8; token_set.algo.key_len()];
+        let mut enc_key = BytesMut::zeroed(token_set.algo.key_len());
         self.rng
             .fill(&mut enc_key)
             .map_err(|e| ATLError::RandGenError(e))?;
-        token_set.enc_key = enc_key.into_boxed_slice();
+        token_set.enc_key = enc_key.freeze();
 
         // Fill nonce_base
         let mut nonce_base = [0u8; 16];
@@ -437,7 +434,7 @@ mod tests {
             valid_dur,
             SupportedAlgorithm::Aes128Gcm,
         )
-            .expect("Failed to create test TokenSet")
+        .expect("Failed to create test TokenSet")
     }
 
     #[tokio::test]

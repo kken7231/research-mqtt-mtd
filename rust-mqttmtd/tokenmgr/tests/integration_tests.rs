@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
-use tokenmgr::errors::TokenFetchError;
 use tokenmgr::fetch_tokens;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -72,8 +71,7 @@ fn resolve_tilde(path: &Path) -> Option<PathBuf> {
 static CONFIG: OnceLock<Arc<IntegrationTestsConfig>> = OnceLock::new();
 
 /// Helper function to get test config thru Arguments.
-fn get_test_config() -> &'static A
-rc<IntegrationTestsConfig> {
+fn get_test_config() -> &'static Arc<IntegrationTestsConfig> {
     CONFIG.get_or_init(|| {
         let config = load_config().expect("loading config failed");
 
@@ -122,28 +120,13 @@ fn get_issuer_addr(config: &Arc<IntegrationTestsConfig>) -> SocketAddr {
 }
 
 #[tokio::test]
-async fn t_fetch_tokens_pub_0() {
-    let config = get_test_config();
-
-    // issuer::Request
-    let request = issuer::Request::new(true, 0u8, *get_random_algo(), "topic/pubonly");
-
-    // Call fetched_res and check if fail
-    let fetched_res =
-        fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request).await;
-    assert!(fetched_res.is_err());
-    assert!(match fetched_res.unwrap_err() {
-        TokenFetchError::ErrorResponseFromIssuer => true,
-        _ => false,
-    });
-}
-
-#[tokio::test]
 async fn t_fetch_tokens_pub_4() {
     let config = get_test_config();
 
     // issuer::Request
-    let request = issuer::Request::new(true, 1u8, *get_random_algo(), "topic/pubonly");
+    let request = issuer::Request::new(true, 1u8, *get_random_algo(), "topic/pubonly")
+        .inspect_err(|e| panic!("failed to create an issuer request: {:?}", e))
+        .unwrap();
 
     // Call fetched_res and check if success
     let fetched_res = fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request)
@@ -162,7 +145,9 @@ async fn t_fetch_tokens_pub_7f() {
     let config = get_test_config();
 
     // issuer::Request
-    let request = issuer::Request::new(true, 0x7Fu8, *get_random_algo(), "topic/pubonly");
+    let request = issuer::Request::new(true, 0x7Fu8, *get_random_algo(), "topic/pubonly")
+        .inspect_err(|e| panic!("failed to create an issuer request: {:?}", e))
+        .unwrap();
 
     // Call fetched_res and check if success
     let fetched_res = fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request)
@@ -177,46 +162,13 @@ async fn t_fetch_tokens_pub_7f() {
 }
 
 #[tokio::test]
-async fn t_fetch_tokens_pub_80() {
-    let config = get_test_config();
-
-    // issuer::Request
-    let request = issuer::Request::new(true, 0x80u8, *get_random_algo(), "topic/pubonly");
-
-    // Call fetched_res and check if fail
-    let fetched_res =
-        fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request).await;
-    assert!(fetched_res.is_err());
-    assert!(match fetched_res.unwrap_err() {
-        TokenFetchError::ErrorResponseFromIssuer => true,
-        _ => false,
-    });
-}
-
-
-#[tokio::test]
-async fn t_fetch_tokens_sub_0() {
-    let config = get_test_config();
-
-    // issuer::Request
-    let request = issuer::Request::new(false, 0u8, *get_random_algo(), "topic/subonly");
-
-    // Call fetched_res and check if fail
-    let fetched_res =
-        fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request).await;
-    assert!(fetched_res.is_err());
-    assert!(match fetched_res.unwrap_err() {
-        TokenFetchError::ErrorResponseFromIssuer => true,
-        _ => false,
-    });
-}
-
-#[tokio::test]
 async fn t_fetch_tokens_sub_4() {
     let config = get_test_config();
 
     // issuer::Request
-    let request = issuer::Request::new(false, 1u8, *get_random_algo(), "topic/subonly");
+    let request = issuer::Request::new(false, 1u8, *get_random_algo(), "topic/subonly")
+        .inspect_err(|e| panic!("failed to create an issuer request: {:?}", e))
+        .unwrap();
 
     // Call fetched_res and check if success
     let fetched_res = fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request)
@@ -235,7 +187,9 @@ async fn t_fetch_tokens_sub_7f() {
     let config = get_test_config();
 
     // issuer::Request
-    let request = issuer::Request::new(false, 0x7Fu8, *get_random_algo(), "topic/subonly");
+    let request = issuer::Request::new(false, 0x7Fu8, *get_random_algo(), "topic/subonly")
+        .inspect_err(|e| panic!("failed to create an issuer request: {:?}", e))
+        .unwrap();
 
     // Call fetched_res and check if success
     let fetched_res = fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request)
@@ -247,23 +201,6 @@ async fn t_fetch_tokens_sub_7f() {
         fetched_res.all_randoms().len(),
         RANDOM_LEN * (request.num_tokens_divided_by_4() as usize).rotate_left(2)
     );
-}
-
-#[tokio::test]
-async fn t_fetch_tokens_sub_80() {
-    let config = get_test_config();
-
-    // issuer::Request
-    let request = issuer::Request::new(false, 0x80u8, *get_random_algo(), "topic/subonly");
-
-    // Call fetched_res and check if fail
-    let fetched_res =
-        fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request).await;
-    assert!(fetched_res.is_err());
-    assert!(match fetched_res.unwrap_err() {
-        TokenFetchError::ErrorResponseFromIssuer => true,
-        _ => false,
-    });
 }
 
 
@@ -272,7 +209,9 @@ async fn t_fetch_tokens_pubsub_4() {
     let config = get_test_config();
 
     // issuer::Request
-    let request = issuer::Request::new(false, 1u8, *get_random_algo(), "topic/pubsub");
+    let request = issuer::Request::new(false, 1u8, *get_random_algo(), "topic/pubsub")
+        .inspect_err(|e| panic!("failed to create an issuer request: {:?}", e))
+        .unwrap();
 
     // Call fetched_res and check if success
     let fetched_res = fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request)
@@ -286,7 +225,9 @@ async fn t_fetch_tokens_pubsub_4() {
     );
 
     // issuer::Request
-    let request = issuer::Request::new(true, 1u8, *get_random_algo(), "topic/pubsub");
+    let request = issuer::Request::new(true, 1u8, *get_random_algo(), "topic/pubsub")
+        .inspect_err(|e| panic!("failed to create an issuer request: {:?}", e))
+        .unwrap();
 
     // Call fetched_res and check if success
     let fetched_res = fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request)
@@ -299,3 +240,6 @@ async fn t_fetch_tokens_pubsub_4() {
         RANDOM_LEN * (request.num_tokens_divided_by_4() as usize).rotate_left(2)
     );
 }
+
+#[tokio::test]
+async fn t_fetch_tokens_() {}

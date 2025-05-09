@@ -53,20 +53,6 @@ pub(crate) async fn handler<IO: AsyncRead + AsyncWrite + Unpin>(
         buf
     );
 
-    if let Some(errs) = req.validate() {
-        authserver_issuer_eprintln!(addr, "failed to validate request: {:?}", errs);
-        if let Err(send_err) =
-            issuer::ResponseWriter::write_error_to(&mut stream, &mut buf[..]).await
-        {
-            authserver_issuer_eprintln!(
-                addr,
-                "Error sending out issuer (error) response: {}",
-                send_err
-            );
-        };
-        return;
-    }
-
     // Get the peer certificates
     let user_hostname =
         stream

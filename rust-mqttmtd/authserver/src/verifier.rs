@@ -2,7 +2,7 @@
 
 use std::{net::SocketAddr, sync::Arc};
 
-use libmqttmtd::auth_serv::{issuer, verifier};
+use libmqttmtd::auth_serv::verifier;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::{atl::AccessTokenList, authserver_verifier_eprintln, authserver_verifier_println};

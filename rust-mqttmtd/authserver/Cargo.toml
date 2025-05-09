@@ -13,6 +13,7 @@ tokio = { version = "1.44.2", default-features = false, features = ["io-util", "
 config = { version = "0.15.11", default-features = false, features = ["toml", "yaml"] }
 tokio-rustls = { version = "0.26.2", default-features = false, features = ["ring"] }
 x509-parser = "0.17.0"
+bytes = "1.10.1"
 
 [dev-dependencies]
 tempfile = "3.19.1"

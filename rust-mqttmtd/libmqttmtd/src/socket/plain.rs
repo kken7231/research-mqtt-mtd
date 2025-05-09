@@ -10,20 +10,31 @@ use tokio::{
     time::timeout,
 };
 
+pub enum ServerType {
+    LOCAL,
+    GLOBAL,
+}
+
 /// Plain TCP socket server
 ///
 /// Plain socket connection from clients can be accepted through an instance.
 pub struct PlainServer {
     port: u16,
     listen_timeout: Option<Duration>,
+    server_type: ServerType,
 }
 
 impl PlainServer {
     /// Creates a new instance that will bind at localhost:`port` until `listen_timeout` comes.
-    pub fn new(port: u16, listen_timeout: impl Into<Option<Duration>>) -> Self {
+    pub fn new(
+        port: u16,
+        listen_timeout: impl Into<Option<Duration>>,
+        server_type: ServerType,
+    ) -> Self {
         PlainServer {
             port,
             listen_timeout: listen_timeout.into(),
+            server_type,
         }
     }
 
@@ -39,7 +50,8 @@ impl PlainServer {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), SocketError> {
-    ///     let server_task = PlainServer::new(3000, Duration::from_secs(1)).spawn(|_, _| async {}).await;
+    ///     use libmqttmtd::socket::plain::ServerType::LOCAL;
+    ///     let server_task = PlainServer::new(3000, Duration::from_secs(1), LOCAL).spawn(|_, _| async {}).await;
     ///
     ///     match server_task {
     ///         Ok(_) => println!("new server task: {:?}", server_task),
@@ -52,11 +64,15 @@ impl PlainServer {
     pub fn spawn<F, Fut>(self, handler: F) -> JoinHandle<Result<(), SocketError>>
     where
         F: Fn(TcpStream, SocketAddr) -> Fut + Send + Sync + 'static,
-        Fut: std::future::Future<Output = ()> + Send + 'static,
+        Fut: std::future::Future<Output=()> + Send + 'static,
     {
         sock_serv_println!("spawning socket server...");
         tokio::spawn(async move {
-            let listener = TcpListener::bind(format!("0.0.0.0:{}", self.port))
+            let addr = match self.server_type {
+                ServerType::LOCAL => format!("localhost:{}", self.port),
+                ServerType::GLOBAL => format!("0.0.0.0:{}", self.port),
+            };
+            let listener = TcpListener::bind(addr)
                 .await
                 .map_err(|e| SocketError::BindError(e))?;
             let handler = Arc::new(handler);
@@ -158,10 +174,10 @@ impl<A: ToSocketAddrs> PlainClient<A> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::socket::plain::ServerType::LOCAL;
     use std::io::ErrorKind;
     use std::time::Duration;
-
-    use super::*;
 
     #[tokio::test]
     async fn spawn_serv_cli_pass() {
@@ -170,7 +186,7 @@ mod tests {
         const TO_CLIENT: Duration = Duration::from_secs(1);
 
         // Spawn server
-        let _ = PlainServer::new(PORT, TO_SERVER).spawn(|_, _| async {});
+        let _ = PlainServer::new(PORT, TO_SERVER, LOCAL).spawn(|_, _| async {});
 
         // Wait a while
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -189,9 +205,9 @@ mod tests {
 
         assert!(match timeout(
             Duration::from_secs(1),
-            PlainServer::new(PORT, TO_SERVER).spawn(|_, _| async {}),
+            PlainServer::new(PORT, TO_SERVER, LOCAL).spawn(|_, _| async {}),
         )
-        .await
+            .await
         {
             Ok(Ok(Err(SocketError::InvalidTimeoutError(e)))) => e == TO_SERVER,
             _ => false,
@@ -205,7 +221,7 @@ mod tests {
         const TO_CLIENT: Option<Duration> = None;
 
         // Spawn server
-        let _ = PlainServer::new(PORT, TO_SERVER).spawn(|_, _| async {});
+        let _ = PlainServer::new(PORT, TO_SERVER, LOCAL).spawn(|_, _| async {});
 
         // Wait a while
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -215,7 +231,7 @@ mod tests {
             Duration::from_secs(1),
             PlainClient::new(format!("localhost:{}", PORT), TO_CLIENT).connect(),
         )
-        .await
+            .await
         {
             Ok(Ok(_)) => true,
             _ => false,
@@ -232,7 +248,7 @@ mod tests {
             Duration::from_secs(2),
             PlainClient::new(format!("localhost:{}", PORT), TO_CLIENT).connect(),
         )
-        .await
+            .await
         {
             Ok(Err(SocketError::ConnectError(e))) => e.kind() == ErrorKind::ConnectionRefused,
             _ => false,
@@ -246,7 +262,7 @@ mod tests {
         const TO_CLIENT: Duration = Duration::from_secs(1);
 
         // Spawn server
-        let _ = PlainServer::new(PORT, TO_SERVER).spawn(|_, _| async {});
+        let _ = PlainServer::new(PORT, TO_SERVER, LOCAL).spawn(|_, _| async {});
 
         // Wait a while
         tokio::time::sleep(TO_SERVER + Duration::from_millis(100)).await;

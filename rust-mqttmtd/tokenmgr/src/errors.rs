@@ -1,6 +1,7 @@
 use libmqttmtd;
 use libmqttmtd::aead::algo::AeadAlgorithmNotSupportedError;
 use std::fmt::Formatter;
+use std::path::PathBuf;
 
 /// Errors regarding tokenset
 #[derive(Debug)]
@@ -15,9 +16,11 @@ pub enum TokenSetError {
     UnsupportedAlgorithmError(AeadAlgorithmNotSupportedError),
     FileWriteError(std::io::Error),
     FileReadError(std::io::Error),
+    FileRemoveError(std::io::Error),
     FileCreateError(std::io::Error),
     FileOpenError(std::io::Error),
     FileRenameError(std::io::Error),
+    FileNotFoundError(PathBuf),
 }
 
 impl std::error::Error for TokenSetError {}
@@ -48,8 +51,12 @@ impl std::fmt::Display for TokenSetError {
             TokenSetError::FileWriteError(e) => write!(f, "File write failure: {}", e),
             TokenSetError::FileReadError(e) => write!(f, "File read failure: {}", e),
             TokenSetError::FileCreateError(e) => write!(f, "File create failure: {}", e),
+            TokenSetError::FileRemoveError(e) => write!(f, "File remove failure: {}", e),
             TokenSetError::FileOpenError(e) => write!(f, "File open failure: {}", e),
             TokenSetError::FileRenameError(e) => write!(f, "File rename failure: {}", e),
+            TokenSetError::FileNotFoundError(path) => {
+                write!(f, "File not found: {:?}", path)
+            }
         }
     }
 }

@@ -1,3 +1,5 @@
+use std::fmt::Formatter;
+
 /// Error for issuer/verifier request/response parsing
 ///
 /// Wraps three errors:
@@ -27,6 +29,9 @@ pub enum AuthServerParserError {
 
     /// Wraps [crate::aead::algo::AeadAlgorithmNotSupportedError]
     AlgoNotSupportedError(crate::aead::algo::AeadAlgorithmNotSupportedError),
+
+    /// Wraps [IssuerRequestValidationError] on issuer request creation
+    InvalidIssuerRequestError(IssuerRequestValidationError),
 }
 
 impl std::error::Error for AuthServerParserError {}
@@ -52,6 +57,9 @@ impl std::fmt::Display for AuthServerParserError {
             AuthServerParserError::AlgoNotSupportedError(e) => {
                 write!(f, "aead algo not supported error: {}", e)
             }
+            AuthServerParserError::InvalidIssuerRequestError(e) => {
+                write!(f, "invalid issuer request detected: {}", e)
+            }
         }
     }
 }
@@ -64,5 +72,34 @@ impl From<std::str::Utf8Error> for AuthServerParserError {
 impl From<crate::aead::algo::AeadAlgorithmNotSupportedError> for AuthServerParserError {
     fn from(value: crate::aead::algo::AeadAlgorithmNotSupportedError) -> Self {
         AuthServerParserError::AlgoNotSupportedError(value)
+    }
+}
+
+impl From<IssuerRequestValidationError> for AuthServerParserError {
+    fn from(value: IssuerRequestValidationError) -> Self {
+        AuthServerParserError::InvalidIssuerRequestError(value)
+    }
+}
+
+
+/// Errors on validation of issuer's request.
+#[derive(Debug)]
+pub enum IssuerRequestValidationError {
+    NumTokensDiv4OutOfRangeError(u8),
+    EmptyTopicError,
+}
+
+impl std::error::Error for IssuerRequestValidationError {}
+
+impl std::fmt::Display for IssuerRequestValidationError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            IssuerRequestValidationError::NumTokensDiv4OutOfRangeError(num) => {
+                write!(f, "number of tokens out of range: {}", num)
+            }
+            IssuerRequestValidationError::EmptyTopicError => {
+                write!(f, "empty topic")
+            }
+        }
     }
 }

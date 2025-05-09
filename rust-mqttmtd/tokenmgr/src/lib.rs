@@ -33,8 +33,8 @@ pub async fn fetch_tokens<A: ToSocketAddrs + Send + 'static>(
         request.aead_algo(),
         request.num_tokens_divided_by_4(),
     )
-    .await
-    .map_err(|e| TokenFetchError::SocketReadError(e))?
+        .await
+        .map_err(|e| TokenFetchError::SocketReadError(e))?
     {
         Ok(success_response)
     } else {

@@ -1,11 +1,9 @@
-use std::ops::Shl;
+use bytes::{Bytes, BytesMut};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
-use super::error::AuthServerParserError;
-use crate::{
-    aead::algo::SupportedAlgorithm,
-    consts::{RANDOM_LEN, TIMESTAMP_LEN},
-};
+use super::error::{AuthServerParserError, IssuerRequestValidationError};
+use crate::consts::RANDOM_LEN;
+use crate::{aead::algo::SupportedAlgorithm, consts::TIMESTAMP_LEN};
 
 /// Minimum required buffer length for the buf for both request parsing and response parsing.
 pub const REQ_RESP_MIN_BUFLEN: usize = if REQUEST_MIN_BUFLEN > RESPONSE_MIN_BUFLEN {
@@ -60,31 +58,27 @@ impl Request {
         num_tokens_divided_by_4: u8,
         aead_algo: SupportedAlgorithm,
         topic: impl Into<String>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, IssuerRequestValidationError> {
+        let req = Self {
             is_pub,
             num_tokens_divided_by_4,
             aead_algo,
             topic: topic.into(),
-        }
+        };
+        req.validate()?;
+        Ok(req)
     }
 
-    pub fn validate(&self) -> Option<Vec<String>> {
-        let num_token_check = self.num_tokens_divided_by_4 == 0 || self.num_tokens_divided_by_4 > 0x7F;
-        let topic_len_check = self.topic.len() == 0;
-
-        if num_token_check || topic_len_check {
-            let mut errs: Vec<String> = vec![];
-            if num_token_check {
-                errs.push(format!("invalid number of tokens: {}", (self.num_tokens_divided_by_4 as u16).rotate_left(2)));
-            }
-            if topic_len_check {
-                errs.push("topic length is zero".to_string());
-            }
-            Some(errs)
-        } else {
-            None
+    pub fn validate(&self) -> Result<(), IssuerRequestValidationError> {
+        if self.num_tokens_divided_by_4 == 0 || self.num_tokens_divided_by_4 > 0x7F {
+            return Err(IssuerRequestValidationError::NumTokensDiv4OutOfRangeError(
+                self.num_tokens_divided_by_4,
+            ));
         }
+        if self.topic.len() == 0 {
+            return Err(IssuerRequestValidationError::EmptyTopicError);
+        }
+        Ok(())
     }
 
     pub fn is_pub(&self) -> bool {
@@ -198,12 +192,12 @@ impl Request {
         // topic_len, topic
         let topic = Self::_read_topic(stream, buf).await?;
 
-        Ok(Self {
+        Ok(Self::new(
             is_pub,
             num_tokens_divided_by_4,
             aead_algo,
             topic,
-        })
+        )?)
     }
 
     pub async fn write_to<W: AsyncWrite + Unpin>(
@@ -392,10 +386,10 @@ impl<'a, 'b, 'c> ResponseWriter<'a, 'b, 'c> {
 
 #[derive(Debug)]
 pub struct ResponseReader {
-    enc_key: Box<[u8]>,
-    nonce_base: Box<[u8]>,
+    enc_key: Bytes,
+    nonce_base: Bytes,
     timestamp: [u8; TIMESTAMP_LEN],
-    all_randoms: Box<[u8]>,
+    all_randoms: Bytes,
 }
 
 impl ResponseReader {
@@ -429,25 +423,25 @@ impl ResponseReader {
     async fn _read_enc_key<R: AsyncRead + Unpin>(
         stream: &mut R,
         enc_key_len: usize,
-    ) -> Result<Box<[u8]>, AuthServerParserError> {
-        let mut enc_key = vec![0u8; enc_key_len];
+    ) -> Result<Bytes, AuthServerParserError> {
+        let mut enc_key = BytesMut::with_capacity(enc_key_len);
         stream
             .read_exact(&mut enc_key)
             .await
             .map_err(|e| AuthServerParserError::SocketReadError(e))?;
-        Ok(enc_key.into_boxed_slice())
+        Ok(enc_key.freeze())
     }
 
     async fn _read_nonce_base<R: AsyncRead + Unpin>(
         stream: &mut R,
         nonce_len: usize,
-    ) -> Result<Box<[u8]>, AuthServerParserError> {
-        let mut nonce_base = vec![0u8; nonce_len];
+    ) -> Result<Bytes, AuthServerParserError> {
+        let mut nonce_base = BytesMut::with_capacity(nonce_len);
         stream
             .read_exact(&mut nonce_base)
             .await
             .map_err(|e| AuthServerParserError::SocketReadError(e))?;
-        Ok(nonce_base.into_boxed_slice())
+        Ok(nonce_base.freeze())
     }
 
     async fn _read_timestamp<R: AsyncRead + Unpin>(
@@ -464,13 +458,14 @@ impl ResponseReader {
     async fn _read_all_randoms<R: AsyncRead + Unpin>(
         stream: &mut R,
         num_tokens_divided_by_4: u8,
-    ) -> Result<Box<[u8]>, AuthServerParserError> {
-        let mut all_randoms = vec![0u8; (usize::from(num_tokens_divided_by_4) * RANDOM_LEN).shl(2)];
+    ) -> Result<Bytes, AuthServerParserError> {
+        let mut all_randoms =
+            BytesMut::zeroed((usize::from(num_tokens_divided_by_4) * RANDOM_LEN).rotate_left(2));
         stream
             .read_exact(&mut all_randoms)
             .await
             .map_err(|e| AuthServerParserError::SocketReadError(e))?;
-        Ok(all_randoms.into_boxed_slice())
+        Ok(all_randoms.freeze())
     }
 
     pub async fn read_from<R: AsyncRead + Unpin>(
@@ -543,7 +538,8 @@ mod tests {
         consts::RANDOM_LEN,
     };
 
-    use std::{ops::Shr, sync::Arc};
+    use bytes::Bytes;
+    use std::sync::Arc;
     use tokio::io::AsyncReadExt;
     use tokio_test::io::Builder;
 
@@ -554,12 +550,15 @@ mod tests {
 
     #[tokio::test]
     async fn request_write_read_roundtrip() {
-        let original_req = Arc::new(Request::new(
-            true,                          // is_pub
-            5,                             // num_tokens_divided_dy_4 (fits in 7 bits)
-            SupportedAlgorithm::Aes256Gcm, // aead_algo
-            "test/topic/req".to_string(),  // topic
-        ));
+        let original_req = Arc::new(
+            Request::new(
+                true,                          // is_pub
+                5,                             // num_tokens_divided_dy_4 (fits in 7 bits)
+                SupportedAlgorithm::Aes256Gcm, // aead_algo
+                "test/topic/req".to_string(),  // topic
+            )
+                .expect("failed to create a request"),
+        );
 
         let expected_bytes = [
             0x85, // Compound byte: is_pub (1) | num_tokens_divided_dy_4 (5) = 0x85
@@ -617,7 +616,8 @@ mod tests {
     #[tokio::test]
     async fn request_write_to_topic_too_long() {
         let long_topic = "a".repeat(0xFFFF + 1); // Longer than u16 max
-        let original_req = Request::new(true, 1, SupportedAlgorithm::Aes128Gcm, long_topic);
+        let original_req = Request::new(true, 1, SupportedAlgorithm::Aes128Gcm, long_topic)
+            .expect("failed to create a request");
 
         let mut mock_stream = Builder::new().build();
         let mut buf = [0u8; 256];
@@ -632,20 +632,18 @@ mod tests {
 
     #[tokio::test]
     async fn response_write_read_success_roundtrip() {
-        let enc_key = vec![
+        let enc_key = Bytes::from(vec![
             0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22,
             0x33, 0x44,
-        ]
-            .into_boxed_slice(); // Dummy key
+        ]); // Dummy key
         let timestamp = [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]; // Dummy timestamp
         let nonce_base = [
             0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF,
         ]; // Dummy nonce_base
-        let all_randoms = vec![
+        let all_randoms = Bytes::from(vec![
             0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E,
             0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
-        ]
-            .into_boxed_slice(); // Dummy randoms (e.g., 1 token * 8 bytes)
+        ]); // Dummy randoms (e.g., 1 token * 8 bytes)
 
         let expected_bytes = [
             0x00, // Status: Success (0)
@@ -677,12 +675,12 @@ mod tests {
         let mut read_stream = Builder::new().read(&expected_bytes).build();
 
         let mut read_buf = [0u8; 8]; // Provide buffer
-        println!("{}", (all_randoms.len() / RANDOM_LEN).shr(2));
+        println!("{}", (all_randoms.len() / RANDOM_LEN).rotate_right(2));
         let parsed_resp_option = ResponseReader::read_from(
             &mut read_stream,
             &mut read_buf[..],
             SupportedAlgorithm::Aes128Gcm,
-            (all_randoms.len() / RANDOM_LEN).shr(2) as u8, // num_tokens_divided_dy_4
+            (all_randoms.len() / RANDOM_LEN).rotate_right(2) as u8, // num_tokens_divided_dy_4
         )
             .await
             .expect("Failed to read response");

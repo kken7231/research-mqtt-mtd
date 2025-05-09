@@ -11,12 +11,12 @@ use tokio::{
 };
 use tokio_rustls::{client, server, TlsAcceptor, TlsConnector};
 
-use crate::{sock_cli_println, sock_serv_println};
-
 use super::{
     error::SocketError,
     plain::{PlainClient, PlainServer},
 };
+use crate::socket::plain::ServerType;
+use crate::{sock_cli_println, sock_serv_println};
 
 ///////////////////////////////////////////////////////////
 ///
@@ -32,10 +32,11 @@ impl TlsServer {
     pub fn new(
         port: u16,
         listen_timeout: impl Into<Option<Duration>>,
+        server_type: ServerType,
         config: Arc<ServerConfig>,
     ) -> Self {
         TlsServer {
-            plain_server: PlainServer::new(port, listen_timeout),
+            plain_server: PlainServer::new(port, listen_timeout, server_type),
             acceptor: Arc::new(TlsAcceptor::from(config)),
         }
     }
@@ -131,6 +132,8 @@ impl<A: ToSocketAddrs + Send + 'static> TlsClient<A> {
 
 #[cfg(test)]
 mod tests {
+    use crate::socket::plain::ServerType::LOCAL;
+    use crate::socket::tls_config::TlsConfigLoader;
     use rcgen::CertifiedKey;
     use std::io::ErrorKind;
     use std::{
@@ -141,8 +144,6 @@ mod tests {
         time::Duration,
     };
     use tempfile::tempdir;
-
-    use crate::socket::tls_config::TlsConfigLoader;
 
     use super::*;
 
@@ -255,7 +256,7 @@ mod tests {
             create_load_sample_configs(true, DOMAIN_CA, DOMAIN_SERV, DOMAIN_CLI);
 
         // Spawn server
-        let _ = TlsServer::new(PORT, TO_SERVER, conf_server).spawn(|_, _| async {});
+        let _ = TlsServer::new(PORT, TO_SERVER, LOCAL, conf_server).spawn(|_, _| async {});
 
         // Wait a while
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -279,7 +280,7 @@ mod tests {
 
         assert!(match timeout(
             Duration::from_secs(1),
-            TlsServer::new(PORT, TO_SERVER, conf_server).spawn(|_, _| async {}),
+            TlsServer::new(PORT, TO_SERVER, LOCAL, conf_server).spawn(|_, _| async {}),
         )
             .await
         {
@@ -297,7 +298,7 @@ mod tests {
             create_load_sample_configs(true, DOMAIN_CA, DOMAIN_SERV, DOMAIN_CLI);
 
         // Spawn server
-        let _ = TlsServer::new(PORT, TO_SERVER, conf_server).spawn(|_, _| async {});
+        let _ = TlsServer::new(PORT, TO_SERVER, LOCAL, conf_server).spawn(|_, _| async {});
 
         // Wait a while
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -343,7 +344,7 @@ mod tests {
             create_load_sample_configs(true, DOMAIN_CA, DOMAIN_SERV, DOMAIN_CLI);
 
         // Spawn server
-        let _ = TlsServer::new(PORT, TO_SERVER, conf_server).spawn(|_, _| async {});
+        let _ = TlsServer::new(PORT, TO_SERVER, LOCAL, conf_server).spawn(|_, _| async {});
 
         // Wait a while
         tokio::time::sleep(TO_SERVER + Duration::from_millis(100)).await;

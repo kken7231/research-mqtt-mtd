@@ -6,6 +6,7 @@ mod publish;
 use crate::config::load_config;
 use libmqttmtd::config_helper::display_config;
 use libmqttmtd::socket::plain::PlainServer;
+use libmqttmtd::socket::plain::ServerType::GLOBAL;
 use std::error::Error;
 
 pub async fn run_server() -> Result<(), Box<dyn Error>> {
@@ -24,7 +25,7 @@ pub async fn run_server() -> Result<(), Box<dyn Error>> {
     }
 
     // open server
-    let _server = PlainServer::new(config.port, None)
+    let _server = PlainServer::new(config.port, None, GLOBAL)
         .spawn(move |s, addr| client::handler(config.broker_port, config.verifier_port, s, addr));
     mqttinterface_println!("launched mqtt interface at port {}", config.port);
     _server.await??;
