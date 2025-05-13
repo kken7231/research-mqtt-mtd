@@ -245,7 +245,6 @@ impl Request {
 /// 3. `nonce_base`
 /// 4. `timestamp`
 /// 5. `all_randoms` (length = num_tokens_divided_by_4*4*RANDOM_LEN)
-
 pub struct ResponseWriter<'a, 'b, 'c> {
     enc_key: &'a [u8],
     nonce_base: &'b [u8],
@@ -424,7 +423,7 @@ impl ResponseReader {
         stream: &mut R,
         enc_key_len: usize,
     ) -> Result<Bytes, AuthServerParserError> {
-        let mut enc_key = BytesMut::with_capacity(enc_key_len);
+        let mut enc_key = BytesMut::zeroed(enc_key_len);
         stream
             .read_exact(&mut enc_key)
             .await
@@ -436,7 +435,7 @@ impl ResponseReader {
         stream: &mut R,
         nonce_len: usize,
     ) -> Result<Bytes, AuthServerParserError> {
-        let mut nonce_base = BytesMut::with_capacity(nonce_len);
+        let mut nonce_base = BytesMut::zeroed(nonce_len);
         stream
             .read_exact(&mut nonce_base)
             .await
@@ -460,7 +459,7 @@ impl ResponseReader {
         num_tokens_divided_by_4: u8,
     ) -> Result<Bytes, AuthServerParserError> {
         let mut all_randoms =
-            BytesMut::zeroed((usize::from(num_tokens_divided_by_4) * RANDOM_LEN).rotate_left(2));
+            BytesMut::zeroed((num_tokens_divided_by_4 as usize).rotate_left(2) * RANDOM_LEN);
         stream
             .read_exact(&mut all_randoms)
             .await
@@ -557,7 +556,7 @@ mod tests {
                 SupportedAlgorithm::Aes256Gcm, // aead_algo
                 "test/topic/req".to_string(),  // topic
             )
-                .expect("failed to create a request"),
+            .expect("failed to create a request"),
         );
 
         let expected_bytes = [
@@ -603,10 +602,10 @@ mod tests {
         let result = Request::read_from(&mut mock_stream, &mut small_buf[..]).await;
 
         assert!(result.is_err());
-        assert!(match result.unwrap_err() {
-            AuthServerParserError::BufferTooSmallError() => true,
-            _ => false,
-        });
+        match result.unwrap_err() {
+            AuthServerParserError::BufferTooSmallError() => {}
+            _ => panic!(),
+        };
 
         // Read out all the remained bytes
         let mut read_buf = [0u8; 2];
@@ -624,10 +623,10 @@ mod tests {
         let result = original_req.write_to(&mut mock_stream, &mut buf[..]).await;
 
         assert!(result.is_err());
-        assert!(match result.unwrap_err() {
-            AuthServerParserError::TopicTooLongError() => true,
-            _ => false,
-        });
+        match result.unwrap_err() {
+            AuthServerParserError::TopicTooLongError() => {}
+            _ => panic!(),
+        };
     }
 
     #[tokio::test]
@@ -682,8 +681,8 @@ mod tests {
             SupportedAlgorithm::Aes128Gcm,
             (all_randoms.len() / RANDOM_LEN).rotate_right(2) as u8, // num_tokens_divided_dy_4
         )
-            .await
-            .expect("Failed to read response");
+        .await
+        .expect("Failed to read response");
 
         assert!(parsed_resp_option.is_some());
         let parsed_resp = parsed_resp_option.unwrap();
@@ -718,8 +717,8 @@ mod tests {
             SupportedAlgorithm::Aes128Gcm, // Dummy aead_algo (not used for error)
             1,                             // Dummy num_tokens_divided_dy_4 (not used for error)
         )
-            .await
-            .expect("Failed to read response");
+        .await
+        .expect("Failed to read response");
 
         assert!(
             parsed_resp_option.is_none(),
@@ -738,13 +737,13 @@ mod tests {
             SupportedAlgorithm::Aes128Gcm,
             1,
         )
-            .await;
+        .await;
 
         assert!(result.is_err());
-        assert!(match result.unwrap_err() {
-            AuthServerParserError::BufferTooSmallError() => true,
-            _ => false,
-        });
+        match result.unwrap_err() {
+            AuthServerParserError::BufferTooSmallError() => {}
+            _ => panic!(),
+        };
 
         // Write in all the remained bytes
         let mut read_buf = [0u8; 3];

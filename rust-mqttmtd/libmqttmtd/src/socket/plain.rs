@@ -203,15 +203,15 @@ mod tests {
         const PORT: u16 = 3001;
         const TO_SERVER: Duration = Duration::ZERO;
 
-        assert!(match timeout(
+        match timeout(
             Duration::from_secs(1),
             PlainServer::new(PORT, TO_SERVER, LOCAL).spawn(|_, _| async {}),
         )
             .await
         {
-            Ok(Ok(Err(SocketError::InvalidTimeoutError(e)))) => e == TO_SERVER,
-            _ => false,
-        });
+            Ok(Ok(Err(SocketError::InvalidTimeoutError(e)))) => assert_eq!(e, TO_SERVER),
+            _ => panic!(),
+        }
     }
 
     #[tokio::test]
@@ -227,15 +227,15 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         // Spawn client
-        assert!(match timeout(
+        match timeout(
             Duration::from_secs(1),
             PlainClient::new(format!("localhost:{}", PORT), TO_CLIENT).connect(),
         )
             .await
         {
-            Ok(Ok(_)) => true,
-            _ => false,
-        });
+            Ok(Ok(_)) => {}
+            _ => panic!(),
+        };
     }
 
     #[tokio::test]
@@ -244,15 +244,15 @@ mod tests {
         const TO_CLIENT: Duration = Duration::from_secs(1);
 
         // Try connecting
-        assert!(match timeout(
+        match timeout(
             Duration::from_secs(2),
             PlainClient::new(format!("localhost:{}", PORT), TO_CLIENT).connect(),
         )
             .await
         {
-            Ok(Err(SocketError::ConnectError(e))) => e.kind() == ErrorKind::ConnectionRefused,
-            _ => false,
-        });
+            Ok(Err(SocketError::ConnectError(e))) => assert_eq!(e.kind(), ErrorKind::ConnectionRefused),
+            _ => panic!(),
+        };
     }
 
     #[tokio::test]

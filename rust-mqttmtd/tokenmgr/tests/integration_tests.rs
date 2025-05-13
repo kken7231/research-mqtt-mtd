@@ -120,7 +120,7 @@ fn get_issuer_addr(config: &Arc<IntegrationTestsConfig>) -> SocketAddr {
 }
 
 #[tokio::test]
-async fn t_fetch_tokens_pub_4() {
+async fn test_fetch_tokens_pub_4() {
     let config = get_test_config();
 
     // issuer::Request
@@ -141,7 +141,7 @@ async fn t_fetch_tokens_pub_4() {
 }
 
 #[tokio::test]
-async fn t_fetch_tokens_pub_7f() {
+async fn test_fetch_tokens_pub_7f() {
     let config = get_test_config();
 
     // issuer::Request
@@ -162,7 +162,7 @@ async fn t_fetch_tokens_pub_7f() {
 }
 
 #[tokio::test]
-async fn t_fetch_tokens_sub_4() {
+async fn test_fetch_tokens_sub_4() {
     let config = get_test_config();
 
     // issuer::Request
@@ -183,7 +183,7 @@ async fn t_fetch_tokens_sub_4() {
 }
 
 #[tokio::test]
-async fn t_fetch_tokens_sub_7f() {
+async fn test_fetch_tokens_sub_7f() {
     let config = get_test_config();
 
     // issuer::Request
@@ -205,7 +205,7 @@ async fn t_fetch_tokens_sub_7f() {
 
 
 #[tokio::test]
-async fn t_fetch_tokens_pubsub_4() {
+async fn test_fetch_tokens_pubsub_4() {
     let config = get_test_config();
 
     // issuer::Request
@@ -240,6 +240,3 @@ async fn t_fetch_tokens_pubsub_4() {
         RANDOM_LEN * (request.num_tokens_divided_by_4() as usize).rotate_left(2)
     );
 }
-
-#[tokio::test]
-async fn t_fetch_tokens_() {}

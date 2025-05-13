@@ -434,7 +434,7 @@ mod tests {
             valid_dur,
             SupportedAlgorithm::Aes128Gcm,
         )
-        .expect("Failed to create test TokenSet")
+            .expect("Failed to create test TokenSet")
     }
 
     #[tokio::test]
@@ -462,10 +462,10 @@ mod tests {
             SupportedAlgorithm::Aes128Gcm,
         );
         assert!(token_set.is_err());
-        assert!(match token_set.unwrap_err() {
-            ATLError::ValidDurationTooLongError(d) if d == invalid_dur => true,
-            _ => false,
-        });
+        match token_set.unwrap_err() {
+            ATLError::ValidDurationTooLongError(d) if d == invalid_dur => {},
+            _ => panic!(),
+        };
     }
 
     #[tokio::test]

@@ -278,15 +278,15 @@ mod tests {
         const TO_SERVER: Duration = Duration::ZERO;
         let (conf_server, _) = create_load_sample_configs(true, DOMAIN_CA, DOMAIN_SERV, DOMAIN_CLI);
 
-        assert!(match timeout(
+        match timeout(
             Duration::from_secs(1),
             TlsServer::new(PORT, TO_SERVER, LOCAL, conf_server).spawn(|_, _| async {}),
         )
             .await
         {
-            Ok(Ok(Err(SocketError::InvalidTimeoutError(d)))) => d == TO_SERVER,
-            _ => false,
-        });
+            Ok(Ok(Err(SocketError::InvalidTimeoutError(d)))) => assert_eq!(d, TO_SERVER),
+            _ => panic!(),
+        };
     }
 
     #[tokio::test]
@@ -304,16 +304,16 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         // Spawn client
-        assert!(match timeout(
+        match timeout(
             Duration::from_secs(1),
             TlsClient::new(format!("localhost:{}", PORT), TO_CLIENT, conf_client)
                 .connect(DOMAIN_SERV),
         )
             .await
         {
-            Ok(Ok(_)) => true,
-            _ => false,
-        });
+            Ok(Ok(_)) => {}
+            _ => panic!(),
+        };
     }
 
     #[tokio::test]
@@ -323,16 +323,16 @@ mod tests {
         let (_, conf_client) = create_load_sample_configs(true, DOMAIN_CA, DOMAIN_SERV, DOMAIN_CLI);
 
         // Try connecting
-        assert!(match timeout(
+        match timeout(
             Duration::from_secs(2),
             TlsClient::new(format!("localhost:{}", PORT), TO_CLIENT, conf_client)
                 .connect(DOMAIN_SERV),
         )
             .await
         {
-            Ok(Err(SocketError::ConnectError(e))) => e.kind() == ErrorKind::ConnectionRefused,
-            _ => false,
-        });
+            Ok(Err(SocketError::ConnectError(e))) => assert!(e.kind() == ErrorKind::ConnectionRefused),
+            _ => panic!(),
+        };
     }
 
     #[tokio::test]

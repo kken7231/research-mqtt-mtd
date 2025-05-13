@@ -1,3 +1,4 @@
+use bytes::{Bytes, BytesMut};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 use crate::{aead::algo::SupportedAlgorithm, consts::TOKEN_LEN};
@@ -57,7 +58,6 @@ impl Request {
     pub fn validate(&self) -> Vec<String> {
         vec![]
     }
-
 
     pub async fn read_from<R: AsyncRead + Unpin>(
         stream: &mut R,
@@ -126,9 +126,9 @@ impl Request {
 pub struct ResponseReader {
     pub allowed_access_is_pub: bool,
     pub aead_algo: SupportedAlgorithm,
-    pub nonce: Box<[u8]>,
+    pub nonce: Bytes,
     pub topic: String,
-    pub enc_key: Box<[u8]>,
+    pub enc_key: Bytes,
 }
 
 /// buffer for status, len_topic, allowed_access, aead_type
@@ -163,13 +163,13 @@ impl ResponseReader {
     async fn _read_nonce<R: AsyncRead + Unpin>(
         stream: &mut R,
         nonce_len: usize,
-    ) -> Result<Box<[u8]>, AuthServerParserError> {
-        let mut nonce = vec![0u8; nonce_len];
+    ) -> Result<Bytes, AuthServerParserError> {
+        let mut nonce = BytesMut::zeroed(nonce_len);
         stream
             .read_exact(&mut nonce)
             .await
             .map_err(|e| AuthServerParserError::SocketReadError(e))?;
-        Ok(nonce.into_boxed_slice())
+        Ok(nonce.freeze())
     }
 
     async fn _read_topic<R: AsyncRead + Unpin>(
@@ -196,13 +196,13 @@ impl ResponseReader {
     async fn _read_enc_key<R: AsyncRead + Unpin>(
         stream: &mut R,
         enc_key_len: usize,
-    ) -> Result<Box<[u8]>, AuthServerParserError> {
-        let mut enc_key = vec![0u8; enc_key_len];
+    ) -> Result<Bytes, AuthServerParserError> {
+        let mut enc_key = BytesMut::zeroed(enc_key_len);
         stream
             .read_exact(&mut enc_key)
             .await
             .map_err(|e| AuthServerParserError::SocketReadError(e))?;
-        Ok(enc_key.into_boxed_slice())
+        Ok(enc_key.freeze())
     }
 
     pub async fn read_from<R: AsyncRead + Unpin>(
@@ -483,11 +483,12 @@ mod tests {
 
         assert!(result.is_err());
         // Expect an IO error indicating unexpected EOF
-        assert!(match result.unwrap_err() {
-            AuthServerParserError::SocketReadError(e) =>
-                e.kind() == std::io::ErrorKind::UnexpectedEof,
-            _ => false,
-        });
+        match result.unwrap_err() {
+            AuthServerParserError::SocketReadError(e) => {
+                assert_eq!(e.kind(), std::io::ErrorKind::UnexpectedEof)
+            }
+            _ => panic!(),
+        };
 
         // Write in all the remained bytes
         let mut read_buf = [0u8; 3];
@@ -621,10 +622,10 @@ mod tests {
         let result = ResponseReader::read_from(&mut mock_stream, &mut small_buf[..]).await;
 
         assert!(result.is_err());
-        assert!(match result.unwrap_err() {
-            AuthServerParserError::BufferTooSmallError() => true,
-            _ => false,
-        });
+        match result.unwrap_err() {
+            AuthServerParserError::BufferTooSmallError() => {}
+            _ => panic!(),
+        };
 
         // Write in all the remained bytes
         let mut read_buf = [0u8; 8];

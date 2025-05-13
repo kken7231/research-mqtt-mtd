@@ -4,4 +4,10 @@ FROM rust:1.86-alpine
 RUN apk update && apk upgrade
 RUN apk add --no-cache mosquitto-clients musl-dev gcc
 
-WORKDIR /rust-mqttmtd/testing
+# add user
+ARG CLIENT_UID=1001
+ARG CLIENT_NAME=client1
+RUN adduser -u ${CLIENT_UID} -D ${CLIENT_NAME}
+USER ${CLIENT_NAME}
+
+WORKDIR /rust-mqttmtd/tokenmgr

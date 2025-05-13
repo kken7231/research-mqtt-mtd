@@ -9,7 +9,6 @@ pub enum TokenSetError {
     RandomLenMismatchError(usize),
     NonceLenMismatchError(usize),
     EncKeyMismatchError(usize),
-    PathNotHavingFilenameError,
 
     InvalidCurIdxInFilenameError(Option<u16>),
     InvalidNumTokensError(u8),
@@ -37,7 +36,6 @@ impl std::fmt::Display for TokenSetError {
             TokenSetError::EncKeyMismatchError(n) => {
                 write!(f, "EncKey mismatch: length={} not expected", n)
             }
-            TokenSetError::PathNotHavingFilenameError => write!(f, "Path not having file name"),
             TokenSetError::InvalidCurIdxInFilenameError(Some(idx)) => {
                 write!(f, "Invalid curidx ({}) in filename", idx)
             }
