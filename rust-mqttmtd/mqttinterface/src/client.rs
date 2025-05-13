@@ -40,8 +40,8 @@ pub async fn handler(
     let (mut broker_reader, mut broker_writer) = broker_stream.split();
 
     // Buffers for incoming data
-    let mut client_buf = BytesMut::zeroed(BUF_SIZE);
-    let mut broker_buf = BytesMut::zeroed(BUF_SIZE);
+    let mut client_buf = BytesMut::with_capacity(BUF_SIZE);
+    let mut broker_buf = BytesMut::with_capacity(BUF_SIZE);
 
     // Task to handle data flow from client to broker
     let client_to_broker = async move {
@@ -193,7 +193,7 @@ pub async fn handler(
                             Packet::Disconnect(disconnect) => disconnect.write(&mut encoded_packet),
                         } {
                             mqttinterface_eprintln!(
-                                "couldn't write a packet to a buffer for Broker {}: {}",
+                                "couldn't write a packet to a buffer for Client {}: {}",
                                 broker_addr,
                                 e
                             );
@@ -212,7 +212,7 @@ pub async fn handler(
                             }
                             Ok(s) => s,
                         }
-                        mqttinterface_println!("Forwarded packet to broker.");
+                        mqttinterface_println!("Forwarded packet to client.");
                     }
                     Err(e) => {
                         // Decoding error

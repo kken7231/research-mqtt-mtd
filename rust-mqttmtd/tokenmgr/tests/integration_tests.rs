@@ -1,20 +1,40 @@
+use bytes::{Bytes, BytesMut};
 use config::{Config, ConfigError, File};
 use libmqttmtd::aead::algo::SupportedAlgorithm;
+use libmqttmtd::aead::algo::SupportedAlgorithm::{Aes128Gcm, Aes256Gcm, Chacha20Poly1305};
 use libmqttmtd::auth_serv::issuer;
 use libmqttmtd::config_helper::display_config;
 use libmqttmtd::consts::RANDOM_LEN;
 use libmqttmtd::socket::tls_config::TlsConfigLoader;
-use rand::seq::IndexedRandom;
+use rumqttc::v5;
+use rumqttc::v5::mqttbytes::v5::Packet;
 use serde::{Deserialize, Serialize};
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
+use std::time::Duration;
 use tokenmgr::fetch_tokens;
+use tokenmgr::tokenset::TokenSet;
+use tokio::task;
+use tokio::time::timeout;
+
+const TEST_ISPUB_PUB: bool = true;
+const TEST_ISPUB_SUB: bool = false;
+
+const TEST_TOPIC_PUBONLY: &str = "topic/pubonly";
+const TEST_TOPIC_SUBONLY: &str = "topic/subonly";
+const TEST_TOPIC_PUBSUB: &str = "topic/pubsub";
+
+const TEST_NUM_TOKENS_DIVIDED_BY_4: u8 = 2;
+const TEST_ALGO: SupportedAlgorithm = Aes256Gcm;
+const TEST_PAYLOAD: &str = "hello from a client";
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct IntegrationTestsConfig {
-    issuer_addr: String,
-    mqtt_interface_addr: String,
+    issuer_host: String,
+    issuer_port: u16,
+    mqtt_interface_host: String,
+    mqtt_interface_port: u16,
     cli_cert: PathBuf,
     cli_key: PathBuf,
     ca_certs_dir: PathBuf,
@@ -23,8 +43,10 @@ struct IntegrationTestsConfig {
 
 fn load_config() -> Result<IntegrationTestsConfig, ConfigError> {
     let mut builder = Config::builder()
-        .set_default("issuer_addr", "server:3000")?
-        .set_default("mqtt_interface_addr", "server:11883")?
+        .set_default("issuer_host", "server")?
+        .set_default("issuer_port", 3000)?
+        .set_default("mqtt_interface_host", "server")?
+        .set_default("mqtt_interface_port", 11883)?
         .set_default("cli_cert", "../../tests/certs/clients/client1.crt")?
         .set_default("cli_key", "../../tests/certs/clients/client1.pem")?
         .set_default("ca_certs_dir", "../../tests/certs/ca/")?
@@ -96,22 +118,8 @@ fn get_tls_config(config: &Arc<IntegrationTestsConfig>) -> Arc<rustls::ClientCon
         .expect("failed to get tls_config out of config")
 }
 
-static AES128GCM: SupportedAlgorithm = SupportedAlgorithm::Aes128Gcm;
-static AES256GCM: SupportedAlgorithm = SupportedAlgorithm::Aes128Gcm;
-static CHACHA20POLY1305: SupportedAlgorithm = SupportedAlgorithm::Aes128Gcm;
-
-static SUPPORTED_ALGORITHMS: [&'static SupportedAlgorithm; 3] =
-    [&AES128GCM, &AES256GCM, &CHACHA20POLY1305];
-
-fn get_random_algo() -> &'static SupportedAlgorithm {
-    *SUPPORTED_ALGORITHMS
-        .choose(&mut rand::rng())
-        .expect("failed to choose random algo")
-}
-
 fn get_issuer_addr(config: &Arc<IntegrationTestsConfig>) -> SocketAddr {
-    config
-        .issuer_addr
+    format!("{}:{}", config.issuer_host, config.issuer_port)
         .to_socket_addrs()
         .inspect_err(|e| panic!("failed to convert issuer address: {:?}", e))
         .unwrap()
@@ -119,124 +127,346 @@ fn get_issuer_addr(config: &Arc<IntegrationTestsConfig>) -> SocketAddr {
         .expect("no address in issuer_addr")
 }
 
-#[tokio::test]
-async fn test_fetch_tokens_pub_4() {
-    let config = get_test_config();
+async fn mqtt_publish(
+    broker_host: impl Into<String>,
+    broker_port: u16,
+    topic: String,
+    payload: Bytes,
+) -> Result<(), v5::ConnectionError> {
+    let mut mqttoptions = v5::MqttOptions::new("client1", broker_host.into(), broker_port);
+    mqttoptions.set_keep_alive(Duration::from_secs(5));
+    let (client, mut eventloop) = v5::AsyncClient::new(mqttoptions, 1);
+    task::spawn(async move {
+        client
+            .publish(&topic, v5::mqttbytes::QoS::AtMostOnce, false, payload)
+            .await
+            .unwrap();
+    });
 
-    // issuer::Request
-    let request = issuer::Request::new(true, 1u8, *get_random_algo(), "topic/pubonly")
-        .inspect_err(|e| panic!("failed to create an issuer request: {:?}", e))
-        .unwrap();
-
-    // Call fetched_res and check if success
-    let fetched_res = fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request)
+    match timeout(Duration::from_secs(5), async {
+        loop {
+            match eventloop.poll().await {
+                Ok(e) => println!("[mqtt_publish] Received event: {:?}", e),
+                Err(e) => return Err(e),
+            }
+        }
+    })
         .await
-        .inspect_err(|err| panic!("{:?}", err))
+    {
+        Ok(v) => v,
+        Err(_) => panic!("[mqtt_publish] timeout"),
+    }
+}
+
+async fn assert_subscribe(
+    broker_host: impl Into<String>,
+    broker_port: u16,
+    topic: String,
+    expected_payload: Bytes,
+) {
+    let mut mqttoptions = v5::MqttOptions::new("client1", broker_host.into(), broker_port);
+    mqttoptions.set_keep_alive(Duration::from_secs(5));
+    let (client, mut eventloop) = v5::AsyncClient::new(mqttoptions, 1);
+    client
+        .subscribe(&topic, v5::mqttbytes::QoS::AtMostOnce)
+        .await
         .unwrap();
 
-    assert_eq!(
-        fetched_res.all_randoms().len(),
-        RANDOM_LEN * (request.num_tokens_divided_by_4() as usize).rotate_left(2)
-    );
+    match timeout(Duration::from_secs(5), async {
+        loop {
+            match eventloop.poll().await {
+                // Successfully publish detected
+                Ok(v5::Event::Incoming(Packet::Publish(publish)))
+                if publish.payload.eq(&expected_payload) =>
+                    {
+                        println!("[assert_subscribe] Received publish: {:?}", publish);
+                        return;
+                    }
+                Ok(e) => println!("[assert_subscribe] Received event: {:?}", e),
+                Err(e) => panic!("[assert_subscribe] Connection error: {:?}", e),
+            }
+        }
+    })
+        .await
+    {
+        Ok(v) => v,
+        Err(_) => panic!("[assert_subscribe] timed out"),
+    }
 }
 
 #[tokio::test]
-async fn test_fetch_tokens_pub_7f() {
+async fn test_fetch_tokens_success_pub_4() -> Result<(), Box<dyn std::error::Error>> {
     let config = get_test_config();
+    let num_tokens_divided_by_4 = 1u8; // num tokens = 4 (safe)
 
     // issuer::Request
-    let request = issuer::Request::new(true, 0x7Fu8, *get_random_algo(), "topic/pubonly")
-        .inspect_err(|e| panic!("failed to create an issuer request: {:?}", e))
-        .unwrap();
+    let request = issuer::Request::new(
+        TEST_ISPUB_PUB,
+        num_tokens_divided_by_4,
+        TEST_ALGO,
+        TEST_TOPIC_PUBONLY,
+    )?;
 
-    // Call fetched_res and check if success
-    let fetched_res = fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request)
-        .await
-        .inspect_err(|err| panic!("{:?}", err))
-        .unwrap();
+    // Fetch tokens
+    let resp = fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request).await?;
 
     assert_eq!(
-        fetched_res.all_randoms().len(),
+        resp.all_randoms().len(),
         RANDOM_LEN * (request.num_tokens_divided_by_4() as usize).rotate_left(2)
     );
+
+    Ok(())
 }
 
 #[tokio::test]
-async fn test_fetch_tokens_sub_4() {
+async fn test_fetch_tokens_success_pub_7f() -> Result<(), Box<dyn std::error::Error>> {
     let config = get_test_config();
+    let num_tokens_divided_by_4 = 0x7Fu8; // num tokens = 0x7F (safe)
 
     // issuer::Request
-    let request = issuer::Request::new(false, 1u8, *get_random_algo(), "topic/subonly")
-        .inspect_err(|e| panic!("failed to create an issuer request: {:?}", e))
-        .unwrap();
+    let request = issuer::Request::new(
+        TEST_ISPUB_PUB,
+        num_tokens_divided_by_4,
+        TEST_ALGO,
+        TEST_TOPIC_PUBONLY,
+    )?;
 
-    // Call fetched_res and check if success
-    let fetched_res = fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request)
-        .await
-        .inspect_err(|err| panic!("{:?}", err))
-        .unwrap();
+    // Fetch tokens
+    let resp = fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request).await?;
 
     assert_eq!(
-        fetched_res.all_randoms().len(),
+        resp.all_randoms().len(),
         RANDOM_LEN * (request.num_tokens_divided_by_4() as usize).rotate_left(2)
     );
+    Ok(())
 }
 
 #[tokio::test]
-async fn test_fetch_tokens_sub_7f() {
+async fn test_fetch_tokens_success_sub_4() -> Result<(), Box<dyn std::error::Error>> {
     let config = get_test_config();
+    let num_tokens_divided_by_4 = 4u8; // num tokens = 4 (safe)
 
     // issuer::Request
-    let request = issuer::Request::new(false, 0x7Fu8, *get_random_algo(), "topic/subonly")
-        .inspect_err(|e| panic!("failed to create an issuer request: {:?}", e))
-        .unwrap();
+    let request = issuer::Request::new(
+        TEST_ISPUB_SUB,
+        num_tokens_divided_by_4,
+        TEST_ALGO,
+        TEST_TOPIC_SUBONLY,
+    )?;
 
-    // Call fetched_res and check if success
-    let fetched_res = fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request)
-        .await
-        .inspect_err(|err| panic!("{:?}", err))
-        .unwrap();
+    // Fetch tokens
+    let resp = fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request).await?;
 
     assert_eq!(
-        fetched_res.all_randoms().len(),
+        resp.all_randoms().len(),
         RANDOM_LEN * (request.num_tokens_divided_by_4() as usize).rotate_left(2)
     );
-}
 
+    Ok(())
+}
 
 #[tokio::test]
-async fn test_fetch_tokens_pubsub_4() {
+async fn test_fetch_tokens_success_sub_7f() -> Result<(), Box<dyn std::error::Error>> {
+    let config = get_test_config();
+    let num_tokens_divided_by_4 = 0x7fu8; // num tokens = 0x7F (safe)
+
+    // issuer::Request
+    let request = issuer::Request::new(
+        TEST_ISPUB_SUB,
+        num_tokens_divided_by_4,
+        TEST_ALGO,
+        TEST_TOPIC_SUBONLY,
+    )?;
+
+    // Fetch tokens
+    let resp = fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request).await?;
+
+    assert_eq!(
+        resp.all_randoms().len(),
+        RANDOM_LEN * (request.num_tokens_divided_by_4() as usize).rotate_left(2)
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_fetch_tokens_success_pubsub_4() -> Result<(), Box<dyn std::error::Error>> {
+    let config = get_test_config();
+    let num_tokens_divided_by_4 = 1u8; // num tokens = 4 (safe)
+
+    // issuer::Request
+    let request = issuer::Request::new(
+        TEST_ISPUB_PUB,
+        num_tokens_divided_by_4,
+        TEST_ALGO,
+        TEST_TOPIC_PUBSUB,
+    )?;
+
+    // Fetch tokens
+    let resp = fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request).await?;
+
+    assert_eq!(
+        resp.all_randoms().len(),
+        RANDOM_LEN * (request.num_tokens_divided_by_4() as usize).rotate_left(2)
+    );
+
+    // issuer::Request
+    let request = issuer::Request::new(
+        TEST_ISPUB_SUB,
+        num_tokens_divided_by_4,
+        TEST_ALGO,
+        TEST_TOPIC_PUBSUB,
+    )?;
+
+    // Fetch tokens
+    let resp = fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request).await?;
+
+    assert_eq!(
+        resp.all_randoms().len(),
+        RANDOM_LEN * (request.num_tokens_divided_by_4() as usize).rotate_left(2)
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_fetch_tokens_success_aes128gcm() -> Result<(), Box<dyn std::error::Error>> {
+    let config = get_test_config();
+    let algo = Aes128Gcm;
+
+    // issuer::Request
+    let request = issuer::Request::new(
+        TEST_ISPUB_PUB,
+        TEST_NUM_TOKENS_DIVIDED_BY_4,
+        algo,
+        TEST_TOPIC_PUBONLY,
+    )?;
+
+    // Fetch tokens
+    let resp = fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request).await?;
+
+    // Check both enc_key and nonce_base length
+    assert_eq!(resp.enc_key().len(), algo.key_len());
+    assert_eq!(resp.nonce_base().len(), algo.nonce_len());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_fetch_tokens_success_aes256gcm() -> Result<(), Box<dyn std::error::Error>> {
+    let config = get_test_config();
+    let algo = Aes256Gcm;
+
+    // issuer::Request
+    let request = issuer::Request::new(
+        TEST_ISPUB_PUB,
+        TEST_NUM_TOKENS_DIVIDED_BY_4,
+        algo,
+        TEST_TOPIC_PUBONLY,
+    )?;
+
+    // Fetch tokens
+    let resp = fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request).await?;
+
+    // Check both enc_key and nonce_base length
+    assert_eq!(resp.enc_key().len(), algo.key_len());
+    assert_eq!(resp.nonce_base().len(), algo.nonce_len());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_fetch_tokens_success_chacha20poly1305() -> Result<(), Box<dyn std::error::Error>> {
+    let config = get_test_config();
+    let algo = Chacha20Poly1305;
+
+    // issuer::Request
+    let request = issuer::Request::new(
+        TEST_ISPUB_PUB,
+        TEST_NUM_TOKENS_DIVIDED_BY_4,
+        algo,
+        TEST_TOPIC_PUBONLY,
+    )?;
+
+    // Fetch tokens
+    let resp = fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request).await?;
+
+    // Check both enc_key and nonce_base length
+    assert_eq!(resp.enc_key().len(), algo.key_len());
+    assert_eq!(resp.nonce_base().len(), algo.nonce_len());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_mqtt_publish_success_idx_0() -> Result<(), Box<dyn std::error::Error>> {
     let config = get_test_config();
 
-    // issuer::Request
-    let request = issuer::Request::new(false, 1u8, *get_random_algo(), "topic/pubsub")
-        .inspect_err(|e| panic!("failed to create an issuer request: {:?}", e))
-        .unwrap();
-
-    // Call fetched_res and check if success
-    let fetched_res = fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request)
-        .await
-        .inspect_err(|err| panic!("{:?}", err))
-        .unwrap();
-
-    assert_eq!(
-        fetched_res.all_randoms().len(),
-        RANDOM_LEN * (request.num_tokens_divided_by_4() as usize).rotate_left(2)
-    );
+    let broker_host = "server";
+    let broker_port = match std::env::var("PROTOCOL") {
+        Ok(val) if val == "plain" => 1883,
+        Ok(val) if val == "tls" => 8883,
+        Ok(val) if val == "websocket" => 8080,
+        Ok(val) if val == "wss" => 8081,
+        _ => panic!("no PROTOCOL set"),
+    };
 
     // issuer::Request
-    let request = issuer::Request::new(true, 1u8, *get_random_algo(), "topic/pubsub")
-        .inspect_err(|e| panic!("failed to create an issuer request: {:?}", e))
+    let request = issuer::Request::new(
+        TEST_ISPUB_PUB,
+        TEST_NUM_TOKENS_DIVIDED_BY_4,
+        TEST_ALGO,
+        TEST_TOPIC_PUBONLY,
+    )?;
+
+    // Fetch tokens
+    let resp = fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request).await?;
+
+    // Construct a TokenSet
+    let mut token_set = TokenSet::from_issuer_req_resp(&request, resp)?;
+    token_set.print_current_token();
+    
+    let first_token = token_set
+        .get_current_b64token()
+        .expect("failed to get first token");
+
+    let mut payload_raw = BytesMut::from(TEST_PAYLOAD.as_bytes());
+
+    let payload = token_set
+        .seal(&mut payload_raw)
+        .inspect_err(|e| panic!("failed to seal: {}", e))
         .unwrap();
 
-    // Call fetched_res and check if success
-    let fetched_res = fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request)
-        .await
-        .inspect_err(|err| panic!("{:?}", err))
-        .unwrap();
+    let topic_moved = token_set.topic().clone();
+    task::spawn(async move {
+        assert_subscribe(
+            broker_host,
+            broker_port,
+            topic_moved,
+            payload_raw.freeze(),
+        )
+            .await;
+    });
 
-    assert_eq!(
-        fetched_res.all_randoms().len(),
-        RANDOM_LEN * (request.num_tokens_divided_by_4() as usize).rotate_left(2)
-    );
+    mqtt_publish(
+        config.mqtt_interface_host.clone(),
+        config.mqtt_interface_port,
+        first_token,
+        payload,
+    )
+        .await?;
+
+    token_set.increment_token_idx();
+
+    Ok(())
 }
+
+// #[tokio::test]
+// async fn test_publish_success_idx_last() -> Result<(), Box<dyn std::error::Error>> {
+//     todo!()
+// }
+//
+// #[tokio::test]
+// async fn test_publish_fail_wrong_token() -> Result<(), Box<dyn std::error::Error>> {
+//     todo!()
+// }

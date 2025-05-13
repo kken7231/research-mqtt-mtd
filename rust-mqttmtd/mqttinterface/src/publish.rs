@@ -8,6 +8,7 @@ use libmqttmtd::{
     socket::plain::PlainClient,
 };
 use mqttbytes::v5::Publish;
+use crate::mqttinterface_println;
 
 /// Decodes publish packet from clients, replaces token and passes it down to Broker.
 pub async fn freeze_publish(
@@ -16,10 +17,11 @@ pub async fn freeze_publish(
 ) -> Result<Option<Publish>, PublishFreezeError> {
     // topic
     let token = publish.topic;
-    let decoded = general_purpose::STANDARD_NO_PAD
+    let decoded = general_purpose::URL_SAFE_NO_PAD
         .decode(token)
         .map_err(|e| PublishFreezeError::TokenDecodeError(e))?;
-
+    mqttinterface_println!("decoded: {:?}", decoded);
+    
     // verify
     let res: Option<verifier::ResponseReader>;
     {
@@ -33,7 +35,7 @@ pub async fn freeze_publish(
             .write_to(&mut stream)
             .await
             .map_err(|e| PublishFreezeError::VerifierRequestWriteError(e))?;
-        let mut buf = BytesMut::zeroed(1024);
+        let mut buf = BytesMut::zeroed(verifier::REQ_RESP_MIN_BUFLEN);
         res = verifier::ResponseReader::read_from(&mut stream, &mut buf[..])
             .await
             .map_err(|e| PublishFreezeError::VerifierResponseReadError(e))?;

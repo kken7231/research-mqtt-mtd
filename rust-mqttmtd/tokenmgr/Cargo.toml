@@ -11,6 +11,7 @@ tokio = { version = "1.44.2", default-features = false, features = ["net"] }
 bytes = "1.10.1"
 config = "0.15.11"
 serde = { version = "1.0.219", features = ["derive"] }
+ring = "0.17.14"
 
 [dev-dependencies]
 rand = "0.9.1"
@@ -19,3 +20,4 @@ tempfile = "3"
 futures = { version = "0.3.31", default-features = false, features = ["io-compat"] }
 tokio = { version = "1.44.2", default-features = false, features = ["macros"] }
 tokio-util = { version = "0.7.15", default-features = false, features = ["compat"] }
+rumqttc = "0.24.0"

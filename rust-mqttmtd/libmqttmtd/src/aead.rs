@@ -1,7 +1,7 @@
 //! States Seal/Open functions
 
 use algo::SupportedAlgorithm;
-use ring::aead::{Aad, LessSafeKey, Nonce, Tag, UnboundKey, NONCE_LEN};
+use ring::aead::{Aad, LessSafeKey, Nonce, Tag, UnboundKey};
 
 pub mod algo;
 
@@ -10,7 +10,7 @@ pub mod algo;
 pub fn seal(
     algo: SupportedAlgorithm,
     key: &[u8],
-    nonce: [u8; NONCE_LEN],
+    nonce: &[u8],
     mut in_out: &mut [u8],
 ) -> Result<Tag, ring::error::Unspecified> {
     let key = UnboundKey::new(algo.ring_algo(), &key[..])?;

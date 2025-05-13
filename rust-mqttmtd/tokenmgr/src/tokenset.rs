@@ -3,6 +3,7 @@ use base64::engine::general_purpose;
 use base64::Engine;
 use bytes::{Bytes, BytesMut};
 use libmqttmtd::aead::algo::SupportedAlgorithm;
+use libmqttmtd::aead::{open, seal};
 use libmqttmtd::auth_serv::issuer;
 use libmqttmtd::consts::{RANDOM_LEN, TIMESTAMP_LEN, TOKEN_LEN};
 use std::fs;
@@ -36,6 +37,7 @@ impl TokenSet {
     }
 
     /// Gets the current token. `None` if `token_idx` has reached `num_tokens`, otherwise `Some`.
+    /// DOES NOT increment token_idx
     pub fn get_current_b64token(&self) -> Option<String> {
         let random_start = RANDOM_LEN * (self.token_idx - self.all_randoms_offset) as usize;
         let random_end = RANDOM_LEN + random_start;
@@ -49,6 +51,33 @@ impl TokenSet {
         } else {
             None
         }
+    }
+
+    pub fn print_current_token(&self) {
+        println!("{:?}{:?}", &self.timestamp, &self.all_randoms[..RANDOM_LEN]);
+    }
+
+    /// Increments `token_idx`.
+    pub fn increment_token_idx(&mut self) {
+        self.token_idx += 1;
+    }
+
+    /// Gets `topic`.
+    pub fn topic(&self) -> String {
+        self.topic.clone()
+    }
+
+    /// Seals payload with its AEAD algorithm
+    pub fn seal(&self, payload: &mut [u8]) -> Result<Bytes, ring::error::Unspecified> {
+        let tag = seal(self.algo, &self.enc_key, &self.get_nonce(), payload)?;
+        let mut combined = BytesMut::from(&payload[..]);
+        combined.extend_from_slice(tag.as_ref());
+        Ok(combined.freeze())
+    }
+
+    /// Opens sealed payload with its AEAD algorithm
+    pub fn open(&self, in_out: &mut [u8]) -> Result<(), ring::error::Unspecified> {
+        open(self.algo, &self.enc_key, &self.get_nonce(), in_out)
     }
 
     /// Gets a nonce.

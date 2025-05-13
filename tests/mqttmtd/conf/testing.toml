@@ -1,5 +1,7 @@
-issuer_addr = "server:3000"
-mqtt_interface_addr = "server:11883"
+issuer_host = "server"
+issuer_port = 3000
+mqtt_interface_host = "server"
+mqtt_interface_port = 11883
 cli_cert = "/certs/clients/client1.crt"
 cli_key = "/certs/clients/client1.pem"
 ca_certs_dir = "/certs/ca"

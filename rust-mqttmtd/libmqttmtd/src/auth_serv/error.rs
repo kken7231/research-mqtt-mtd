@@ -40,7 +40,7 @@ impl std::fmt::Display for AuthServerParserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             AuthServerParserError::BufferTooSmallError() => {
-                write!(f, "index out of bounds")
+                write!(f, "buffer too small, index out of bounds")
             }
             AuthServerParserError::TopicTooLongError() => {
                 write!(f, "token is too long")
