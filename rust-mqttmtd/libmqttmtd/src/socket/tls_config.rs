@@ -79,7 +79,7 @@ impl TlsConfigLoader {
         ca_certs_dir: impl AsRef<Path>,
         no_client_auth: bool,
     ) -> Result<Arc<rustls::ClientConfig>, LoadTLSConfigError> {
-        // Load client sertificate
+        // Load client certificate
         let cli_cert = CertificateDer::from_pem_file(&cli_cert_pem)?;
         println!("Client certificate loaded from {:?}", cli_cert_pem.as_ref());
 

@@ -54,7 +54,14 @@ impl TokenSet {
     }
 
     pub fn print_current_token(&self) {
-        println!("{:?}{:?}", &self.timestamp, &self.all_randoms[..RANDOM_LEN]);
+        println!(
+            "Current token: {}",
+            self.timestamp
+                .iter()
+                .chain(self.all_randoms[..RANDOM_LEN].iter())
+                .map(|b| format!("{:02x}", b))
+                .collect::<String>()
+        );
     }
 
     /// Increments `token_idx`.

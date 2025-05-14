@@ -139,7 +139,7 @@ pub(crate) async fn handler<IO: AsyncRead + AsyncWrite + Unpin>(
     let enc_key = token_set.enc_key();
     let nonce_base = token_set.nonce_base();
     let mut timestamp = [0u8; 6];
-    timestamp[..].copy_from_slice(&masked_timestamp.to_be_bytes()[2..8]);
+    timestamp[..].copy_from_slice(&masked_timestamp.to_be_bytes()[1..7]);
     let all_randoms = token_set.all_randoms();
 
     // Send success response

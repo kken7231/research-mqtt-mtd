@@ -21,3 +21,4 @@ futures = { version = "0.3.31", default-features = false, features = ["io-compat
 tokio = { version = "1.44.2", default-features = false, features = ["macros"] }
 tokio-util = { version = "0.7.15", default-features = false, features = ["compat"] }
 rumqttc = "0.24.0"
+uuid = { version = "1.16.0", features = ["v7"] }
