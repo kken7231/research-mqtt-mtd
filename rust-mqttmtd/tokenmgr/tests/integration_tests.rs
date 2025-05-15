@@ -11,12 +11,14 @@ use rumqttc::v5::mqttbytes::v5::Packet;
 use serde::{Deserialize, Serialize};
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, LazyLock, OnceLock};
 use std::time::Duration;
 use tokenmgr::fetch_tokens;
 use tokenmgr::tokenset::TokenSet;
+use tokio::sync::{Notify, RwLock};
 use tokio::task;
 use tokio::time::timeout;
+use uuid::{NoContext, Timestamp, Uuid};
 
 const TEST_ISPUB_PUB: bool = true;
 const TEST_ISPUB_SUB: bool = false;
@@ -29,6 +31,8 @@ const TEST_NUM_TOKENS_DIVIDED_BY_4: u8 = 2;
 const TEST_ALGO: SupportedAlgorithm = Aes256Gcm;
 const TEST_PAYLOAD: &str = "hello from a client";
 
+const TEST_RUMQTTC_MAX_PACKET_SIZE: Option<u32> = Some(1024);
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct IntegrationTestsConfig {
     issuer_host: String,
@@ -37,6 +41,8 @@ struct IntegrationTestsConfig {
     mqtt_interface_port: u16,
     cli_cert: PathBuf,
     cli_key: PathBuf,
+    subscriber_cert: PathBuf,
+    subscriber_key: PathBuf,
     ca_certs_dir: PathBuf,
     client_auth_disabled: bool,
 }
@@ -49,6 +55,11 @@ fn load_config() -> Result<IntegrationTestsConfig, ConfigError> {
         .set_default("mqtt_interface_port", 11883)?
         .set_default("cli_cert", "../../tests/certs/clients/client1.crt")?
         .set_default("cli_key", "../../tests/certs/clients/client1.pem")?
+        .set_default(
+            "subscriber_cert",
+            "../../tests/certs/clients/subscriber.crt",
+        )?
+        .set_default("subscriber_key", "../../tests/certs/clients/subscriber.pem")?
         .set_default("ca_certs_dir", "../../tests/certs/ca/")?
         .set_default("client_auth_disabled", false)?;
 
@@ -128,70 +139,115 @@ fn get_issuer_addr(config: &Arc<IntegrationTestsConfig>) -> SocketAddr {
 }
 
 async fn mqtt_publish(
+    notify: Arc<Notify>,
     broker_host: impl Into<String>,
     broker_port: u16,
     topic: String,
     payload: Bytes,
 ) -> Result<(), v5::ConnectionError> {
-    let mut mqttoptions = v5::MqttOptions::new("client1", broker_host.into(), broker_port);
-    mqttoptions.set_keep_alive(Duration::from_secs(5));
-    let (client, mut eventloop) = v5::AsyncClient::new(mqttoptions, 1);
-    task::spawn(async move {
-        client
-            .publish(&topic, v5::mqttbytes::QoS::AtMostOnce, false, payload)
-            .await
-            .unwrap();
-    });
+    println!("[mqtt_publish] Waiting for subscribe signal...");
+    notify.notified().await;
+    println!("[mqtt_publish] Received subscribe signal. Proceeding with publish.");
 
-    match timeout(Duration::from_secs(5), async {
+    let mut mqttoptions = v5::MqttOptions::new(
+        format!(
+            "client1{}",
+            Uuid::new_v7(Timestamp::now(NoContext)).to_string()
+        ),
+        broker_host.into(),
+        broker_port,
+    );
+    mqttoptions.set_keep_alive(Duration::from_secs(5));
+    mqttoptions.set_max_packet_size(TEST_RUMQTTC_MAX_PACKET_SIZE);
+    mqttoptions.set_network_options(
+        rumqttc::NetworkOptions::default()
+            .set_connection_timeout(2)
+            .to_owned(),
+    );
+    let (client, mut eventloop) = v5::AsyncClient::new(mqttoptions, 1);
+    client
+        .publish(&topic, v5::mqttbytes::QoS::AtMostOnce, false, payload)
+        .await
+        .unwrap();
+
+    timeout(Duration::from_secs(2), async {
         loop {
             match eventloop.poll().await {
+                Ok(v5::Event::Outgoing(rumqttc::Outgoing::Publish(_))) => {
+                    println!("[mqtt_publish] Publish sent");
+                    return Ok(());
+                }
                 Ok(e) => println!("[mqtt_publish] Received event: {:?}", e),
-                Err(e) => return Err(e),
+                Err(e) => {
+                    eprintln!("[assert_subscribe] error: {:?}", e);
+                    return Err(e);
+                }
             }
         }
     })
         .await
-    {
-        Ok(v) => v,
-        Err(_) => panic!("[mqtt_publish] timeout"),
-    }
+        .unwrap_or_else(|e| {
+            eprintln!("[mqtt_publish] timed out");
+            Err(v5::ConnectionError::Timeout(e))
+        })
 }
 
 async fn assert_subscribe(
+    notify: Arc<Notify>,
     broker_host: impl Into<String>,
     broker_port: u16,
+    subscriber_cert: PathBuf,
+    subscriber_key: PathBuf,
+    ca_certs_dir: PathBuf,
     topic: String,
-    expected_payload: Bytes,
-) {
-    let mut mqttoptions = v5::MqttOptions::new("client1", broker_host.into(), broker_port);
+    expected_payload: impl Into<Bytes>,
+) -> Result<(), v5::ConnectionError> {
+    let mut mqttoptions = v5::MqttOptions::new(
+        format!(
+            "subscriber{}",
+            Uuid::new_v7(Timestamp::now(NoContext)).to_string()
+        ),
+        broker_host.into(),
+        broker_port,
+    );
     mqttoptions.set_keep_alive(Duration::from_secs(5));
+    mqttoptions.set_max_packet_size(TEST_RUMQTTC_MAX_PACKET_SIZE);
+
     let (client, mut eventloop) = v5::AsyncClient::new(mqttoptions, 1);
     client
         .subscribe(&topic, v5::mqttbytes::QoS::AtMostOnce)
         .await
         .unwrap();
 
-    match timeout(Duration::from_secs(5), async {
+    timeout(Duration::from_secs(2), async {
         loop {
             match eventloop.poll().await {
                 // Successfully publish detected
-                Ok(v5::Event::Incoming(Packet::Publish(publish)))
-                if publish.payload.eq(&expected_payload) =>
-                    {
-                        println!("[assert_subscribe] Received publish: {:?}", publish);
-                        return;
-                    }
+                Ok(v5::Event::Incoming(Packet::SubAck(suback))) => {
+                    println!(
+                        "[assert_subscribe] Received SUBACK, sending out signal: {:?}",
+                        suback
+                    );
+                    notify.notify_one();
+                }
+                Ok(v5::Event::Incoming(Packet::Publish(publish))) => {
+                    println!("[assert_subscribe] Received publish: {:?}", publish);
+                    assert_eq!(publish.payload, expected_payload.into());
+                    return Ok(());
+                }
                 Ok(e) => println!("[assert_subscribe] Received event: {:?}", e),
-                Err(e) => panic!("[assert_subscribe] Connection error: {:?}", e),
+                Err(e) => {
+                    eprintln!("[assert_subscribe] error: {:?}", e);
+                    return Err(e);
+                }
             }
         }
     })
         .await
-    {
-        Ok(v) => v,
-        Err(_) => panic!("[assert_subscribe] timed out"),
-    }
+        .unwrap_or_else(|e| {
+            eprintln!("[assert_subscribe] timed out");
+            Err(v5::ConnectionError::Timeout(e))
+        })
 }
 
 #[tokio::test]
@@ -398,25 +454,29 @@ async fn test_fetch_tokens_success_chacha20poly1305() -> Result<(), Box<dyn std:
     Ok(())
 }
 
+static UNUSED_TOPIC_IDX: LazyLock<RwLock<u8>> = LazyLock::new(|| RwLock::new(0));
+
+async fn get_testing_topic() -> String {
+    let mut idx = UNUSED_TOPIC_IDX.write().await;
+    let topic = format!("topic/testing{}", *idx);
+    *idx += 1;
+    topic
+}
+
 #[tokio::test]
 async fn test_mqtt_publish_success_idx_0() -> Result<(), Box<dyn std::error::Error>> {
-    let config = get_test_config();
-
     let broker_host = "server";
-    let broker_port = match std::env::var("PROTOCOL") {
-        Ok(val) if val == "plain" => 1883,
-        Ok(val) if val == "tls" => 8883,
-        Ok(val) if val == "websocket" => 8080,
-        Ok(val) if val == "wss" => 8081,
-        _ => panic!("no PROTOCOL set"),
-    };
+    let broker_port = 1883;
+
+    let config = get_test_config();
+    let topic = get_testing_topic().await;
 
     // issuer::Request
     let request = issuer::Request::new(
         TEST_ISPUB_PUB,
         TEST_NUM_TOKENS_DIVIDED_BY_4,
         TEST_ALGO,
-        TEST_TOPIC_PUBONLY,
+        topic,
     )?;
 
     // Fetch tokens
@@ -425,48 +485,194 @@ async fn test_mqtt_publish_success_idx_0() -> Result<(), Box<dyn std::error::Err
     // Construct a TokenSet
     let mut token_set = TokenSet::from_issuer_req_resp(&request, resp)?;
     token_set.print_current_token();
-    
+
     let first_token = token_set
         .get_current_b64token()
         .expect("failed to get first token");
 
-    let mut payload_raw = BytesMut::from(TEST_PAYLOAD.as_bytes());
+    let payload_raw = TEST_PAYLOAD.as_bytes();
+    let mut seal_in_out = BytesMut::from(payload_raw);
 
     let payload = token_set
-        .seal(&mut payload_raw)
+        .seal(&mut seal_in_out)
         .inspect_err(|e| panic!("failed to seal: {}", e))
         .unwrap();
 
     let topic_moved = token_set.topic().clone();
-    task::spawn(async move {
-        assert_subscribe(
-            broker_host,
-            broker_port,
-            topic_moved,
-            payload_raw.freeze(),
-        )
-            .await;
-    });
 
-    mqtt_publish(
-        config.mqtt_interface_host.clone(),
-        config.mqtt_interface_port,
-        first_token,
-        payload,
+    let notify = Arc::new(Notify::new());
+    let notify_arc = notify.clone();
+    let _publisher = task::spawn(async move {
+        mqtt_publish(
+            notify_arc,
+            config.mqtt_interface_host.clone(),
+            config.mqtt_interface_port,
+            first_token,
+            payload,
+        )
+            .await
+    });
+    let subscriber = assert_subscribe(
+        notify.clone(),
+        broker_host,
+        broker_port,
+        config.subscriber_cert.clone(),
+        config.subscriber_key.clone(),
+        config.ca_certs_dir.clone(),
+        topic_moved,
+        payload_raw,
     )
-        .await?;
+        .await;
+
+    assert!(subscriber.is_ok());
 
     token_set.increment_token_idx();
 
     Ok(())
 }
 
-// #[tokio::test]
-// async fn test_publish_success_idx_last() -> Result<(), Box<dyn std::error::Error>> {
-//     todo!()
-// }
-//
-// #[tokio::test]
-// async fn test_publish_fail_wrong_token() -> Result<(), Box<dyn std::error::Error>> {
-//     todo!()
-// }
+#[tokio::test]
+async fn test_mqtt_publish_success_all_indices() -> Result<(), Box<dyn std::error::Error>> {
+    let broker_host = "server";
+    let broker_port = 1883;
+
+    let config = get_test_config();
+    let topic = get_testing_topic().await;
+
+    // issuer::Request
+    let request = issuer::Request::new(
+        TEST_ISPUB_PUB,
+        TEST_NUM_TOKENS_DIVIDED_BY_4,
+        TEST_ALGO,
+        topic,
+    )?;
+
+    // Fetch tokens
+    let resp = fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request).await?;
+
+    // Construct a TokenSet
+    let mut token_set = TokenSet::from_issuer_req_resp(&request, resp)?;
+
+    // Loop thru all tokens
+    for i in 0..(TEST_NUM_TOKENS_DIVIDED_BY_4 as u16).rotate_left(2) {
+        println!("token index = {}", i);
+        token_set.print_current_token();
+
+        let token = token_set
+            .get_current_b64token()
+            .expect("failed to get first token");
+
+        let payload_raw = format!("{}{}", TEST_PAYLOAD, i);
+        let mut seal_in_out = BytesMut::from(payload_raw.as_bytes());
+
+        let payload = token_set
+            .seal(&mut seal_in_out)
+            .inspect_err(|e| panic!("failed to seal: {}", e))
+            .unwrap();
+
+        let topic_moved = token_set.topic().clone();
+
+        let notify = Arc::new(Notify::new());
+        let notify_arc = notify.clone();
+        let _publisher = task::spawn(async move {
+            mqtt_publish(
+                notify_arc,
+                config.mqtt_interface_host.clone(),
+                config.mqtt_interface_port,
+                token,
+                payload,
+            )
+                .await
+        });
+        let subscriber = assert_subscribe(
+            notify.clone(),
+            broker_host,
+            broker_port,
+            config.subscriber_cert.clone(),
+            config.subscriber_key.clone(),
+            config.ca_certs_dir.clone(),
+            topic_moved,
+            payload_raw,
+        )
+            .await;
+
+        assert!(subscriber.is_ok());
+
+        token_set.increment_token_idx();
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_mqtt_publish_fail_wrong_token() -> Result<(), Box<dyn std::error::Error>> {
+    let broker_host = "server";
+    let broker_port = 1883;
+
+    let config = get_test_config();
+    let topic = get_testing_topic().await;
+
+    // issuer::Request
+    let request = issuer::Request::new(
+        TEST_ISPUB_PUB,
+        TEST_NUM_TOKENS_DIVIDED_BY_4,
+        TEST_ALGO,
+        topic,
+    )?;
+
+    // Fetch tokens
+    let resp = fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request).await?;
+
+    // Construct a TokenSet
+    let mut token_set = TokenSet::from_issuer_req_resp(&request, resp)?;
+    token_set.print_current_token();
+
+    let first_token = token_set
+        .get_current_b64token()
+        .expect("failed to get first token");
+    let wrong_token = "0".repeat(first_token.chars().count());
+    assert_ne!(first_token, wrong_token);
+
+    let payload_raw = "test_publish_fail_wrong_token".as_bytes();
+    let mut seal_in_out = BytesMut::from(payload_raw);
+
+    let payload = token_set
+        .seal(&mut seal_in_out)
+        .inspect_err(|e| panic!("failed to seal: {}", e))
+        .unwrap();
+
+    let topic_moved = token_set.topic().clone();
+
+    let notify = Arc::new(Notify::new());
+    let notify_arc = notify.clone();
+    let _publisher = task::spawn(async move {
+        mqtt_publish(
+            notify_arc,
+            config.mqtt_interface_host.clone(),
+            config.mqtt_interface_port,
+            wrong_token,
+            payload,
+        )
+            .await
+    });
+
+    let subscriber = assert_subscribe(
+        notify.clone(),
+        broker_host,
+        broker_port,
+        config.subscriber_cert.clone(),
+        config.subscriber_key.clone(),
+        config.ca_certs_dir.clone(),
+        topic_moved,
+        payload_raw,
+    )
+        .await;
+
+    match subscriber {
+        Err(v5::ConnectionError::Timeout(_)) => {}
+        other => panic!("unexpected: {:?}", other),
+    }
+
+    token_set.increment_token_idx();
+
+    Ok(())
+}

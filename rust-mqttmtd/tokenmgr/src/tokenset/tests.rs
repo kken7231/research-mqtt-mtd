@@ -155,6 +155,7 @@ async fn req_res_from_tokenset(token_set: &TokenSet) -> (issuer::Request, issuer
     (request, response)
 }
 
+
 #[test]
 fn test_topic_b64encode() {
     assert_eq!(
@@ -283,6 +284,29 @@ fn test_get_nonce() {
     let expected_nonce_aes256_0: Bytes =
         Bytes::copy_from_slice(&expected_nonce_bytes_0[(16 - Aes256Gcm.nonce_len())..]); // AES256-GCM commonly uses 12-byte nonces
     assert_eq!(token_set_algo.get_nonce(), expected_nonce_aes256_0);
+}
+
+#[tokio::test]
+async fn test_seal_open_success() {
+    let mut hydrator = TestDataHydrator::new();
+    let token_set = hydrator.get_token_set(
+        Aes256Gcm,
+        IS_PUB_PUB,
+        TEST_NUM_TOKENS_DIVIDED_BY_4,
+        0,
+        0,
+        "dummy",
+    );
+    let payload_raw = "hello from client";
+    let mut in_out = BytesMut::from(payload_raw);
+    let sealed_res = token_set.seal(&mut in_out);
+    assert!(sealed_res.is_ok());
+    let mut sealed = BytesMut::from(sealed_res.unwrap());
+
+    let opened_res = token_set.open(&mut sealed);
+    assert!(opened_res.is_ok());
+
+    assert_eq!(payload_raw.as_bytes(), &sealed[..sealed.len() - 16]);
 }
 
 #[tokio::test]

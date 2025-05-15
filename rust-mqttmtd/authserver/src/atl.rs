@@ -37,6 +37,11 @@ pub(crate) struct TokenSet {
 }
 
 impl TokenSet {
+    /// Increments `token_idx` by one. Has no check.
+    pub(crate) fn increment_token_idx(&mut self) {
+        self.token_idx += 1;
+    }
+
     /// # Parameters:
     /// - `valid_dur`: must be less than one year, otherwise error thrown
     pub(crate) fn create_without_rand_init(
@@ -171,17 +176,17 @@ impl AccessTokenList {
             .as_nanos() as u64)
     }
 
-    /// Helper function to get the masked timestamp (bytes [2:8] as u64) from a full u64 timestamp.
+    /// Helper function to get the masked timestamp (bytes [1:7] as u64) from a full u64 timestamp.
     /// Assumes Big Endian byte order for slicing.
     fn get_masked_timestamp(full_timestamp: FullTimestamp) -> MaskedTimestamp {
-        full_timestamp & 0x0000FFFFFFFFFF00u64
+        full_timestamp & 0x00_FF_FF_FF_FF_FF_FF_00u64
     }
 
     /// Helper function to assemble a masked u64 from a [u8; 6] timestamp part.
     /// Assumes Big Endian byte order for placement.
     fn assemble_masked_u64_from_part(part: &[u8; 6]) -> MaskedTimestamp {
         let mut bytes = [0u8; 8];
-        bytes[2..8].copy_from_slice(part);
+        bytes[1..7].copy_from_slice(part);
         u64::from_be_bytes(bytes)
     }
 
@@ -189,7 +194,7 @@ impl AccessTokenList {
     /// Assumes Big Endian byte order for placement.
     fn sparse_masked_u64_to_part(masked_timestamp: MaskedTimestamp) -> [u8; 6] {
         let mut bytes = [0u8; 6];
-        bytes[..].copy_from_slice(&masked_timestamp.to_be_bytes()[2..8]);
+        bytes[..].copy_from_slice(&masked_timestamp.to_be_bytes()[1..7]);
         bytes
     }
 
@@ -348,6 +353,7 @@ impl AccessTokenList {
 
     /// Looks up a specific token and verify it.
     /// O(log n) complexity.
+    /// DOES NOT increment `token_idx`.
     ///
     /// # Locks
     /// - `inner_lookup`: read
@@ -377,7 +383,7 @@ impl AccessTokenList {
                 Some(ts) => ts,
             };
 
-            let mut token_set = token_set_arc.write().await;
+            let token_set = token_set_arc.write().await;
 
             // For expiration check
             let current_timestamp: u64 = SystemTime::now()
@@ -387,13 +393,13 @@ impl AccessTokenList {
 
             // Verify random
             let cur_random = token_set.current_random()?;
-            res = if current_timestamp >= token_set.expiration_timestamp {
+            res = if current_timestamp >= token_set.expiration_timestamp
+                || token_set.token_idx >= token_set.num_tokens
+            {
                 revocation_needed = true;
                 Ok(None)
             } else if cur_random.eq(&random) {
                 let cloned = token_set_arc.clone();
-                token_set.token_idx += 1;
-                revocation_needed = token_set.token_idx >= token_set.num_tokens;
                 Ok(Some(cloned))
             } else {
                 Ok(None)
@@ -465,7 +471,7 @@ mod tests {
         );
         assert!(token_set.is_err());
         match token_set.unwrap_err() {
-            ATLError::ValidDurationTooLongError(d) if d == invalid_dur => {},
+            ATLError::ValidDurationTooLongError(d) if d == invalid_dur => {}
             _ => panic!(),
         };
     }

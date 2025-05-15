@@ -6,7 +6,7 @@ use std::net::SocketAddr;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-use crate::publish::freeze_publish;
+use crate::publish::unfreeze_publish;
 use crate::{mqttinterface_eprintln, mqttinterface_println};
 
 const BUF_SIZE: usize = 4096;
@@ -76,7 +76,7 @@ pub async fn handler(
                             Packet::ConnAck(connack) => connack.write(&mut encoded_packet),
                             Packet::Publish(publish) => {
                                 mqttinterface_println!("Intercepted PUBLISH packet from {}.", addr);
-                                match freeze_publish(verifier_port, publish).await {
+                                match unfreeze_publish(verifier_port, publish).await {
                                     Ok(Some(modified)) => {
                                         mqttinterface_println!(
                                             "verification succeeded on PUBLISH packet from {}.",

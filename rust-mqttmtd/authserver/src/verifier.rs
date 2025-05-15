@@ -40,8 +40,6 @@ pub(crate) async fn handler(
         buf
     );
 
-    println!("Request: {:?}", req);
-
     // Verify request
     let token_set = send_verifier_err_resp_if_err!(
         atl.verify(&req.token()).await,
@@ -54,8 +52,8 @@ pub(crate) async fn handler(
     // Send response
     let result = if let Some(token_set) = token_set {
         authserver_verifier_println!(addr, "Verification successful");
-        let token_set = token_set.read().await;
-        verifier::ResponseWriter::new(
+        let mut token_set = token_set.write().await;
+        let resp_writer = verifier::ResponseWriter::new(
             token_set.is_pub(),
             token_set.aead_algo(),
             &token_set.current_nonce()[..],
@@ -63,7 +61,10 @@ pub(crate) async fn handler(
             token_set.enc_key(),
         )
             .write_success_to(&mut stream, &mut buf[..])
-            .await
+            .await;
+        token_set.increment_token_idx();
+
+        resp_writer
     } else {
         authserver_verifier_println!(addr, "Verification failed");
         verifier::ResponseWriter::write_failure_to(&mut stream, &mut buf[..]).await

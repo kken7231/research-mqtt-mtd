@@ -8,10 +8,9 @@ use libmqttmtd::{
     socket::plain::PlainClient,
 };
 use mqttbytes::v5::Publish;
-use crate::mqttinterface_println;
 
 /// Decodes publish packet from clients, replaces token and passes it down to Broker.
-pub async fn freeze_publish(
+pub async fn unfreeze_publish(
     verifier_port: u16,
     mut publish: Publish,
 ) -> Result<Option<Publish>, PublishFreezeError> {
@@ -20,8 +19,7 @@ pub async fn freeze_publish(
     let decoded = general_purpose::URL_SAFE_NO_PAD
         .decode(token)
         .map_err(|e| PublishFreezeError::TokenDecodeError(e))?;
-    mqttinterface_println!("decoded: {:?}", decoded);
-    
+
     // verify
     let res: Option<verifier::ResponseReader>;
     {
@@ -58,8 +56,8 @@ pub async fn freeze_publish(
         )
             .map_err(|e| PublishFreezeError::PayloadOpenError(e))?;
         let tag_len = response.aead_algo.tag_len();
-
-        publish.payload = in_out.split_to(tag_len).freeze();
+        in_out.truncate(in_out.len()-tag_len);
+        publish.payload = in_out.freeze();
         publish.topic = response.topic;
 
         Ok(Some(publish))
