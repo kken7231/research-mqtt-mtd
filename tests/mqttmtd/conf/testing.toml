@@ -4,5 +4,7 @@ mqtt_interface_host = "server"
 mqtt_interface_port = 11883
 cli_cert = "/certs/clients/client1.crt"
 cli_key = "/certs/clients/client1.pem"
+subscriber_cert = "/certs/clients/subscriber.crt"
+subscriber_key = "/certs/clients/subscriber.pem"
 ca_certs_dir = "/certs/ca"
 client_auth_disabled = false

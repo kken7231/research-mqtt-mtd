@@ -24,21 +24,30 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="1bc01236-a6ec-4cbd-8cf4-711f3ebc56a4" name="Changes" comment="sync">
-      <change beforePath="$PROJECT_DIR$/.idea/runConfigurations/plain_full.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/runConfigurations/plain_full.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/runConfigurations/plain_server.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/runConfigurations/tls_full.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/runConfigurations/tls_full.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/runConfigurations/wss_full.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/runConfigurations/wss_full.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/runConfigurations/Run_mqttinterface.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/runConfigurations/Run_mqttinterface.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/runConfigurations/plain_server.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/runConfigurations/plain_server.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker/docker-compose-full.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/docker/composes/full/docker-compose.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker/docker-compose-server.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/docker/composes/test-tokenmgr/docker-compose.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker/docker-compose-server.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/docker/docker-compose-tokenmgr_test.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/Cargo.lock" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/Cargo.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/atl.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/atl.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/issuer.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/issuer.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/verifier.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/verifier.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/libmqttmtd/src/socket/tls_config.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/libmqttmtd/src/socket/tls_config.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/mqttinterface/src/client.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/mqttinterface/src/client.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/mqttinterface/src/publish.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/mqttinterface/src/publish.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/src/tokenset.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/src/tokenset.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/src/tokenset/tests.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/src/tokenset/tests.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/tests/integration_tests.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/tests/integration_tests.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/mqttmtd/acl.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/tests/mqttmtd/acl.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/mqttmtd/conf/testing.toml" beforeDir="false" afterPath="$PROJECT_DIR$/tests/mqttmtd/conf/testing.toml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
-  <component name="ExecutionTargetManager" SELECTED_TARGET="RsBuildProfile:test" />
+  <component name="ExecutionTargetManager" SELECTED_TARGET="RsBuildProfile:dev" />
   <component name="FormatOnSaveOptions">
     <option name="myRunOnSave" value="true" />
   </component>
@@ -51,12 +60,12 @@
     &quot;assignee&quot;: &quot;kken7231&quot;
   }
 }</component>
-  <component name="GithubPullRequestsUISettings">{
-  &quot;selectedUrlAndAccountId&quot;: {
-    &quot;url&quot;: &quot;https://github.com/kken7231/research-mqtt-mtd&quot;,
-    &quot;accountId&quot;: &quot;fc29d802-9af5-448f-9539-73d8dbfc546c&quot;
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/kken7231/research-mqtt-mtd",
+    "accountId": "21546e6f-6528-499e-9cc6-f3ff48e80076"
   }
-}</component>
+}]]></component>
   <component name="MacroExpansionManager">
     <option name="directoryName" value="tvbXeMBN" />
   </component>
@@ -74,34 +83,34 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;Cargo.Test rust-mqttmtd.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.Compose.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.plain-server.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.test-tokenmgr.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.tls-server.executor&quot;: &quot;Run&quot;,
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.rust.reset.selective.auto.import&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;v2&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/Users/kentarou/git/research-mqtt-mtd/rust-mqttmtd/tokenmgr/src&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;org.rust.cargo.project.model.PROJECT_DISCOVERY&quot;: &quot;true&quot;,
-    &quot;org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon&quot;: &quot;&quot;,
-    &quot;org.rust.disableDetachedFileInspection/Users/kentarou/git/research-mqtt-mtd/rust-mqttmtd/tokenmgr/src/tokenset.rs&quot;: &quot;true&quot;,
-    &quot;org.rust.first.attach.projects&quot;: &quot;true&quot;,
-    &quot;rearrange.code.on.save&quot;: &quot;true&quot;,
-    &quot;run.code.analysis.last.selected.profile&quot;: &quot;pProject Default&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;language.rust&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Cargo.Test rust-mqttmtd.executor": "Run",
+    "Cargo.Test tokenmgr.executor": "Run",
+    "Docker.Compose.executor": "Run",
+    "Docker.plain-server.executor": "Run",
+    "Docker.tls-server.executor": "Run",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.rust.reset.selective.auto.import": "true",
+    "git-widget-placeholder": "v2",
+    "last_opened_file_path": "/Users/kentarou/git/research-mqtt-mtd/rust-mqttmtd/tokenmgr/src",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "org.rust.cargo.project.model.PROJECT_DISCOVERY": "true",
+    "org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon": "",
+    "org.rust.disableDetachedFileInspection/Users/kentarou/git/research-mqtt-mtd/rust-mqttmtd/tokenmgr/src/tokenset.rs": "true",
+    "org.rust.first.attach.projects": "true",
+    "rearrange.code.on.save": "true",
+    "run.code.analysis.last.selected.profile": "pProject Default",
+    "settings.editor.selected.configurable": "preferences.pluginManager",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/src" />
@@ -111,44 +120,23 @@
       <recent name="$PROJECT_DIR$/tests/mqttmtd/conf" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
-      <recent name="$PROJECT_DIR$/docker/composes/test-tokenmgr" />
-      <recent name="$PROJECT_DIR$/docker/composes/full" />
-      <recent name="$PROJECT_DIR$/docker/composes/docker-compose.yaml" />
       <recent name="$PROJECT_DIR$/rust-mqttmtd/tokenmgr" />
       <recent name="$PROJECT_DIR$/tests/certs/server" />
+      <recent name="$PROJECT_DIR$/tests/certs/ca" />
+      <recent name="$PROJECT_DIR$/tests/mqttmtd" />
     </key>
   </component>
-  <component name="RunManager" selected="Docker.wss-full">
-    <configuration name="ws-full" type="docker-deploy" factoryName="docker-compose.yml" server-name="Docker">
-      <deployment type="docker-compose.yml">
-        <settings>
-          <option name="envFilePath" value="" />
-          <option name="envVars">
-            <list>
-              <DockerEnvVarImpl>
-                <option name="name" value="PROTOCOL" />
-                <option name="value" value="websocket" />
-              </DockerEnvVarImpl>
-            </list>
-          </option>
-          <option name="removeOrphansOnComposeDown" value="false" />
-          <option name="commandLineOptions" value="--build" />
-          <option name="sourceFilePath" value="docker/composes/full/docker-compose.yaml" />
-          <option name="upDetach" value="false" />
-        </settings>
-      </deployment>
-      <method v="2" />
-    </configuration>
+  <component name="RunManager" selected="Docker.plain-server">
     <list>
       <item itemvalue="Cargo.Run mqttinterface" />
       <item itemvalue="Cargo.Run mqttmtd-authserver" />
       <item itemvalue="Cargo.Run tokenmgr" />
       <item itemvalue="Cargo.Test rust-mqttmtd" />
-      <item itemvalue="Docker.wss-full" />
-      <item itemvalue="Docker.test-tokenmgr" />
-      <item itemvalue="Docker.plain-full" />
       <item itemvalue="Docker.tls-full" />
+      <item itemvalue="Docker.plain-full" />
       <item itemvalue="Docker.ws-full" />
+      <item itemvalue="Docker.wss-full" />
+      <item itemvalue="Docker.plain-server" />
     </list>
   </component>
   <component name="RustProjectSettings">
@@ -162,19 +150,8 @@
       <option name="presentableId" value="Default" />
       <updated>1746003778265</updated>
       <workItem from="1746003779506" duration="4331000" />
-      <workItem from="1747113541358" duration="13412000" />
-      <workItem from="1747282494809" duration="456000" />
-      <workItem from="1747303082833" duration="26000" />
+      <workItem from="1747113541358" duration="11323000" />
     </task>
-    <task id="LOCAL-00001" summary="sync">
-      <option name="closed" value="true" />
-      <created>1747140163086</created>
-      <option name="number" value="00001" />
-      <option name="presentableId" value="LOCAL-00001" />
-      <option name="project" value="LOCAL" />
-      <updated>1747140163086</updated>
-    </task>
-    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

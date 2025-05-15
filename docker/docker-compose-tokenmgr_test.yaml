@@ -5,7 +5,7 @@ services:
       dockerfile: ./docker/Dockerfiles/Dockerfile.server
     container_name: server
     environment:
-      - PROTOCOL=${PROTOCOL}
+      - PROTOCOL=plain
     networks:
       - inner-default
 
@@ -15,7 +15,6 @@ services:
       dockerfile: ./docker/Dockerfiles/Dockerfile.client_wrapper
     container_name: client1
     environment:
-      - PROTOCOL=${PROTOCOL}
       - CLIENT_NAME="client1"
       - INTEGRATION_TESTS_CONF=/mqttmtd/conf/testing.toml
     networks:
