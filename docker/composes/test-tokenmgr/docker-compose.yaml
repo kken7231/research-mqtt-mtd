@@ -1,7 +1,7 @@
 services:
   server:
     build:
-      context: ..
+      context: ../../..
       dockerfile: ./docker/Dockerfiles/Dockerfile.server
     container_name: server
     environment:
@@ -11,7 +11,7 @@ services:
 
   client1:
     build:
-      context: ..
+      context: ../../..
       dockerfile: ./docker/Dockerfiles/Dockerfile.client_wrapper
     container_name: client1
     environment:

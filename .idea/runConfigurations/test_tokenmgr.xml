@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="plain-server" type="docker-deploy" factoryName="docker-compose.yml" server-name="Docker">
+  <configuration default="false" name="test-tokenmgr" type="docker-deploy" factoryName="docker-compose.yml" server-name="Docker">
     <deployment type="docker-compose.yml">
       <settings>
         <option name="envFilePath" value="" />
@@ -13,7 +13,7 @@
         </option>
         <option name="removeOrphansOnComposeDown" value="false" />
         <option name="commandLineOptions" value="--build" />
-        <option name="sourceFilePath" value="docker/docker-compose-server.yaml" />
+        <option name="sourceFilePath" value="docker/composes/test-tokenmgr/docker-compose.yaml" />
         <option name="upDetach" value="false" />
       </settings>
     </deployment>

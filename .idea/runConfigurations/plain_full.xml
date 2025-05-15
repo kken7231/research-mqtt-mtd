@@ -13,7 +13,7 @@
         </option>
         <option name="removeOrphansOnComposeDown" value="false" />
         <option name="commandLineOptions" value="--build" />
-        <option name="sourceFilePath" value="docker/docker-compose-full.yaml" />
+        <option name="sourceFilePath" value="docker/composes/full/docker-compose.yaml" />
         <option name="upDetach" value="false" />
       </settings>
     </deployment>
