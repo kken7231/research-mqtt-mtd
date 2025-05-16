@@ -9,40 +9,40 @@ use libmqttmtd::{
 };
 use mqttbytes::v5::Publish;
 
-/// Decodes publish packet from clients, replaces token and passes it down to Broker.
+/// Decrypts publish packet from clients, replaces token and passes it down to Broker.
 pub async fn unfreeze_publish(
     verifier_port: u16,
     mut publish: Publish,
-) -> Result<Option<Publish>, PublishFreezeError> {
+) -> Result<Option<Publish>, PublishUnfreezeError> {
     // topic
     let token = publish.topic;
     let decoded = general_purpose::URL_SAFE_NO_PAD
         .decode(token)
-        .map_err(|e| PublishFreezeError::TokenDecodeError(e))?;
+        .map_err(|e| PublishUnfreezeError::TokenDecodeError(e))?;
 
     // verify
     let res: Option<verifier::ResponseReader>;
     {
         let req = verifier::Request::new(&decoded)
-            .map_err(|e| PublishFreezeError::VerifierRequestCreateError(e))?;
+            .map_err(|e| PublishUnfreezeError::VerifierRequestCreateError(e))?;
         let mut stream = PlainClient::new(format!("localhost:{}", verifier_port), None)
             .connect()
             .await
-            .map_err(|e| PublishFreezeError::VerifierConnectError(e))?;
+            .map_err(|e| PublishUnfreezeError::VerifierConnectError(e))?;
         let _ = req
             .write_to(&mut stream)
             .await
-            .map_err(|e| PublishFreezeError::VerifierRequestWriteError(e))?;
+            .map_err(|e| PublishUnfreezeError::VerifierRequestWriteError(e))?;
         let mut buf = BytesMut::zeroed(verifier::REQ_RESP_MIN_BUFLEN);
         res = verifier::ResponseReader::read_from(&mut stream, &mut buf[..])
             .await
-            .map_err(|e| PublishFreezeError::VerifierResponseReadError(e))?;
+            .map_err(|e| PublishUnfreezeError::VerifierResponseReadError(e))?;
     } // stream
 
     if let Some(response) = res {
         let nonce_len = response.aead_algo.nonce_len();
         if nonce_len > response.nonce.len() {
-            return Err(PublishFreezeError::NonceTooShortError);
+            return Err(PublishUnfreezeError::NonceTooShortError);
         }
 
         let mut in_out = BytesMut::from(publish.payload);
@@ -54,9 +54,9 @@ pub async fn unfreeze_publish(
             &response.nonce,
             &mut in_out[..],
         )
-            .map_err(|e| PublishFreezeError::PayloadOpenError(e))?;
+            .map_err(|e| PublishUnfreezeError::PayloadOpenError(e))?;
         let tag_len = response.aead_algo.tag_len();
-        in_out.truncate(in_out.len()-tag_len);
+        in_out.truncate(in_out.len() - tag_len);
         publish.payload = in_out.freeze();
         publish.topic = response.topic;
 
@@ -67,7 +67,7 @@ pub async fn unfreeze_publish(
 }
 
 #[derive(Debug)]
-pub enum PublishFreezeError {
+pub enum PublishUnfreezeError {
     /// Wraps [base64::DecodeError]
     TokenDecodeError(base64::DecodeError),
 
@@ -90,29 +90,29 @@ pub enum PublishFreezeError {
     NonceTooShortError,
 }
 
-impl std::error::Error for PublishFreezeError {}
-impl Display for PublishFreezeError {
+impl std::error::Error for PublishUnfreezeError {}
+impl Display for PublishUnfreezeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PublishFreezeError::TokenDecodeError(e) => {
+            PublishUnfreezeError::TokenDecodeError(e) => {
                 write!(f, "token decoding (base64) failed: {}", e)
             }
-            PublishFreezeError::VerifierRequestCreateError(e) => {
+            PublishUnfreezeError::VerifierRequestCreateError(e) => {
                 write!(f, "failed to create a verifier request: {}", e)
             }
-            PublishFreezeError::VerifierConnectError(e) => {
+            PublishUnfreezeError::VerifierConnectError(e) => {
                 write!(f, "failed to connect to verifier: {}", e)
             }
-            PublishFreezeError::VerifierRequestWriteError(e) => {
+            PublishUnfreezeError::VerifierRequestWriteError(e) => {
                 write!(f, "failed to write request to verifier: {}", e)
             }
-            PublishFreezeError::VerifierResponseReadError(e) => {
+            PublishUnfreezeError::VerifierResponseReadError(e) => {
                 write!(f, "failed to read response from verifier: {}", e)
             }
-            PublishFreezeError::PayloadOpenError(e) => {
+            PublishUnfreezeError::PayloadOpenError(e) => {
                 write!(f, "failed to open a sealed message: {}", e)
             }
-            PublishFreezeError::NonceTooShortError => {
+            PublishUnfreezeError::NonceTooShortError => {
                 write!(f, "nonce is too short")
             }
         }

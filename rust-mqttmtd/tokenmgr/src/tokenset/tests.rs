@@ -27,13 +27,11 @@ impl TestDataHydrator {
     fn get_test_timestamp() -> [u8; TIMESTAMP_LEN] {
         (&SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .inspect_err(|e| panic!("failed to get epoch: {}", e))
-            .unwrap()
+            .unwrap_or_else(|e| panic!("failed to get epoch: {}", e))
             .as_nanos()
             .to_be_bytes()[64 / 8 + 1..64 / 8 + 1 + TIMESTAMP_LEN])
             .try_into()
-            .inspect_err(|e| panic!("failed to get bytes: {}", e))
-            .unwrap()
+            .unwrap_or_else(|e| panic!("failed to get bytes: {}", e))
     }
 
     fn get_test_randoms(&mut self, num_tokens: u16) -> Bytes {
@@ -135,8 +133,7 @@ async fn req_res_from_tokenset(token_set: &TokenSet) -> (issuer::Request, issuer
         token_set.algo,
         token_set.topic.clone(),
     )
-        .inspect_err(|e| panic!("{:?}", e))
-        .unwrap();
+        .unwrap_or_else(|e| panic!("{:?}", e));
 
     let response = new_response_reader(
         token_set.enc_key.clone(),
@@ -149,12 +146,10 @@ async fn req_res_from_tokenset(token_set: &TokenSet) -> (issuer::Request, issuer
         token_set.num_tokens.rotate_right(2) as u8,
     )
         .await
-        .inspect_err(|e| panic!("{:?}", e))
-        .unwrap();
+        .unwrap_or_else(|e| panic!("{:?}", e));
 
     (request, response)
 }
-
 
 #[test]
 fn test_topic_b64encode() {
@@ -255,7 +250,10 @@ fn test_get_nonce() {
     let expected_nonce_bytes_0: [u8; 16] = (token_set.nonce_base + 0).to_be_bytes();
     let expected_nonce_aes128_0: Bytes =
         Bytes::copy_from_slice(&expected_nonce_bytes_0[(16 - token_set.algo.nonce_len())..]); // Last 12 bytes
-    assert_eq!(token_set.get_nonce(), expected_nonce_aes128_0);
+    assert_eq!(
+        token_set.get_nonce_for_cli2serv_pub(),
+        expected_nonce_aes128_0
+    );
 
     // Test with token_idx > 0
     let token_set_idx5 = hydrator.get_token_set(
@@ -269,7 +267,10 @@ fn test_get_nonce() {
     let expected_nonce_bytes_5: [u8; 16] = (token_set_idx5.nonce_base + 5).to_be_bytes();
     let expected_nonce_aes128_5: Bytes =
         Bytes::copy_from_slice(&expected_nonce_bytes_5[(16 - Aes128Gcm.nonce_len())..]);
-    assert_eq!(token_set_idx5.get_nonce(), expected_nonce_aes128_5);
+    assert_eq!(
+        token_set_idx5.get_nonce_for_cli2serv_pub(),
+        expected_nonce_aes128_5
+    );
 
     // Test with a different algorithm (assuming Aes256Gcm with nonce_len 12 exists)
     let token_set_algo = hydrator.get_token_set(
@@ -283,7 +284,10 @@ fn test_get_nonce() {
     let expected_nonce_bytes_0: [u8; 16] = token_set_algo.nonce_base.to_be_bytes();
     let expected_nonce_aes256_0: Bytes =
         Bytes::copy_from_slice(&expected_nonce_bytes_0[(16 - Aes256Gcm.nonce_len())..]); // AES256-GCM commonly uses 12-byte nonces
-    assert_eq!(token_set_algo.get_nonce(), expected_nonce_aes256_0);
+    assert_eq!(
+        token_set_algo.get_nonce_for_cli2serv_pub(),
+        expected_nonce_aes256_0
+    );
 }
 
 #[tokio::test]
@@ -299,11 +303,11 @@ async fn test_seal_open_success() {
     );
     let payload_raw = "hello from client";
     let mut in_out = BytesMut::from(payload_raw);
-    let sealed_res = token_set.seal(&mut in_out);
+    let sealed_res = token_set.seal_cli2serv(&mut in_out);
     assert!(sealed_res.is_ok());
     let mut sealed = BytesMut::from(sealed_res.unwrap());
 
-    let opened_res = token_set.open(&mut sealed);
+    let opened_res = token_set.open_cli2serv(&mut sealed);
     assert!(opened_res.is_ok());
 
     assert_eq!(payload_raw.as_bytes(), &sealed[..sealed.len() - 16]);
@@ -322,9 +326,8 @@ async fn test_from_issuer_req_resp_success() {
     );
     let (request, response) = req_res_from_tokenset(&token_set_original).await;
 
-    let token_set = TokenSet::from_issuer_req_resp(&request, response)
-        .inspect_err(|e| panic!("{:?}", e))
-        .unwrap();
+    let token_set =
+        TokenSet::from_issuer_req_resp(&request, response).unwrap_or_else(|e| panic!("{:?}", e));
 
     // Path should be empty
     assert_eq!(token_set.path, PathBuf::new());
@@ -820,8 +823,7 @@ fn test_save_to_file_success() {
     // Save the token set to a file
     token_set
         .save_to_file(&token_sets_dir)
-        .inspect_err(|e| panic!("{:?}", e))
-        .unwrap();
+        .unwrap_or_else(|e| panic!("{:?}", e));
 
     // Construct the expected file path
     let topic_encoded = TokenSet::topic_b64encode(&token_set.topic);
@@ -833,13 +835,10 @@ fn test_save_to_file_success() {
     assert!(expected_file_path.exists()); // Ensure the file was created
 
     // Read the file back and verify its contents
-    let mut file = fs::File::open(&expected_file_path)
-        .inspect_err(|e| panic!("{:?}", e))
-        .unwrap();
+    let mut file = fs::File::open(&expected_file_path).unwrap_or_else(|e| panic!("{:?}", e));
     let mut read_buf = Vec::new();
     file.read_to_end(&mut read_buf)
-        .inspect_err(|e| panic!("{:?}", e))
-        .unwrap();
+        .unwrap_or_else(|e| panic!("{:?}", e));
 
     let mut expected_bytes = Vec::new();
     // Header fields order: algo, enc_key, nonce_base, num_tokens_divided_by_4, timestamp, all_randoms_offset
@@ -878,9 +877,7 @@ fn test_save_to_file_success_replaces_old() {
         TEST_TOPIC,
     );
     let pub_sub_dir = token_sets_dir.join("pub");
-    fs::create_dir_all(&pub_sub_dir)
-        .inspect_err(|e| panic!("{:?}", e))
-        .unwrap();
+    fs::create_dir_all(&pub_sub_dir).unwrap_or_else(|e| panic!("{:?}", e));
 
     // Create an initial file to be replaced
     let initial_filename = format!(
@@ -891,19 +888,16 @@ fn test_save_to_file_success_replaces_old() {
     let initial_file_path = pub_sub_dir.join(initial_filename);
     // Create a dummy file content for the old file (doesn't need to be fully correct)
     fs::File::create(&initial_file_path)
-        .inspect_err(|e| panic!("{:?}", e))
-        .unwrap()
+        .unwrap_or_else(|e| panic!("{:?}", e))
         .write_all(b"dummy content")
-        .inspect_err(|e| panic!("{:?}", e))
-        .unwrap();
+        .unwrap_or_else(|e| panic!("{:?}", e));
     assert!(initial_file_path.exists());
     token_set.path = initial_file_path.clone();
 
     // Save the token set - this should remove the old file and create a new one
     token_set
         .save_to_file(&token_sets_dir)
-        .inspect_err(|e| panic!("{:?}", e))
-        .unwrap();
+        .unwrap_or_else(|e| panic!("{:?}", e));
 
     // Verify the old file is gone
     assert!(!initial_file_path.exists());
@@ -1093,8 +1087,7 @@ fn test_refresh_filename_success() {
     // Refresh the filename
     token_set
         .refresh_filename()
-        .inspect_err(|e| panic!("{:?}", e))
-        .unwrap();
+        .unwrap_or_else(|e| panic!("{:?}", e));
 
     // Verify the old file is gone
     assert!(!initial_file_path.exists());

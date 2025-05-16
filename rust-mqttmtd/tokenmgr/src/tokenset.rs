@@ -1,6 +1,6 @@
 use crate::errors::TokenSetError;
-use base64::engine::general_purpose;
 use base64::Engine;
+use base64::engine::general_purpose;
 use bytes::{Bytes, BytesMut};
 use libmqttmtd::aead::algo::SupportedAlgorithm;
 use libmqttmtd::aead::{open, seal};
@@ -74,22 +74,77 @@ impl TokenSet {
         self.topic.clone()
     }
 
-    /// Seals payload with its AEAD algorithm
-    pub fn seal(&self, payload: &mut [u8]) -> Result<Bytes, ring::error::Unspecified> {
-        let tag = seal(self.algo, &self.enc_key, &self.get_nonce(), payload)?;
+    /// Seals payload with its AEAD algorithm for the publish from client to broker
+    pub fn seal_cli2serv(&self, payload: &mut [u8]) -> Result<Bytes, ring::error::Unspecified> {
+        let tag = seal(
+            self.algo,
+            &self.enc_key,
+            &self.get_nonce_for_cli2serv_pub(),
+            payload,
+        )?;
         let mut combined = BytesMut::from(&payload[..]);
         combined.extend_from_slice(tag.as_ref());
         Ok(combined.freeze())
     }
 
-    /// Opens sealed payload with its AEAD algorithm
-    pub fn open(&self, in_out: &mut [u8]) -> Result<(), ring::error::Unspecified> {
-        open(self.algo, &self.enc_key, &self.get_nonce(), in_out)
+    /// Opens payload with its AEAD algorithm for the publish from client to broker
+    pub fn open_cli2serv(&self, in_out: &mut [u8]) -> Result<(), ring::error::Unspecified> {
+        open(
+            self.algo,
+            &self.enc_key,
+            &self.get_nonce_for_cli2serv_pub(),
+            in_out,
+        )
     }
 
-    /// Gets a nonce.
-    pub fn get_nonce(&self) -> Bytes {
+    /// Seals payload with its AEAD algorithm for the publish from broker to client
+    pub fn seal_serv2cli(
+        &self,
+        packet_id: u16,
+        payload: &mut [u8],
+    ) -> Result<Bytes, ring::error::Unspecified> {
+        let tag = seal(
+            self.algo,
+            &self.enc_key,
+            &self.get_nonce_for_serv2cli_pub(packet_id),
+            payload,
+        )?;
+        let mut combined = BytesMut::from(&payload[..]);
+        combined.extend_from_slice(tag.as_ref());
+        Ok(combined.freeze())
+    }
+
+    /// Opens payload with its AEAD algorithm for the publish from broker to client
+    pub fn open_serv2cli(
+        &self,
+        packet_id: u16,
+        in_out: &mut [u8],
+    ) -> Result<(), ring::error::Unspecified> {
+        open(
+            self.algo,
+            &self.enc_key,
+            &self.get_nonce_for_serv2cli_pub(packet_id),
+            in_out,
+        )
+    }
+
+    /// Gets a nonce for the publish from client to broker.
+    pub fn get_nonce_for_cli2serv_pub(&self) -> Bytes {
         let nonce = self.nonce_base + self.token_idx as u128;
+        let mut nonce_bytes = BytesMut::zeroed(self.algo.nonce_len());
+        nonce
+            .to_be_bytes()
+            .iter()
+            .skip(128 / 8 - self.algo.nonce_len())
+            .enumerate()
+            .for_each(|(i, b)| nonce_bytes[i] = *b);
+        nonce_bytes.freeze()
+    }
+
+    /// Gets a nonce for the publish from broker to client.
+    pub fn get_nonce_for_serv2cli_pub(&self, packet_id: u16) -> Bytes {
+        let nonce =
+            self.nonce_base + ((packet_id as u128).rotate_left(16) | self.token_idx as u128);
         let mut nonce_bytes = BytesMut::zeroed(self.algo.nonce_len());
         nonce
             .to_be_bytes()

@@ -2,6 +2,7 @@ mod client;
 mod config;
 mod macros;
 mod publish;
+mod subscribe;
 
 use crate::config::load_config;
 use libmqttmtd::config_helper::display_config;
