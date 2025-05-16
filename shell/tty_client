@@ -1,9 +1,0 @@
-# Check if a client name is provided
-if [ -z "$1" ]; then
-  echo "Usage: $0 <client_name>"
-  exit 1
-fi
-
-CLIENT_NAME=$1
-
-docker exec -it mqttmtd_${CLIENT_NAME} sh

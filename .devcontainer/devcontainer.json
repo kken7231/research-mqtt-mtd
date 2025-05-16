@@ -1,0 +1,25 @@
+{
+    "name": "Rust Alpine Dev Container",
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"vadimcn.vscode-lldb",
+				"tamasfe.even-better-toml",
+				"rust-lang.rust-analyzer",
+				"ms-vscode.live-server"
+			],
+			"settings": {
+				"rust-analyzer.linkedProjects": [
+					"rust-mqttmtd/Cargo.toml"
+				],
+				"[rust]": {
+					"editor.formatOnSave": true,
+					"rust-analyzer.checkOnSave": true
+				}
+			}
+		}
+	}
+}

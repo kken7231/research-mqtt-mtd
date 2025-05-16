@@ -1,0 +1,27 @@
+services:
+  server:
+    build:
+      context: ../../..
+      dockerfile: ./docker/Dockerfiles/Dockerfile.server
+    container_name: server
+    environment:
+      - PROTOCOL=${PROTOCOL}
+
+  subscriber:
+    build:
+      context: ../../..
+      dockerfile: ./docker/Dockerfile.subscriber
+    container_name: subscriber
+    environment:
+      - PROTOCOL=${PROTOCOL}
+      - CLIENT_NAME="subscriber"
+
+  client:
+    build:
+      context: ../../..
+      dockerfile: ./docker/Dockerfile.client
+    environment:
+      - PROTOCOL=${PROTOCOL}
+      - CLIENT_NAME="client1"
+    tty: true
+    stdin_open: true
