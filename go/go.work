@@ -1,0 +1,12 @@
+go 1.22.5
+
+use (
+	./authserver
+	./client
+	./consts
+	./config
+	./funcs
+	./mqttinterface
+	./tokenmgr
+	./types
+)

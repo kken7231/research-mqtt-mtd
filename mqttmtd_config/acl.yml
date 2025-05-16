@@ -1,0 +1,4 @@
+client:
+  /sample/topic/pub: Pub
+  /sample/topic/sub: Sub
+  /sample/topic/pubsub: PubSub

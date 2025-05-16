@@ -1,2 +1,0 @@
-# in testing crate
-cargo run -- certgen --conf ~/git/research-mqtt-mtd/tests/certs/certgen.toml

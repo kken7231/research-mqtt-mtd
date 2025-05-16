@@ -1,5 +1,0 @@
-[workspace]
-members = [
-    "authserver", "libmqttmtd", "mqttinterface", "testing", "tokenmgr",
-]
-resolver = "3"
