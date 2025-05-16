@@ -1,11 +1,8 @@
 //! Defines Access Control List (ACL).
 
-use serde::Deserialize;
-use std::collections::HashMap;
-use std::fs;
-use std::path::Path;
-
 use crate::error::ACLError;
+use serde::Deserialize;
+use std::{collections::HashMap, fs, path::Path};
 
 /// Access type which can be granted
 #[derive(Debug, Deserialize, PartialEq)]
@@ -22,7 +19,8 @@ pub(crate) struct HostnameEntry {
     access: AccessType,
 }
 
-/// Access Control List. Manages the scope of Publish/Subscribe access per topic per user.
+/// Access Control List. Manages the scope of Publish/Subscribe access per topic
+/// per user.
 #[derive(Debug)]
 pub(crate) struct AccessControlList {
     hostnames: HashMap<String, HashMap<String, AccessType>>,
@@ -161,7 +159,7 @@ client_b:
         let err = acl.unwrap_err();
         match err {
             ACLError::OpenYamlFailedError(e) => assert_eq!(e.kind(), ErrorKind::NotFound),
-            _ => panic!("error type invalid")
+            _ => panic!("error type invalid"),
         }
     }
 
@@ -190,7 +188,8 @@ client_b:
 
     #[tokio::test]
     async fn from_yaml_invalid_data_structure() {
-        // YAML is valid, but the structure doesn't match HashMap<String, HashMap<String, AccessType>>
+        // YAML is valid, but the structure doesn't match HashMap<String,
+        // HashMap<String, AccessType>>
         let yaml_content = r#"
      client_a: "just a string"
              "#;

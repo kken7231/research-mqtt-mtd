@@ -5,7 +5,8 @@ use crate::{aead::algo::SupportedAlgorithm, consts::TOKEN_LEN};
 
 use super::error::AuthServerParserError;
 
-/// Minimum required buffer length for the buf for both request parsing and response parsing.
+/// Minimum required buffer length for the buf for both request parsing and
+/// response parsing.
 pub const REQ_RESP_MIN_BUFLEN: usize = if REQUEST_MIN_BUFLEN > RESPONSE_MIN_BUFLEN {
     REQUEST_MIN_BUFLEN
 } else {
@@ -439,10 +440,12 @@ impl From<u8> for ResponseStatus {
 
 #[cfg(test)]
 mod tests {
-    use crate::aead::algo::SupportedAlgorithm;
-    use crate::auth_serv::{
-        error::AuthServerParserError,
-        verifier::{Request, ResponseReader, ResponseStatus, ResponseWriter},
+    use crate::{
+        aead::algo::SupportedAlgorithm,
+        auth_serv::{
+            error::AuthServerParserError,
+            verifier::{Request, ResponseReader, ResponseStatus, ResponseWriter},
+        },
     };
     use tokio::io::AsyncReadExt;
     use tokio_test::io::Builder;

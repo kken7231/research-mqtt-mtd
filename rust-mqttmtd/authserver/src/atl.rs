@@ -1,24 +1,23 @@
 //! Defines Access Token List (ATL).
 
+use crate::error::ATLError;
 use bytes::{Bytes, BytesMut};
 use libmqttmtd::{
     aead::algo::SupportedAlgorithm,
     consts::{RANDOM_LEN, TIMESTAMP_LEN, TOKEN_LEN},
 };
 use ring::rand::{SecureRandom, SystemRandom};
-use std::collections::HashSet;
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tokio::sync::RwLock;
 
-use crate::error::ATLError;
-
 /// # Set of tokens
-/// Owns various parameters for a set of token. To be added in [self::AccessTokenList]
-///  after wrapped with [std::sync::RwLock] and [std::sync::Arc].
+/// Owns various parameters for a set of token. To be added in
+/// [self::AccessTokenList]  after wrapped with [std::sync::RwLock] and
+/// [std::sync::Arc].
 #[derive(Debug)]
 pub(crate) struct TokenSet {
     masked_timestamp: u64,
@@ -168,7 +167,8 @@ impl AccessTokenList {
         }
     }
 
-    /// Helper function to get the current timestamp as u64 nanoseconds since epoch.
+    /// Helper function to get the current timestamp as u64 nanoseconds since
+    /// epoch.
     fn get_current_timestamp() -> Result<u64, ATLError> {
         Ok(SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -176,8 +176,8 @@ impl AccessTokenList {
             .as_nanos() as u64)
     }
 
-    /// Helper function to get the masked timestamp (bytes [1:7] as u64) from a full u64 timestamp.
-    /// Assumes Big Endian byte order for slicing.
+    /// Helper function to get the masked timestamp (bytes [1:7] as u64) from a
+    /// full u64 timestamp. Assumes Big Endian byte order for slicing.
     fn get_masked_timestamp(full_timestamp: FullTimestamp) -> MaskedTimestamp {
         full_timestamp & 0x00_FF_FF_FF_FF_FF_FF_00u64
     }
@@ -374,7 +374,7 @@ impl AccessTokenList {
         let res: Result<Option<Arc<RwLock<TokenSet>>>, ATLError>;
         {
             let lookup_map = self.inner_lookup.read().await;
-            
+
             // Look up timestamp in lookup_map (O(1))
             let token_set_arc = match lookup_map.get(&masked_timestamp) {
                 None => return Ok(None),
@@ -440,7 +440,7 @@ mod tests {
             valid_dur,
             SupportedAlgorithm::Aes128Gcm,
         )
-            .expect("Failed to create test TokenSet")
+        .expect("Failed to create test TokenSet")
     }
 
     #[tokio::test]
@@ -675,8 +675,8 @@ mod tests {
             );
         } // atl.inner_lookup read lock
 
-        // Depending on exact timing and system clock, it could potentially be 3 if ts2 also expired,
-        // but with 1000s duration it's highly unlikely in a test.
+        // Depending on exact timing and system clock, it could potentially be 3 if ts2
+        // also expired, but with 1000s duration it's highly unlikely in a test.
         {
             // ts1 check - fail
             let token = arced_ts1
@@ -768,8 +768,8 @@ mod tests {
         let removed_count = atl.remove_expired().await.expect("remove_expired failed");
 
         // At least 2 tokens should be removed (ts1 and ts3)
-        // Depending on exact timing and system clock, it could potentially be 3 if ts2 also expired,
-        // but with 1000s duration it's highly unlikely in a test.
+        // Depending on exact timing and system clock, it could potentially be 3 if ts2
+        // also expired, but with 1000s duration it's highly unlikely in a test.
         // Let's assert it's at least 2, and check which ones remain.
         assert!(
             removed_count >= 2,

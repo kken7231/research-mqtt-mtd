@@ -2,11 +2,13 @@ mod client;
 mod config;
 mod macros;
 mod publish;
+mod subscribe;
 
 use crate::config::load_config;
-use libmqttmtd::config_helper::display_config;
-use libmqttmtd::socket::plain::PlainServer;
-use libmqttmtd::socket::plain::ServerType::GLOBAL;
+use libmqttmtd::{
+    config_helper::display_config,
+    socket::plain::{PlainServer, ServerType::GLOBAL},
+};
 use std::error::Error;
 
 pub async fn run_server() -> Result<(), Box<dyn Error>> {

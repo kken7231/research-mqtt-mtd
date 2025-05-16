@@ -1,23 +1,30 @@
+use base64::{Engine, engine::general_purpose};
 use bytes::{Bytes, BytesMut};
 use config::{Config, ConfigError, File};
-use libmqttmtd::aead::algo::SupportedAlgorithm;
-use libmqttmtd::aead::algo::SupportedAlgorithm::{Aes128Gcm, Aes256Gcm, Chacha20Poly1305};
-use libmqttmtd::auth_serv::issuer;
-use libmqttmtd::config_helper::display_config;
-use libmqttmtd::consts::RANDOM_LEN;
-use libmqttmtd::socket::tls_config::TlsConfigLoader;
-use rumqttc::v5;
-use rumqttc::v5::mqttbytes::v5::Packet;
+use libmqttmtd::{
+    aead::algo::{
+        SupportedAlgorithm,
+        SupportedAlgorithm::{Aes128Gcm, Aes256Gcm, Chacha20Poly1305},
+    },
+    auth_serv::issuer,
+    config_helper::display_config,
+    consts::RANDOM_LEN,
+    socket::tls_config::TlsConfigLoader,
+};
+use rumqttc::{v5, v5::mqttbytes::v5::Packet};
 use serde::{Deserialize, Serialize};
-use std::net::{SocketAddr, ToSocketAddrs};
-use std::path::{Path, PathBuf};
-use std::sync::{Arc, LazyLock, OnceLock};
-use std::time::Duration;
-use tokenmgr::fetch_tokens;
-use tokenmgr::tokenset::TokenSet;
-use tokio::sync::{Notify, RwLock};
-use tokio::task;
-use tokio::time::timeout;
+use std::{
+    net::{SocketAddr, ToSocketAddrs},
+    path::{Path, PathBuf},
+    sync::{Arc, LazyLock, OnceLock},
+    time::Duration,
+};
+use tokenmgr::{fetch_tokens, tokenset::TokenSet};
+use tokio::{
+    sync::{Notify, RwLock},
+    task,
+    time::timeout,
+};
 use uuid::{NoContext, Timestamp, Uuid};
 
 const TEST_ISPUB_PUB: bool = true;
@@ -118,28 +125,30 @@ fn get_tls_config(config: &Arc<IntegrationTestsConfig>) -> Arc<rustls::ClientCon
         &config.ca_certs_dir,
         config.client_auth_disabled,
     )
-        .expect("failed to get tls_config out of config")
+    .expect("failed to get tls_config out of config")
 }
 
 fn get_issuer_addr(config: &Arc<IntegrationTestsConfig>) -> SocketAddr {
     format!("{}:{}", config.issuer_host, config.issuer_port)
         .to_socket_addrs()
-        .inspect_err(|e| panic!("failed to convert issuer address: {:?}", e))
-        .unwrap()
+        .unwrap_or_else(|e| panic!("failed to convert issuer address: {:?}", e))
         .next()
         .expect("no address in issuer_addr")
 }
 
 async fn mqtt_publish(
-    notify: Arc<Notify>,
+    notify: impl Into<Option<Arc<Notify>>>,
     broker_host: impl Into<String>,
     broker_port: u16,
     topic: String,
     payload: Bytes,
 ) -> Result<(), v5::ConnectionError> {
-    println!("[mqtt_publish] Waiting for subscribe signal...");
-    notify.notified().await;
-    println!("[mqtt_publish] Received subscribe signal. Proceeding with publish.");
+    let notify = notify.into();
+    if notify.is_some() {
+        println!("[mqtt_publish] Waiting for subscribe signal...");
+        notify.unwrap().notified().await;
+        println!("[mqtt_publish] Received subscribe signal. Proceeding with publish.");
+    }
 
     let mut mqttoptions = v5::MqttOptions::new(
         format!(
@@ -177,11 +186,11 @@ async fn mqtt_publish(
             }
         }
     })
-        .await
-        .unwrap_or_else(|e| {
-            eprintln!("[mqtt_publish] timed out");
-            Err(v5::ConnectionError::Timeout(e))
-        })
+    .await
+    .unwrap_or_else(|e| {
+        eprintln!("[mqtt_publish] timed out");
+        Err(v5::ConnectionError::Timeout(e))
+    })
 }
 
 async fn assert_subscribe(
@@ -232,11 +241,89 @@ async fn assert_subscribe(
             }
         }
     })
+    .await
+    .unwrap_or_else(|e| {
+        eprintln!("[assert_subscribe] timed out");
+        Err(v5::ConnectionError::Timeout(e))
+    })
+}
+
+async fn assert_subscribe_mqttmtd(
+    token_set: &TokenSet,
+    notify: Arc<Notify>,
+    broker_host: impl Into<String>,
+    broker_port: u16,
+    subscription_topic: String,
+    expected_topic_payload: Vec<(Bytes, Bytes)>,
+    duration: Duration,
+) -> Result<(), v5::ConnectionError> {
+    let mut mqttoptions = v5::MqttOptions::new(
+        format!(
+            "subscriber{}",
+            Uuid::new_v7(Timestamp::now(NoContext)).to_string()
+        ),
+        broker_host.into(),
+        broker_port,
+    );
+    mqttoptions.set_keep_alive(Duration::from_secs(5));
+    mqttoptions.set_max_packet_size(TEST_RUMQTTC_MAX_PACKET_SIZE);
+
+    let (client, mut eventloop) = v5::AsyncClient::new(mqttoptions, 1);
+    client
+        .subscribe(&subscription_topic, v5::mqttbytes::QoS::AtMostOnce)
         .await
-        .unwrap_or_else(|e| {
-            eprintln!("[assert_subscribe] timed out");
-            Err(v5::ConnectionError::Timeout(e))
-        })
+        .unwrap();
+
+    timeout(duration, async {
+        loop {
+            match eventloop.poll().await {
+                // Successfully publish detected
+                Ok(v5::Event::Incoming(Packet::SubAck(suback))) => {
+                    println!(
+                        "[assert_subscribe] Received SUBACK, sending out signal: {:?}",
+                        suback
+                    );
+                    notify.notify_one();
+                }
+                Ok(v5::Event::Incoming(Packet::Publish(publish))) => {
+                    println!(
+                        "[assert_subscribe] Received publish, decrypting...: {:?}",
+                        publish
+                    );
+                    let mut in_out = BytesMut::from(&publish.payload[..]);
+                    in_out.extend(
+                        general_purpose::URL_SAFE_NO_PAD
+                            .decode(publish.topic)
+                            .unwrap_or_else(|e| panic!("{:?}", e)),
+                    );
+                    token_set
+                        .open_serv2cli(publish.pkid, &mut in_out)
+                        .unwrap_or_else(|e| panic!("{:?}", e));
+
+                    let topic_len = (in_out[0] as usize).rotate_left(8) | (in_out[1] as usize);
+                    let tag_len = 16;
+
+                    let expected_pair = expected_topic_payload.first().unwrap().clone();
+                    assert_eq!(&in_out[2..(2 + topic_len)], expected_pair.0);
+                    assert_eq!(
+                        &in_out[(2 + topic_len)..(in_out.len() - tag_len)],
+                        expected_pair.1
+                    );
+                    return Ok(());
+                }
+                Ok(e) => println!("[assert_subscribe] Received event: {:?}", e),
+                Err(e) => {
+                    eprintln!("[assert_subscribe] error: {:?}", e);
+                    return Err(e);
+                }
+            }
+        }
+    })
+    .await
+    .unwrap_or_else(|e| {
+        eprintln!("[assert_subscribe] timed out");
+        Err(v5::ConnectionError::Timeout(e))
+    })
 }
 
 #[tokio::test]
@@ -483,9 +570,8 @@ async fn test_mqtt_publish_success_idx_0() -> Result<(), Box<dyn std::error::Err
     let mut seal_in_out = BytesMut::from(payload_raw);
 
     let payload = token_set
-        .seal(&mut seal_in_out)
-        .inspect_err(|e| panic!("failed to seal: {}", e))
-        .unwrap();
+        .seal_cli2serv(&mut seal_in_out)
+        .unwrap_or_else(|e| panic!("failed to seal: {}", e));
 
     let topic_moved = token_set.topic().clone();
 
@@ -499,7 +585,7 @@ async fn test_mqtt_publish_success_idx_0() -> Result<(), Box<dyn std::error::Err
             first_token,
             payload,
         )
-            .await
+        .await
     });
     let subscriber = assert_subscribe(
         notify.clone(),
@@ -508,7 +594,7 @@ async fn test_mqtt_publish_success_idx_0() -> Result<(), Box<dyn std::error::Err
         topic_moved,
         payload_raw,
     )
-        .await;
+    .await;
 
     assert!(subscriber.is_ok());
 
@@ -518,7 +604,7 @@ async fn test_mqtt_publish_success_idx_0() -> Result<(), Box<dyn std::error::Err
 }
 
 #[tokio::test]
-async fn test_mqtt_publish_success_all_indices() -> Result<(), Box<dyn std::error::Error>> {
+async fn test_mqtt_publish_success_all() -> Result<(), Box<dyn std::error::Error>> {
     let broker_host = "server";
     let broker_port = 1883;
 
@@ -546,18 +632,18 @@ async fn test_mqtt_publish_success_all_indices() -> Result<(), Box<dyn std::erro
 
         let token = token_set
             .get_current_b64token()
-            .expect("failed to get first token");
+            .expect("failed to get a token");
 
+        // payload
         let payload_raw = format!("{}{}", TEST_PAYLOAD, i);
         let mut seal_in_out = BytesMut::from(payload_raw.as_bytes());
-
         let payload = token_set
-            .seal(&mut seal_in_out)
-            .inspect_err(|e| panic!("failed to seal: {}", e))
-            .unwrap();
+            .seal_cli2serv(&mut seal_in_out)
+            .unwrap_or_else(|e| panic!("failed to seal: {}", e));
 
         let topic_moved = token_set.topic().clone();
 
+        // Spawn publisher and subscriber
         let notify = Arc::new(Notify::new());
         let notify_arc = notify.clone();
         let _publisher = task::spawn(async move {
@@ -568,7 +654,7 @@ async fn test_mqtt_publish_success_all_indices() -> Result<(), Box<dyn std::erro
                 token,
                 payload,
             )
-                .await
+            .await
         });
         let subscriber = assert_subscribe(
             notify.clone(),
@@ -577,7 +663,7 @@ async fn test_mqtt_publish_success_all_indices() -> Result<(), Box<dyn std::erro
             topic_moved,
             payload_raw,
         )
-            .await;
+        .await;
 
         assert!(subscriber.is_ok());
 
@@ -619,9 +705,8 @@ async fn test_mqtt_publish_fail_wrong_token() -> Result<(), Box<dyn std::error::
     let mut seal_in_out = BytesMut::from(payload_raw);
 
     let payload = token_set
-        .seal(&mut seal_in_out)
-        .inspect_err(|e| panic!("failed to seal: {}", e))
-        .unwrap();
+        .seal_cli2serv(&mut seal_in_out)
+        .unwrap_or_else(|e| panic!("failed to seal: {}", e));
 
     let topic_moved = token_set.topic().clone();
 
@@ -635,7 +720,7 @@ async fn test_mqtt_publish_fail_wrong_token() -> Result<(), Box<dyn std::error::
             wrong_token,
             payload,
         )
-            .await
+        .await
     });
 
     let subscriber = assert_subscribe(
@@ -645,7 +730,7 @@ async fn test_mqtt_publish_fail_wrong_token() -> Result<(), Box<dyn std::error::
         topic_moved,
         payload_raw,
     )
-        .await;
+    .await;
 
     match subscriber {
         Err(v5::ConnectionError::Timeout(_)) => {}
@@ -657,4 +742,303 @@ async fn test_mqtt_publish_fail_wrong_token() -> Result<(), Box<dyn std::error::
     Ok(())
 }
 
+#[tokio::test]
+async fn test_mqtt_subscribe_fail_wrong_token() -> Result<(), Box<dyn std::error::Error>> {
+    let config = get_test_config();
+    let topic = get_testing_topic().await;
 
+    // issuer::Request
+    let request = issuer::Request::new(
+        TEST_ISPUB_SUB,
+        TEST_NUM_TOKENS_DIVIDED_BY_4,
+        TEST_ALGO,
+        topic,
+    )?;
+    let resp = fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request).await?;
+    let token_set = TokenSet::from_issuer_req_resp(&request, resp)?;
+    token_set.print_current_token();
+
+    // wrong token generation
+    let first_token = token_set
+        .get_current_b64token()
+        .expect("failed to get first token");
+    let wrong_token = "0".repeat(first_token.chars().count());
+    assert_ne!(first_token, wrong_token);
+
+    let subscriber = assert_subscribe_mqttmtd(
+        &token_set,
+        Arc::new(Notify::new()),
+        config.mqtt_interface_host.clone(),
+        config.mqtt_interface_port,
+        wrong_token,
+        vec![],
+        Duration::from_secs(2),
+    )
+    .await;
+
+    assert!(subscriber.is_err());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_mqtt_publish_subscribe_success_idx_0() -> Result<(), Box<dyn std::error::Error>> {
+    let config = get_test_config();
+    let topic = get_testing_topic().await;
+
+    // First token for pub
+    let token_set_pub;
+    let first_token_pub;
+    {
+        let request = issuer::Request::new(
+            TEST_ISPUB_PUB,
+            TEST_NUM_TOKENS_DIVIDED_BY_4,
+            TEST_ALGO,
+            topic.clone(),
+        )?;
+        let resp =
+            fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request).await?;
+        token_set_pub = TokenSet::from_issuer_req_resp(&request, resp)?;
+        first_token_pub = token_set_pub
+            .get_current_b64token()
+            .expect("failed to get first token");
+    }
+
+    // First token for sub
+    let token_set_sub;
+    let first_token_sub;
+    {
+        let request = issuer::Request::new(
+            TEST_ISPUB_SUB,
+            TEST_NUM_TOKENS_DIVIDED_BY_4,
+            TEST_ALGO,
+            topic.clone(),
+        )?;
+        let resp =
+            fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request).await?;
+        token_set_sub = TokenSet::from_issuer_req_resp(&request, resp)?;
+        first_token_sub = token_set_sub
+            .get_current_b64token()
+            .expect("failed to get first token");
+    }
+
+    // payload
+    let payload_raw = TEST_PAYLOAD.as_bytes();
+    let mut seal_in_out = BytesMut::from(payload_raw);
+    let payload = token_set_pub
+        .seal_cli2serv(&mut seal_in_out)
+        .unwrap_or_else(|e| panic!("failed to seal: {}", e));
+
+    // Spawn publisher and subscriber
+    let notify = Arc::new(Notify::new());
+    let notify_arc = notify.clone();
+    let _publisher = task::spawn(async move {
+        mqtt_publish(
+            notify_arc,
+            config.mqtt_interface_host.clone(),
+            config.mqtt_interface_port,
+            first_token_pub,
+            payload,
+        )
+        .await
+    });
+    let subscriber = assert_subscribe_mqttmtd(
+        &token_set_sub,
+        notify.clone(),
+        config.mqtt_interface_host.clone(),
+        config.mqtt_interface_port,
+        first_token_sub,
+        vec![(Bytes::from(topic), Bytes::from(payload_raw))],
+        Duration::from_secs(5),
+    )
+    .await;
+
+    assert!(subscriber.is_ok());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_mqtt_publish_subscribe_success_sub_first_pub_all()
+-> Result<(), Box<dyn std::error::Error>> {
+    let config = get_test_config();
+    let topic = get_testing_topic().await;
+
+    // First token for pub
+    let token_set_pub;
+    {
+        let request = issuer::Request::new(
+            TEST_ISPUB_PUB,
+            TEST_NUM_TOKENS_DIVIDED_BY_4,
+            TEST_ALGO,
+            topic.clone(),
+        )?;
+        let resp =
+            fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request).await?;
+        token_set_pub = TokenSet::from_issuer_req_resp(&request, resp)?;
+    }
+
+    // First token for sub
+    let token_set_sub;
+    let first_token_sub;
+    {
+        let request = issuer::Request::new(
+            TEST_ISPUB_SUB,
+            TEST_NUM_TOKENS_DIVIDED_BY_4,
+            TEST_ALGO,
+            topic.clone(),
+        )?;
+        let resp =
+            fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request).await?;
+        token_set_sub = TokenSet::from_issuer_req_resp(&request, resp)?;
+        first_token_sub = token_set_sub
+            .get_current_b64token()
+            .expect("failed to get first token");
+    }
+
+    let notify = Arc::new(Notify::new());
+
+    // Loop thru all tokens
+    for i in 0..(TEST_NUM_TOKENS_DIVIDED_BY_4 as u16).rotate_left(2) {
+        println!("token index = {}", i);
+        token_set_pub.print_current_token();
+
+        let token = token_set_pub
+            .get_current_b64token()
+            .expect("failed to get a token");
+
+        // payload
+        let payload_raw = format!("{}{}", TEST_PAYLOAD, i);
+        let mut seal_in_out = BytesMut::from(payload_raw.as_bytes());
+        let payload = token_set_pub
+            .seal_cli2serv(&mut seal_in_out)
+            .unwrap_or_else(|e| panic!("failed to seal: {}", e));
+
+        let notify_arc = notify.clone();
+
+        // Spawn publisher and subscriber
+        let _publisher = task::spawn(async move {
+            mqtt_publish(
+                notify_arc,
+                config.mqtt_interface_host.clone(),
+                config.mqtt_interface_port,
+                token,
+                payload,
+            )
+            .await
+        });
+    }
+    let subscriber = assert_subscribe_mqttmtd(
+        &token_set_sub,
+        notify,
+        config.mqtt_interface_host.clone(),
+        config.mqtt_interface_port,
+        first_token_sub,
+        (0..(TEST_NUM_TOKENS_DIVIDED_BY_4 as u16).rotate_left(2))
+            .map(|i| {
+                (
+                    Bytes::from(topic.clone()),
+                    Bytes::from(format!("{}{}", TEST_PAYLOAD, i)),
+                )
+            })
+            .collect(),
+        Duration::from_secs(15),
+    )
+    .await;
+
+    assert!(subscriber.is_ok());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_mqtt_publish_subscribe_success_sub_all_pub_all()
+-> Result<(), Box<dyn std::error::Error>> {
+    let config = get_test_config();
+    let topic = get_testing_topic().await;
+
+    // First token for pub
+    let mut token_set_pub;
+    {
+        let request = issuer::Request::new(
+            TEST_ISPUB_PUB,
+            TEST_NUM_TOKENS_DIVIDED_BY_4,
+            TEST_ALGO,
+            topic.clone(),
+        )?;
+        let resp =
+            fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request).await?;
+        token_set_pub = TokenSet::from_issuer_req_resp(&request, resp)?;
+    }
+
+    // First token for sub
+    let mut token_set_sub;
+    {
+        let request = issuer::Request::new(
+            TEST_ISPUB_SUB,
+            TEST_NUM_TOKENS_DIVIDED_BY_4,
+            TEST_ALGO,
+            topic.clone(),
+        )?;
+        let resp =
+            fetch_tokens(get_issuer_addr(&config), get_tls_config(&config), &request).await?;
+        token_set_sub = TokenSet::from_issuer_req_resp(&request, resp)?;
+    }
+
+    // Loop thru all tokens
+    for i in 0..(TEST_NUM_TOKENS_DIVIDED_BY_4 as u16).rotate_left(2) {
+        println!("token index = {}", i);
+        token_set_pub.print_current_token();
+
+        let token_pub = token_set_pub
+            .get_current_b64token()
+            .expect("failed to get a token");
+
+        let token_sub = token_set_sub
+            .get_current_b64token()
+            .expect("failed to get a token");
+
+        // payload
+        let payload_raw = format!("{}{}", TEST_PAYLOAD, i);
+        let mut seal_in_out = BytesMut::from(payload_raw.as_bytes());
+        let payload = token_set_pub
+            .seal_cli2serv(&mut seal_in_out)
+            .unwrap_or_else(|e| panic!("failed to seal: {}", e));
+
+        let notify = Arc::new(Notify::new());
+        let notify_arc = notify.clone();
+
+        // Spawn publisher and subscriber
+        let _publisher = task::spawn(async move {
+            mqtt_publish(
+                notify_arc,
+                config.mqtt_interface_host.clone(),
+                config.mqtt_interface_port,
+                token_pub,
+                payload,
+            )
+            .await
+        });
+
+        let subscriber = assert_subscribe_mqttmtd(
+            &token_set_sub,
+            notify.clone(),
+            config.mqtt_interface_host.clone(),
+            config.mqtt_interface_port,
+            token_sub,
+            vec![(
+                Bytes::from(topic.clone()),
+                Bytes::from(format!("{}{}", TEST_PAYLOAD, i)),
+            )],
+            Duration::from_secs(5),
+        )
+        .await;
+
+        assert!(subscriber.is_ok());
+
+        token_set_pub.increment_token_idx();
+        token_set_sub.increment_token_idx();
+    }
+
+    Ok(())
+}

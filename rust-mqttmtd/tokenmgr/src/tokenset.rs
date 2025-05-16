@@ -1,14 +1,16 @@
 use crate::errors::TokenSetError;
-use base64::engine::general_purpose;
-use base64::Engine;
+use base64::{Engine, engine::general_purpose};
 use bytes::{Bytes, BytesMut};
-use libmqttmtd::aead::algo::SupportedAlgorithm;
-use libmqttmtd::aead::{open, seal};
-use libmqttmtd::auth_serv::issuer;
-use libmqttmtd::consts::{RANDOM_LEN, TIMESTAMP_LEN, TOKEN_LEN};
-use std::fs;
-use std::io::{Read, Seek, Write};
-use std::path::{Path, PathBuf};
+use libmqttmtd::{
+    aead::{algo::SupportedAlgorithm, open, seal},
+    auth_serv::issuer,
+    consts::{RANDOM_LEN, TIMESTAMP_LEN, TOKEN_LEN},
+};
+use std::{
+    fs,
+    io::{Read, Seek, Write},
+    path::{Path, PathBuf},
+};
 
 /// Token set representation in the file or from the issuer Response
 #[derive(Debug)]
@@ -36,8 +38,8 @@ impl TokenSet {
         general_purpose::URL_SAFE_NO_PAD.encode(topic.into())
     }
 
-    /// Gets the current token. `None` if `token_idx` has reached `num_tokens`, otherwise `Some`.
-    /// DOES NOT increment token_idx
+    /// Gets the current token. `None` if `token_idx` has reached `num_tokens`,
+    /// otherwise `Some`. DOES NOT increment token_idx
     pub fn get_current_b64token(&self) -> Option<String> {
         let random_start = RANDOM_LEN * (self.token_idx - self.all_randoms_offset) as usize;
         let random_end = RANDOM_LEN + random_start;
@@ -74,21 +76,66 @@ impl TokenSet {
         self.topic.clone()
     }
 
-    /// Seals payload with its AEAD algorithm
-    pub fn seal(&self, payload: &mut [u8]) -> Result<Bytes, ring::error::Unspecified> {
-        let tag = seal(self.algo, &self.enc_key, &self.get_nonce(), payload)?;
+    /// Seals payload with its AEAD algorithm for the publish from client to
+    /// broker
+    pub fn seal_cli2serv(&self, payload: &mut [u8]) -> Result<Bytes, ring::error::Unspecified> {
+        let tag = seal(
+            self.algo,
+            &self.enc_key,
+            &self.get_nonce_for_cli2serv_pub(),
+            payload,
+        )?;
         let mut combined = BytesMut::from(&payload[..]);
         combined.extend_from_slice(tag.as_ref());
         Ok(combined.freeze())
     }
 
-    /// Opens sealed payload with its AEAD algorithm
-    pub fn open(&self, in_out: &mut [u8]) -> Result<(), ring::error::Unspecified> {
-        open(self.algo, &self.enc_key, &self.get_nonce(), in_out)
+    /// Opens payload with its AEAD algorithm for the publish from client to
+    /// broker
+    pub fn open_cli2serv(&self, in_out: &mut [u8]) -> Result<(), ring::error::Unspecified> {
+        open(
+            self.algo,
+            &self.enc_key,
+            &self.get_nonce_for_cli2serv_pub(),
+            in_out,
+        )
     }
 
-    /// Gets a nonce.
-    pub fn get_nonce(&self) -> Bytes {
+    /// Seals payload with its AEAD algorithm for the publish from broker to
+    /// client
+    pub fn seal_serv2cli(
+        &self,
+        packet_id: u16,
+        payload: &mut [u8],
+    ) -> Result<Bytes, ring::error::Unspecified> {
+        let tag = seal(
+            self.algo,
+            &self.enc_key,
+            &self.get_nonce_for_serv2cli_pub(packet_id),
+            payload,
+        )?;
+        let mut combined = BytesMut::from(&payload[..]);
+        combined.extend_from_slice(tag.as_ref());
+        Ok(combined.freeze())
+    }
+
+    /// Opens payload with its AEAD algorithm for the publish from broker to
+    /// client
+    pub fn open_serv2cli(
+        &self,
+        packet_id: u16,
+        in_out: &mut [u8],
+    ) -> Result<(), ring::error::Unspecified> {
+        open(
+            self.algo,
+            &self.enc_key,
+            &self.get_nonce_for_serv2cli_pub(packet_id),
+            in_out,
+        )
+    }
+
+    /// Gets a nonce for the publish from client to broker.
+    pub fn get_nonce_for_cli2serv_pub(&self) -> Bytes {
         let nonce = self.nonce_base + self.token_idx as u128;
         let mut nonce_bytes = BytesMut::zeroed(self.algo.nonce_len());
         nonce
@@ -100,7 +147,22 @@ impl TokenSet {
         nonce_bytes.freeze()
     }
 
-    /// Constructs a token set from Issuer Request & Response. intentionally takes response's ownership.
+    /// Gets a nonce for the publish from broker to client.
+    pub fn get_nonce_for_serv2cli_pub(&self, packet_id: u16) -> Bytes {
+        let nonce =
+            self.nonce_base + ((packet_id as u128).rotate_left(16) | self.token_idx as u128);
+        let mut nonce_bytes = BytesMut::zeroed(self.algo.nonce_len());
+        nonce
+            .to_be_bytes()
+            .iter()
+            .skip(128 / 8 - self.algo.nonce_len())
+            .enumerate()
+            .for_each(|(i, b)| nonce_bytes[i] = *b);
+        nonce_bytes.freeze()
+    }
+
+    /// Constructs a token set from Issuer Request & Response. intentionally
+    /// takes response's ownership.
     pub fn from_issuer_req_resp(
         request: &issuer::Request,
         response: issuer::ResponseReader,
@@ -231,7 +293,8 @@ impl TokenSet {
         file.seek_relative(skip_len as i64)
             .map_err(|e| TokenSetError::FileReadError(e))?;
 
-        // all_randoms in this structure will have randoms from `token_idx` by skipping some bytes
+        // all_randoms in this structure will have randoms from `token_idx` by skipping
+        // some bytes
         let mut all_randoms = BytesMut::zeroed((num_tokens - file_token_idx) as usize * RANDOM_LEN);
         let actual_read = file
             .read(&mut all_randoms)
@@ -305,7 +368,8 @@ impl TokenSet {
             .map_err(|e| TokenSetError::FileWriteError(e))?;
 
         // all_randoms_offset
-        // File's all_randoms_offset: the absolute original index where the random data in this file begins.
+        // File's all_randoms_offset: the absolute original index where the random data
+        // in this file begins.
         file.write_all(&self.token_idx.to_be_bytes())
             .map_err(|e| TokenSetError::FileWriteError(e))?;
 

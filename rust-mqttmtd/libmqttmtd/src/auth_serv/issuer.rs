@@ -2,10 +2,13 @@ use bytes::{Bytes, BytesMut};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 use super::error::{AuthServerParserError, IssuerRequestValidationError};
-use crate::consts::RANDOM_LEN;
-use crate::{aead::algo::SupportedAlgorithm, consts::TIMESTAMP_LEN};
+use crate::{
+    aead::algo::SupportedAlgorithm,
+    consts::{RANDOM_LEN, TIMESTAMP_LEN},
+};
 
-/// Minimum required buffer length for the buf for both request parsing and response parsing.
+/// Minimum required buffer length for the buf for both request parsing and
+/// response parsing.
 pub const REQ_RESP_MIN_BUFLEN: usize = if REQUEST_MIN_BUFLEN > RESPONSE_MIN_BUFLEN {
     REQUEST_MIN_BUFLEN
 } else {
@@ -20,7 +23,8 @@ pub const REQ_RESP_MIN_BUFLEN: usize = if REQUEST_MIN_BUFLEN > RESPONSE_MIN_BUFL
 /// 1. Compound byte
 ///   - bit 7 `is_pub`: tokens for pub/sub
 ///   - bit 6 `payload_aead_request`: on if optional aead requested
-///   - bit 5-0 `num_tokens_divided_by_multiplier`: `num_tokens` is calculated as multiplication with MULTIPLIER
+///   - bit 5-0 `num_tokens_divided_by_multiplier`: `num_tokens` is calculated
+///     as multiplication with MULTIPLIER
 /// 2. `topic_len` (u16, big endian): length of `topic`
 /// 3. `topic`: Topic Names or Topic Filters
 ///
@@ -28,7 +32,8 @@ pub const REQ_RESP_MIN_BUFLEN: usize = if REQUEST_MIN_BUFLEN > RESPONSE_MIN_BUFL
 /// 1. Compound byte
 ///   - bit 7: `is_pub`: tokens for pub/sub
 ///   - bit 6-0: `num_tokens_divided_by_4`: number of tokens divided by 4
-/// 2. `aead_algo` (u8): AEAD algorithm identifier according to [libmqttmtd::aead::algo::SupportedAlgorithm]
+/// 2. `aead_algo` (u8): AEAD algorithm identifier according to
+///    [libmqttmtd::aead::algo::SupportedAlgorithm]
 /// 3. `topic_len` (u16, big endian): length of `topic`
 /// 4. `topic`: Topic Names or Topic Filters
 #[derive(Debug)]
@@ -648,12 +653,15 @@ mod tests {
             0x00, // Status: Success (0)
             0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22,
             0x33,
-            0x44, // enc_key: [0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44]
+            0x44, /* enc_key: [0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33,
+                   * 0x44, 0x11, 0x22, 0x33, 0x44] */
             0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE,
-            0xFF, // nonce_base: [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]
+            0xFF, /* nonce_base: [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0xAA, 0xBB, 0xCC, 0xDD,
+                   * 0xEE, 0xFF] */
             0xAA, 0xBB, 0xCC, 0xDD, 0xEE,
             0xFF, // timestamp: [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]
-            // all_randoms: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18]
+            // all_randoms: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B,
+            // 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18]
             0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E,
             0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
         ];
@@ -750,8 +758,9 @@ mod tests {
         let _ = mock_stream.read(&mut read_buf).await;
     }
 
-    // // Note: Testing the `handler` function directly is more complex as it involves
-    // // ATL interaction and random generation. You would need to mock ATL behavior
-    // // or use a real ATL instance and control time for expiration tests.
-    // // The tests above cover the serialization/deserialization logic which is a key part.
+    // // Note: Testing the `handler` function directly is more complex as it
+    // involves // ATL interaction and random generation. You would need to
+    // mock ATL behavior // or use a real ATL instance and control time for
+    // expiration tests. // The tests above cover the
+    // serialization/deserialization logic which is a key part.
 }

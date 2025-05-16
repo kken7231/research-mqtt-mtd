@@ -5,7 +5,8 @@ use std::fmt::Formatter;
 /// Wraps three errors:
 /// - [std::io::Error]: Read/write failed
 /// - [std::str::Utf8Error]: UTF8 conversion failed
-/// - [crate::aead::algo::AeadAlgorithmNotSupportedError]: AEAD algorithm is not supported
+/// - [crate::aead::algo::AeadAlgorithmNotSupportedError]: AEAD algorithm is not
+///   supported
 ///
 /// Indicates unique errors:
 /// - buffer is too small
@@ -80,7 +81,6 @@ impl From<IssuerRequestValidationError> for AuthServerParserError {
         AuthServerParserError::InvalidIssuerRequestError(value)
     }
 }
-
 
 /// Errors on validation of issuer's request.
 #[derive(Debug)]

@@ -23,7 +23,8 @@ macro_rules! send_verifier_err_resp_if_err {
     };
 }
 
-/// Handler function that handles a new connection with a client through verifier interface.
+/// Handler function that handles a new connection with a client through
+/// verifier interface.
 pub(crate) async fn handler(
     atl: Arc<AccessTokenList>,
     mut stream: impl AsyncRead + AsyncWrite + Unpin,
@@ -60,8 +61,8 @@ pub(crate) async fn handler(
             token_set.topic(),
             token_set.enc_key(),
         )
-            .write_success_to(&mut stream, &mut buf[..])
-            .await;
+        .write_success_to(&mut stream, &mut buf[..])
+        .await;
         token_set.increment_token_idx();
 
         resp_writer

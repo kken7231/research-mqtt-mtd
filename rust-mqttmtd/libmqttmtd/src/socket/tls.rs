@@ -2,26 +2,24 @@
 
 use std::{net::SocketAddr, sync::Arc};
 
-use rustls::{pki_types::ServerName, ClientConfig, ServerConfig};
+use rustls::{ClientConfig, ServerConfig, pki_types::ServerName};
 
 use tokio::{
     net::{TcpStream, ToSocketAddrs},
     task::JoinHandle,
-    time::{timeout, Duration},
+    time::{Duration, timeout},
 };
-use tokio_rustls::{client, server, TlsAcceptor, TlsConnector};
+use tokio_rustls::{TlsAcceptor, TlsConnector, client, server};
 
 use super::{
     error::SocketError,
     plain::{PlainClient, PlainServer},
 };
-use crate::socket::plain::ServerType;
-use crate::{sock_cli_println, sock_serv_println};
+use crate::{sock_cli_println, sock_serv_println, socket::plain::ServerType};
 
 ///////////////////////////////////////////////////////////
 ///
 /// TLS-enabled TCP Socket Server
-///
 ///////////////////////////////////////////////////////////
 pub struct TlsServer {
     plain_server: PlainServer,
@@ -44,7 +42,7 @@ impl TlsServer {
     pub fn spawn<F, Fut>(self, handler: F) -> JoinHandle<Result<(), SocketError>>
     where
         F: Fn(server::TlsStream<TcpStream>, SocketAddr) -> Fut + Send + Sync + 'static,
-        Fut: std::future::Future<Output=()> + Send + 'static,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
     {
         let acceptor = self.acceptor.clone();
         let handler = Arc::new(handler);
@@ -72,7 +70,6 @@ impl TlsServer {
 ///////////////////////////////////////////////////////////
 ///
 /// TLS-enabled TCP Socket Client
-///
 ///////////////////////////////////////////////////////////
 pub struct TlsClient<A: ToSocketAddrs + Send + 'static> {
     plain_client: PlainClient<A>,
@@ -132,13 +129,11 @@ impl<A: ToSocketAddrs + Send + 'static> TlsClient<A> {
 
 #[cfg(test)]
 mod tests {
-    use crate::socket::plain::ServerType::LOCAL;
-    use crate::socket::tls_config::TlsConfigLoader;
+    use crate::socket::{plain::ServerType::LOCAL, tls_config::TlsConfigLoader};
     use rcgen::CertifiedKey;
-    use std::io::ErrorKind;
     use std::{
-        fs::{create_dir_all, File},
-        io::Write,
+        fs::{File, create_dir_all},
+        io::{ErrorKind, Write},
         path::Path,
         sync::Once,
         time::Duration,
@@ -282,7 +277,7 @@ mod tests {
             Duration::from_secs(1),
             TlsServer::new(PORT, TO_SERVER, LOCAL, conf_server).spawn(|_, _| async {}),
         )
-            .await
+        .await
         {
             Ok(Ok(Err(SocketError::InvalidTimeoutError(d)))) => assert_eq!(d, TO_SERVER),
             _ => panic!(),
@@ -309,7 +304,7 @@ mod tests {
             TlsClient::new(format!("localhost:{}", PORT), TO_CLIENT, conf_client)
                 .connect(DOMAIN_SERV),
         )
-            .await
+        .await
         {
             Ok(Ok(_)) => {}
             _ => panic!(),
@@ -328,9 +323,11 @@ mod tests {
             TlsClient::new(format!("localhost:{}", PORT), TO_CLIENT, conf_client)
                 .connect(DOMAIN_SERV),
         )
-            .await
+        .await
         {
-            Ok(Err(SocketError::ConnectError(e))) => assert!(e.kind() == ErrorKind::ConnectionRefused),
+            Ok(Err(SocketError::ConnectError(e))) => {
+                assert!(e.kind() == ErrorKind::ConnectionRefused)
+            }
             _ => panic!(),
         };
     }

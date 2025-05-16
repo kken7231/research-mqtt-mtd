@@ -7,14 +7,17 @@ use rcgen::{
     PKCS_ECDSA_P384_SHA384, PKCS_ED25519, PKCS_RSA_SHA256, PKCS_RSA_SHA384, PKCS_RSA_SHA512,
 };
 use serde::{Deserialize, Serialize};
-use std::fmt::Formatter;
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::{
+    fmt::Formatter,
+    fs,
+    path::{Path, PathBuf},
+};
 use time::{Duration, OffsetDateTime};
 
 #[derive(Args)]
 pub struct CertgenArgs {
-    /// Output directory for generated certificates and keys. Overrides config file.
+    /// Output directory for generated certificates and keys. Overrides config
+    /// file.
     #[arg(short, long)]
     output_dir: Option<String>,
 
@@ -22,11 +25,13 @@ pub struct CertgenArgs {
     #[arg(short, long)]
     key_algo: Option<String>,
 
-    /// Key size for RSA algorithm (e.g., 2048, 4096). Ignored for other algorithms. Overrides config file.
+    /// Key size for RSA algorithm (e.g., 2048, 4096). Ignored for other
+    /// algorithms. Overrides config file.
     #[arg(long)]
     rsa_key_size: Option<u64>,
 
-    /// Curve for ECDSA (256 or 384). Ignored for other algorithms. Overrides config file.
+    /// Curve for ECDSA (256 or 384). Ignored for other algorithms. Overrides
+    /// config file.
     #[arg(long)]
     ecdsa_curve: Option<u64>,
 
@@ -38,11 +43,13 @@ pub struct CertgenArgs {
     #[arg(long)]
     server_cn: Option<String>,
 
-    /// Common Names for client certificates (can be specified multiple times). Overrides config file.
+    /// Common Names for client certificates (can be specified multiple times).
+    /// Overrides config file.
     #[arg(short, long)]
     client_cn: Vec<String>,
 
-    /// Validity period of certificates in days. Overrides config file. Overrides config file.
+    /// Validity period of certificates in days. Overrides config file.
+    /// Overrides config file.
     #[arg(long)]
     validity_days: Option<i64>,
 
@@ -128,7 +135,8 @@ fn resolve_tilde(path: &Path) -> Option<PathBuf> {
     }
 }
 
-/// Generates a key pair based on the specified algorithm and RSA key size, using the 'ring' crate.
+/// Generates a key pair based on the specified algorithm and RSA key size,
+/// using the 'ring' crate.
 fn generate_key_pair(
     algo: &str,
     rsa_key_size: usize,

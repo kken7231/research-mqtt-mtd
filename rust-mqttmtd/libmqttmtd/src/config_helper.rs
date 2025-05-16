@@ -2,8 +2,7 @@
 
 use serde::Serialize;
 use serde_yaml::Value;
-use std::collections::HashMap;
-use std::fmt::Display;
+use std::{collections::HashMap, fmt::Display};
 
 pub fn display_config(
     title: impl Display,
