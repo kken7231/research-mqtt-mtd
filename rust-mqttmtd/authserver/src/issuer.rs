@@ -2,17 +2,15 @@
 
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
-use crate::acl::AccessControlList;
 use crate::{
+    acl::AccessControlList,
     atl::{AccessTokenList, TokenSet},
     authserver_issuer_eprintln, authserver_issuer_println,
 };
 use libmqttmtd::auth_serv::issuer;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_rustls::server::TlsStream;
-use x509_parser::extensions::GeneralName;
-use x509_parser::nom::AsBytes;
-use x509_parser::parse_x509_certificate;
+use x509_parser::{extensions::GeneralName, nom::AsBytes, parse_x509_certificate};
 
 macro_rules! send_issuer_err_resp_if_err {
     ($result:expr, $err_str:expr, $stream:expr, $addr:expr, $buf:expr) => {
@@ -35,7 +33,8 @@ macro_rules! send_issuer_err_resp_if_err {
     };
 }
 
-/// Handler function that handles a new connection with a client through issuer interface.
+/// Handler function that handles a new connection with a client through issuer
+/// interface.
 pub(crate) async fn handler<IO: AsyncRead + AsyncWrite + Unpin>(
     acl: Arc<AccessControlList>,
     atl: Arc<AccessTokenList>,

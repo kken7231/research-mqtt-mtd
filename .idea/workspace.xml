@@ -23,12 +23,32 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="1bc01236-a6ec-4cbd-8cf4-711f3ebc56a4" name="Changes" comment="finished rewriting mqtt-mtd in rust">
-      <change afterPath="$PROJECT_DIR$/rust-mqttmtd/mqttinterface/src/subscribe.rs" afterDir="false" />
+    <list default="true" id="1bc01236-a6ec-4cbd-8cf4-711f3ebc56a4" name="Changes" comment="finished initial implementation">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/acl.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/acl.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/atl.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/atl.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/config.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/config.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/error.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/error.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/issuer.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/issuer.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/lib.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/main.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/verifier.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/authserver/src/verifier.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/libmqttmtd/src/auth_serv.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/libmqttmtd/src/auth_serv.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/libmqttmtd/src/auth_serv/error.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/libmqttmtd/src/auth_serv/error.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/libmqttmtd/src/auth_serv/issuer.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/libmqttmtd/src/auth_serv/issuer.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/libmqttmtd/src/auth_serv/verifier.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/libmqttmtd/src/auth_serv/verifier.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/libmqttmtd/src/config_helper.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/libmqttmtd/src/config_helper.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/libmqttmtd/src/socket/plain.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/libmqttmtd/src/socket/plain.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/libmqttmtd/src/socket/tls.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/libmqttmtd/src/socket/tls.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/libmqttmtd/src/socket/tls_config.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/libmqttmtd/src/socket/tls_config.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/rust-mqttmtd/mqttinterface/src/client.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/mqttinterface/src/client.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/rust-mqttmtd/mqttinterface/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/mqttinterface/src/lib.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/rust-mqttmtd/mqttinterface/src/publish.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/mqttinterface/src/publish.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/mqttinterface/src/subscribe.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/mqttinterface/src/subscribe.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/rustfmt.toml" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/rustfmt.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/testing/src/certgen.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/testing/src/certgen.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/src/errors.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/src/errors.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/src/lib.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/src/tokenset.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/src/tokenset.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/src/tokenset/tests.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/src/tokenset/tests.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/tests/integration_tests.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust-mqttmtd/tokenmgr/tests/integration_tests.rs" afterDir="false" />
@@ -111,7 +131,7 @@
     "org.rust.first.attach.projects": "true",
     "rearrange.code.on.save": "true",
     "run.code.analysis.last.selected.profile": "pProject Default",
-    "settings.editor.selected.configurable": "preferences.pluginManager",
+    "settings.editor.selected.configurable": "language.rust.rustfmt",
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
@@ -146,6 +166,9 @@
   </component>
   <component name="RustProjectSettings">
     <option name="toolchainHomeDirectory" value="$USER_HOME$/.cargo/bin" />
+  </component>
+  <component name="RustfmtProjectSettings">
+    <option name="channel" value="nightly" />
   </component>
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
@@ -196,6 +219,7 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="sync" />
     <MESSAGE value="finished rewriting mqtt-mtd in rust" />
-    <option name="LAST_COMMIT_MESSAGE" value="finished rewriting mqtt-mtd in rust" />
+    <MESSAGE value="finished initial implementation" />
+    <option name="LAST_COMMIT_MESSAGE" value="finished initial implementation" />
   </component>
 </project>

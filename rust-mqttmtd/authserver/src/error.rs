@@ -53,7 +53,11 @@ impl std::fmt::Display for ATLError {
                 write!(f, "valid duration is too long: {} secs", d.as_secs())
             }
             ATLError::InvalidNumTokensDiv4Error(n) => {
-                write!(f, "invalid number of tokens: {}", (*n as u16).rotate_left(2))
+                write!(
+                    f,
+                    "invalid number of tokens: {}",
+                    (*n as u16).rotate_left(2)
+                )
             }
             ATLError::EmptyTopicError => {
                 write!(f, "empty token not allowed")

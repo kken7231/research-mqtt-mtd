@@ -1,12 +1,14 @@
 use crate::mqttinterface_println;
 use base64::{Engine, engine::general_purpose};
 use bytes::{BufMut, Bytes, BytesMut};
-use libmqttmtd::aead::algo::SupportedAlgorithm;
-use libmqttmtd::aead::algo::SupportedAlgorithm::Aes128Gcm;
-use libmqttmtd::{aead, auth_serv::verifier, socket::plain::PlainClient};
+use libmqttmtd::{
+    aead,
+    aead::algo::{SupportedAlgorithm, SupportedAlgorithm::Aes128Gcm},
+    auth_serv::verifier,
+    socket::plain::PlainClient,
+};
 use mqttbytes::v5::{Publish, Subscribe};
-use std::fmt::Display;
-use std::sync::Arc;
+use std::{fmt::Display, sync::Arc};
 use tokio::sync::RwLock;
 
 #[derive(Debug)]
@@ -109,16 +111,19 @@ pub enum SubscribeUnfreezeError {
     /// Wraps [base64::DecodeError]
     TokenDecodeError(base64::DecodeError),
 
-    /// Wraps [libmqttmtd::auth_serv::error::AuthServerParserError] error on request generation
+    /// Wraps [libmqttmtd::auth_serv::error::AuthServerParserError] error on
+    /// request generation
     VerifierRequestCreateError(libmqttmtd::auth_serv::error::AuthServerParserError),
 
     /// Wraps [libmqttmtd::socket::error::SocketError] error on client connect
     VerifierConnectError(libmqttmtd::socket::error::SocketError),
 
-    /// Wraps [libmqttmtd::auth_serv::error::AuthServerParserError] error on writing request
+    /// Wraps [libmqttmtd::auth_serv::error::AuthServerParserError] error on
+    /// writing request
     VerifierRequestWriteError(libmqttmtd::auth_serv::error::AuthServerParserError),
 
-    /// Wraps [libmqttmtd::auth_serv::error::AuthServerParserError] error on reading response
+    /// Wraps [libmqttmtd::auth_serv::error::AuthServerParserError] error on
+    /// reading response
     VerifierResponseReadError(libmqttmtd::auth_serv::error::AuthServerParserError),
 }
 
@@ -189,16 +194,19 @@ pub enum SubscribedPublishFreezeError {
     /// Wraps [base64::DecodeError]
     TokenDecodeError(base64::DecodeError),
 
-    /// Wraps [libmqttmtd::auth_serv::error::AuthServerParserError] error on request generation
+    /// Wraps [libmqttmtd::auth_serv::error::AuthServerParserError] error on
+    /// request generation
     VerifierRequestCreateError(libmqttmtd::auth_serv::error::AuthServerParserError),
 
     /// Wraps [libmqttmtd::socket::error::SocketError] error on client connect
     VerifierConnectError(libmqttmtd::socket::error::SocketError),
 
-    /// Wraps [libmqttmtd::auth_serv::error::AuthServerParserError] error on writing request
+    /// Wraps [libmqttmtd::auth_serv::error::AuthServerParserError] error on
+    /// writing request
     VerifierRequestWriteError(libmqttmtd::auth_serv::error::AuthServerParserError),
 
-    /// Wraps [libmqttmtd::auth_serv::error::AuthServerParserError] error on reading response
+    /// Wraps [libmqttmtd::auth_serv::error::AuthServerParserError] error on
+    /// reading response
     VerifierResponseReadError(libmqttmtd::auth_serv::error::AuthServerParserError),
 
     /// Wraps [ring::error::Unspecified] on sealing a packet

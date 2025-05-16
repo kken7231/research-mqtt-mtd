@@ -1,6 +1,5 @@
-use mqttmtd_authserver::{authserver_eprintln, authserver_println, run_server};
-
 extern crate libmqttmtd;
+use mqttmtd_authserver::{authserver_eprintln, authserver_println, run_server};
 
 #[tokio::main]
 async fn main() {

@@ -6,19 +6,23 @@ use std::path::PathBuf;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about)]
 pub(super) struct CliArgs {
-    /// Path to the server certificate PEM file. Default: "./certs/server/cert.crt". Overrides config file.
+    /// Path to the server certificate PEM file. Default:
+    /// "./certs/server/cert.crt". Overrides config file.
     #[arg(long)]
     server_cert_pem: Option<String>,
 
-    /// Path to the server key PEM file. Default: "./certs/server/key.pem". Overrides config file.
+    /// Path to the server key PEM file. Default: "./certs/server/key.pem".
+    /// Overrides config file.
     #[arg(long)]
     server_key_pem: Option<String>,
 
-    /// Directory containing CA certificates for authentication. Default: "./certs/ca". Overrides config file.
+    /// Directory containing CA certificates for authentication. Default:
+    /// "./certs/ca". Overrides config file.
     #[arg(long)]
     ca_certs_dir: Option<String>,
 
-    /// Disable client certificate authentication. Default: false. Overrides config file.
+    /// Disable client certificate authentication. Default: false. Overrides
+    /// config file.
     #[arg(long)]
     client_auth_disabled: Option<bool>,
 
@@ -30,7 +34,8 @@ pub(super) struct CliArgs {
     #[arg(long)]
     verifier_port: Option<u16>,
 
-    /// Path to the Access Control List (ACL) yaml file. Default: "./acl.yaml". Overrides config file.
+    /// Path to the Access Control List (ACL) yaml file. Default: "./acl.yaml".
+    /// Overrides config file.
     #[arg(long)]
     acl: Option<String>,
 

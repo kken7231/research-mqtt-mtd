@@ -1,25 +1,30 @@
-use base64::Engine;
-use base64::engine::general_purpose;
+use base64::{Engine, engine::general_purpose};
 use bytes::{Bytes, BytesMut};
 use config::{Config, ConfigError, File};
-use libmqttmtd::aead::algo::SupportedAlgorithm;
-use libmqttmtd::aead::algo::SupportedAlgorithm::{Aes128Gcm, Aes256Gcm, Chacha20Poly1305};
-use libmqttmtd::auth_serv::issuer;
-use libmqttmtd::config_helper::display_config;
-use libmqttmtd::consts::RANDOM_LEN;
-use libmqttmtd::socket::tls_config::TlsConfigLoader;
-use rumqttc::v5;
-use rumqttc::v5::mqttbytes::v5::Packet;
+use libmqttmtd::{
+    aead::algo::{
+        SupportedAlgorithm,
+        SupportedAlgorithm::{Aes128Gcm, Aes256Gcm, Chacha20Poly1305},
+    },
+    auth_serv::issuer,
+    config_helper::display_config,
+    consts::RANDOM_LEN,
+    socket::tls_config::TlsConfigLoader,
+};
+use rumqttc::{v5, v5::mqttbytes::v5::Packet};
 use serde::{Deserialize, Serialize};
-use std::net::{SocketAddr, ToSocketAddrs};
-use std::path::{Path, PathBuf};
-use std::sync::{Arc, LazyLock, OnceLock};
-use std::time::Duration;
-use tokenmgr::fetch_tokens;
-use tokenmgr::tokenset::TokenSet;
-use tokio::sync::{Notify, RwLock};
-use tokio::task;
-use tokio::time::timeout;
+use std::{
+    net::{SocketAddr, ToSocketAddrs},
+    path::{Path, PathBuf},
+    sync::{Arc, LazyLock, OnceLock},
+    time::Duration,
+};
+use tokenmgr::{fetch_tokens, tokenset::TokenSet};
+use tokio::{
+    sync::{Notify, RwLock},
+    task,
+    time::timeout,
+};
 use uuid::{NoContext, Timestamp, Uuid};
 
 const TEST_ISPUB_PUB: bool = true;

@@ -1,7 +1,5 @@
-use libmqttmtd;
-use libmqttmtd::aead::algo::AeadAlgorithmNotSupportedError;
-use std::fmt::Formatter;
-use std::path::PathBuf;
+use libmqttmtd::{self, aead::algo::AeadAlgorithmNotSupportedError};
+use std::{fmt::Formatter, path::PathBuf};
 
 /// Errors regarding tokenset
 #[derive(Debug)]

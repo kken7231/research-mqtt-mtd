@@ -2,17 +2,20 @@
 use bytes::{Buf, BytesMut};
 use mqttbytes::v5::{self, Packet, Publish, Subscribe};
 
-use crate::publish::{PublishUnfreezeError, unfreeze_publish};
-use crate::subscribe::{
-    ClientSubscriptionInfo, SubscribeUnfreezeError, SubscribedPublishFreezeError,
-    freeze_subscribed_publish, unfreeze_subscribe,
+use crate::{
+    mqttinterface_eprintln, mqttinterface_println,
+    publish::{PublishUnfreezeError, unfreeze_publish},
+    subscribe::{
+        ClientSubscriptionInfo, SubscribeUnfreezeError, SubscribedPublishFreezeError,
+        freeze_subscribed_publish, unfreeze_subscribe,
+    },
 };
-use crate::{mqttinterface_eprintln, mqttinterface_println};
-use std::net::SocketAddr;
-use std::sync::Arc;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpStream;
-use tokio::sync::RwLock;
+use std::{net::SocketAddr, sync::Arc};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpStream,
+    sync::RwLock,
+};
 
 const BUF_SIZE: usize = 4096;
 
@@ -239,7 +242,8 @@ pub async fn handler(
         }
     };
 
-    // Run both tasks concurrently and wait for one to finish (which implies the connection is closing)
+    // Run both tasks concurrently and wait for one to finish (which implies the
+    // connection is closing)
     tokio::select! {
         _ = client_to_broker => (),
         _ = broker_to_client => (),

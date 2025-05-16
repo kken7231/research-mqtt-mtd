@@ -25,7 +25,8 @@ pub struct PlainServer {
 }
 
 impl PlainServer {
-    /// Creates a new instance that will bind at localhost:`port` until `listen_timeout` comes.
+    /// Creates a new instance that will bind at localhost:`port` until
+    /// `listen_timeout` comes.
     pub fn new(
         port: u16,
         listen_timeout: impl Into<Option<Duration>>,
@@ -38,20 +39,21 @@ impl PlainServer {
         }
     }
 
-    /// Spawns a [tokio::task::JoinHandle] task that will serve as a socket server.
-    /// Runs `handler` for each client.
+    /// Spawns a [tokio::task::JoinHandle] task that will serve as a socket
+    /// server. Runs `handler` for each client.
     ///
     /// # Examples
     ///
     /// ```no_run
+    /// use crate::libmqttmtd::socket::{error::SocketError, plain::PlainServer};
     /// use std::time::Duration;
-    /// use crate::libmqttmtd::socket::error::SocketError;
-    /// use crate::libmqttmtd::socket::plain::PlainServer;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), SocketError> {
     ///     use libmqttmtd::socket::plain::ServerType::LOCAL;
-    ///     let server_task = PlainServer::new(3000, Duration::from_secs(1), LOCAL).spawn(|_, _| async {}).await;
+    ///     let server_task = PlainServer::new(3000, Duration::from_secs(1), LOCAL)
+    ///         .spawn(|_, _| async {})
+    ///         .await;
     ///
     ///     match server_task {
     ///         Ok(_) => println!("new server task: {:?}", server_task),
@@ -64,7 +66,7 @@ impl PlainServer {
     pub fn spawn<F, Fut>(self, handler: F) -> JoinHandle<Result<(), SocketError>>
     where
         F: Fn(TcpStream, SocketAddr) -> Fut + Send + Sync + 'static,
-        Fut: std::future::Future<Output=()> + Send + 'static,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
     {
         sock_serv_println!("spawning socket server...");
         tokio::spawn(async move {
@@ -107,14 +109,16 @@ impl PlainServer {
 
 /// Plain TCP socket client
 ///
-/// Client can make a connection to an already-listening plain TCP socket server.
+/// Client can make a connection to an already-listening plain TCP socket
+/// server.
 pub struct PlainClient<A: ToSocketAddrs> {
     pub(super) addr: A,
     pub(super) connect_timeout: Option<Duration>,
 }
 
 impl<A: ToSocketAddrs> PlainClient<A> {
-    /// Creates a new instance that will try connecting to an address `addr` until `connect_timeout` comes.
+    /// Creates a new instance that will try connecting to an address `addr`
+    /// until `connect_timeout` comes.
     pub fn new(addr: A, connect_timeout: impl Into<Option<Duration>>) -> Self {
         PlainClient {
             addr,
@@ -127,16 +131,16 @@ impl<A: ToSocketAddrs> PlainClient<A> {
     /// # Examples
     ///
     /// ```no_run
-    /// use tokio::net::TcpStream;
-    /// use tokio::io::AsyncWriteExt;
-    /// use std::error::Error;
     /// use crate::libmqttmtd::socket::plain::PlainClient;
-    /// use std::time::Duration;
+    /// use std::{error::Error, time::Duration};
+    /// use tokio::{io::AsyncWriteExt, net::TcpStream};
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), Box<dyn Error>> {
     ///     // Connect to a peer
-    ///     let mut cli_sock = PlainClient::new("localhost:3000", Duration::from_secs(1)).connect().await?;
+    ///     let mut cli_sock = PlainClient::new("localhost:3000", Duration::from_secs(1))
+    ///         .connect()
+    ///         .await?;
     ///
     ///     // Write some data.
     ///     cli_sock.write_all(b"hello world!").await?;
@@ -176,8 +180,7 @@ impl<A: ToSocketAddrs> PlainClient<A> {
 mod tests {
     use super::*;
     use crate::socket::plain::ServerType::LOCAL;
-    use std::io::ErrorKind;
-    use std::time::Duration;
+    use std::{io::ErrorKind, time::Duration};
 
     #[tokio::test]
     async fn spawn_serv_cli_pass() {
@@ -207,7 +210,7 @@ mod tests {
             Duration::from_secs(1),
             PlainServer::new(PORT, TO_SERVER, LOCAL).spawn(|_, _| async {}),
         )
-            .await
+        .await
         {
             Ok(Ok(Err(SocketError::InvalidTimeoutError(e)))) => assert_eq!(e, TO_SERVER),
             _ => panic!(),
@@ -231,7 +234,7 @@ mod tests {
             Duration::from_secs(1),
             PlainClient::new(format!("localhost:{}", PORT), TO_CLIENT).connect(),
         )
-            .await
+        .await
         {
             Ok(Ok(_)) => {}
             _ => panic!(),
@@ -248,9 +251,11 @@ mod tests {
             Duration::from_secs(2),
             PlainClient::new(format!("localhost:{}", PORT), TO_CLIENT).connect(),
         )
-            .await
+        .await
         {
-            Ok(Err(SocketError::ConnectError(e))) => assert_eq!(e.kind(), ErrorKind::ConnectionRefused),
+            Ok(Err(SocketError::ConnectError(e))) => {
+                assert_eq!(e.kind(), ErrorKind::ConnectionRefused)
+            }
             _ => panic!(),
         };
     }

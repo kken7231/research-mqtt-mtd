@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use base64::{engine::general_purpose, Engine};
+use base64::{Engine, engine::general_purpose};
 use bytes::BytesMut;
 use libmqttmtd::{
     aead::{self},
@@ -9,7 +9,8 @@ use libmqttmtd::{
 };
 use mqttbytes::v5::Publish;
 
-/// Decrypts publish packet from clients, replaces token and passes it down to Broker.
+/// Decrypts publish packet from clients, replaces token and passes it down to
+/// Broker.
 pub async fn unfreeze_publish(
     verifier_port: u16,
     mut publish: Publish,
@@ -54,7 +55,7 @@ pub async fn unfreeze_publish(
             &response.nonce,
             &mut in_out[..],
         )
-            .map_err(|e| PublishUnfreezeError::PayloadOpenError(e))?;
+        .map_err(|e| PublishUnfreezeError::PayloadOpenError(e))?;
         let tag_len = response.aead_algo.tag_len();
         in_out.truncate(in_out.len() - tag_len);
         publish.payload = in_out.freeze();
@@ -71,16 +72,19 @@ pub enum PublishUnfreezeError {
     /// Wraps [base64::DecodeError]
     TokenDecodeError(base64::DecodeError),
 
-    /// Wraps [libmqttmtd::auth_serv::error::AuthServerParserError] error on request generation
+    /// Wraps [libmqttmtd::auth_serv::error::AuthServerParserError] error on
+    /// request generation
     VerifierRequestCreateError(libmqttmtd::auth_serv::error::AuthServerParserError),
 
     /// Wraps [libmqttmtd::socket::error::SocketError] error on client connect
     VerifierConnectError(libmqttmtd::socket::error::SocketError),
 
-    /// Wraps [libmqttmtd::auth_serv::error::AuthServerParserError] error on writing request
+    /// Wraps [libmqttmtd::auth_serv::error::AuthServerParserError] error on
+    /// writing request
     VerifierRequestWriteError(libmqttmtd::auth_serv::error::AuthServerParserError),
 
-    /// Wraps [libmqttmtd::auth_serv::error::AuthServerParserError] error on reading response
+    /// Wraps [libmqttmtd::auth_serv::error::AuthServerParserError] error on
+    /// reading response
     VerifierResponseReadError(libmqttmtd::auth_serv::error::AuthServerParserError),
 
     /// Wraps [ring::error::Unspecified] on opening sealed payload

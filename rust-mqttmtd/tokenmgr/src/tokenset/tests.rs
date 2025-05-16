@@ -3,15 +3,18 @@ use base64::engine::general_purpose;
 // Import everything from the outer scope
 use base64::Engine;
 use bytes::Bytes;
-use libmqttmtd::aead::algo::SupportedAlgorithm;
-use libmqttmtd::aead::algo::SupportedAlgorithm::{Aes128Gcm, Aes256Gcm};
+use libmqttmtd::aead::algo::{
+    SupportedAlgorithm,
+    SupportedAlgorithm::{Aes128Gcm, Aes256Gcm},
+};
 // Assuming these traits are defined in libmqttmtd
 use libmqttmtd::consts::{RANDOM_LEN, TIMESTAMP_LEN};
-use rand::seq::IndexedRandom;
-use rand::RngCore;
-use std::os::unix::fs::PermissionsExt;
-use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
+use rand::{RngCore, seq::IndexedRandom};
+use std::{
+    os::unix::fs::PermissionsExt,
+    path::PathBuf,
+    time::{SystemTime, UNIX_EPOCH},
+};
 use tempfile::tempdir;
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 
@@ -52,8 +55,8 @@ impl TestDataHydrator {
                     SupportedAlgorithm::Aes256Gcm,
                     SupportedAlgorithm::Chacha20Poly1305,
                 ]
-                    .choose(&mut self.rng)
-                    .unwrap())
+                .choose(&mut self.rng)
+                .unwrap())
             }
         };
         let mut nonce_base = [0u8; 16];
@@ -122,8 +125,8 @@ async fn new_response_reader(
         aead_algo,
         num_tokens_divided_by_4,
     )
-        .await?
-        .unwrap())
+    .await?
+    .unwrap())
 }
 
 async fn req_res_from_tokenset(token_set: &TokenSet) -> (issuer::Request, issuer::ResponseReader) {
@@ -133,7 +136,7 @@ async fn req_res_from_tokenset(token_set: &TokenSet) -> (issuer::Request, issuer
         token_set.algo,
         token_set.topic.clone(),
     )
-        .unwrap_or_else(|e| panic!("{:?}", e));
+    .unwrap_or_else(|e| panic!("{:?}", e));
 
     let response = new_response_reader(
         token_set.enc_key.clone(),
@@ -145,8 +148,8 @@ async fn req_res_from_tokenset(token_set: &TokenSet) -> (issuer::Request, issuer
         token_set.algo,
         token_set.num_tokens.rotate_right(2) as u8,
     )
-        .await
-        .unwrap_or_else(|e| panic!("{:?}", e));
+    .await
+    .unwrap_or_else(|e| panic!("{:?}", e));
 
     (request, response)
 }
@@ -210,7 +213,8 @@ fn test_get_current_b64token() {
         "dummy",
     );
 
-    // Get the token at absolute index 1. This corresponds to index (1 - 1) = 0 in the buffer.
+    // Get the token at absolute index 1. This corresponds to index (1 - 1) = 0 in
+    // the buffer.
     let mut expected_token_offset_bytes = BytesMut::from(&token_set_offset.timestamp[..]);
     expected_token_offset_bytes.extend_from_slice(&token_set_offset.all_randoms[..RANDOM_LEN]);
     let expected_token_offset =
@@ -225,7 +229,8 @@ fn test_get_current_b64token() {
     token_set_idx_end.token_idx = token_set_idx_end.num_tokens; // Absolute index is num_tokens
 
     // Should return None because token_idx >= num_tokens
-    // The condition `self.all_randoms.len() >= random_end` will also be false as random_start will be out of bounds
+    // The condition `self.all_randoms.len() >= random_end` will also be false as
+    // random_start will be out of bounds
     assert_eq!(token_set_idx_end.get_current_b64token(), None);
 
     // Simulate index beyond num_tokens
@@ -350,8 +355,8 @@ async fn test_from_issuer_req_resp_success() {
 }
 
 // Helper to create a dummy file for from_file tests
-// The file_all_randoms_offset written to the file is the absolute original index
-// where the random data in *this specific file* starts.
+// The file_all_randoms_offset written to the file is the absolute original
+// index where the random data in *this specific file* starts.
 fn create_dummy_token_file(
     filename_token_idx: u16,
     file_all_randoms_offset: u16,
@@ -409,8 +414,7 @@ fn test_from_file_success_idx_0_offset_0() {
         token_set_original.is_pub,
         token_set_original.topic.clone(),
     )
-        .inspect_err(|e| panic!("failed to get a tokenset {}", e))
-        .unwrap();
+    .unwrap_or_else(|e| panic!("failed to get a tokenset {}", e));
 
     assert_eq!(token_set.path, file_path);
     assert_eq!(token_set.topic, token_set_original.topic);
@@ -444,8 +448,7 @@ fn test_from_file_success_idx_greater_than_0_offset_equal_idx() {
         token_set_original.is_pub,
         token_set_original.topic.clone(),
     )
-        .inspect_err(|e| panic!("failed to get a tokenset {}", e))
-        .unwrap();
+    .unwrap_or_else(|e| panic!("failed to get a tokenset {}", e));
 
     assert_eq!(token_set.path, file_path);
     assert_eq!(token_set.topic, token_set_original.topic);
@@ -482,8 +485,7 @@ fn test_from_file_success_idx_greater_than_0_offset_less_than_idx() {
         token_set_original.is_pub,
         token_set_original.topic.clone(),
     )
-        .inspect_err(|e| panic!("failed to get a tokenset {}", e))
-        .unwrap();
+    .unwrap_or_else(|e| panic!("failed to get a tokenset {}", e));
 
     assert_eq!(token_set.path, file_path);
     assert_eq!(token_set.topic, token_set_original.topic);
@@ -544,8 +546,7 @@ fn test_from_file_error_invalid_cur_idx_in_filename() {
         token_set_original.is_pub,
         token_set_original.topic.clone(),
     )
-        .inspect_err(|e| panic!("failed to get a tokenset {}", e))
-        .unwrap();
+    .unwrap_or_else(|e| panic!("failed to get a tokenset {}", e));
     let topic_encoded = TokenSet::topic_b64encode(token_set.topic.clone());
 
     // Invalid index format
@@ -618,7 +619,8 @@ fn test_from_file_error_unsupported_algorithm() -> Result<(), ()> {
     let result = TokenSet::from_file(file_path, true, topic.to_string());
 
     match result {
-        Err(TokenSetError::UnsupportedAlgorithmError(_)) => {} // We expect an error converting the byte
+        Err(TokenSetError::UnsupportedAlgorithmError(_)) => {} /* We expect an error converting */
+        // the byte
         _ => panic!("Expected UnsupportedAlgorithmError"),
     }
     Ok(())
@@ -649,7 +651,7 @@ fn test_from_file_error_nonce_len_mismatch_read() -> Result<(), ()> {
         &token_set.nonce_base.to_be_bytes()[16 - token_set.algo.nonce_len()..]
             [..token_set.algo.nonce_len() - 1],
     )
-        .expect("failed to write file"); // too small nonce
+    .expect("failed to write file"); // too small nonce
     file.write_all(&[token_set.num_tokens.rotate_right(2) as u8])
         .expect("failed to write file");
     file.write_all(&token_set.timestamp)
@@ -761,7 +763,8 @@ fn test_from_file_error_random_len_mismatch_read() {
     let filename_token_idx = 0u16;
     let file_all_randoms_offset = 0u16;
     // Write fewer randoms than expected based on num_tokens and filename_token_idx
-    // Expected length is (num_tokens - filename_token_idx) * RANDOM_LEN = (8 - 0) * RANDOM_LEN = 8 * RANDOM_LEN
+    // Expected length is (num_tokens - filename_token_idx) * RANDOM_LEN = (8 - 0) *
+    // RANDOM_LEN = 8 * RANDOM_LEN
     let invalid_all_randoms_len = RANDOM_LEN;
     let token_set = TestDataHydrator::new().get_token_set(
         Aes128Gcm,
@@ -793,9 +796,10 @@ fn test_from_file_error_random_len_mismatch_read() {
 
     let result = TokenSet::from_file(file_path.clone(), token_set.is_pub, token_set.topic.clone());
 
-    // The code expects to read (num_tokens - filename_token_idx) * RANDOM_LEN bytes.
-    // We wrote fewer bytes. The `read` into the BytesMut will read what's available,
-    // and then the check `if actual_read < expected_len` should trigger.
+    // The code expects to read (num_tokens - filename_token_idx) * RANDOM_LEN
+    // bytes. We wrote fewer bytes. The `read` into the BytesMut will read
+    // what's available, and then the check `if actual_read < expected_len`
+    // should trigger.
     match result {
         Err(TokenSetError::RandomLenMismatchError(actual_read)) => {
             assert_eq!(actual_read, invalid_all_randoms_len);
@@ -841,7 +845,8 @@ fn test_save_to_file_success() {
         .unwrap_or_else(|e| panic!("{:?}", e));
 
     let mut expected_bytes = Vec::new();
-    // Header fields order: algo, enc_key, nonce_base, num_tokens_divided_by_4, timestamp, all_randoms_offset
+    // Header fields order: algo, enc_key, nonce_base, num_tokens_divided_by_4,
+    // timestamp, all_randoms_offset
     expected_bytes.push(token_set.algo as u8);
     expected_bytes.extend_from_slice(&token_set.enc_key);
     expected_bytes.extend_from_slice(
@@ -852,9 +857,11 @@ fn test_save_to_file_success() {
     // file_all_randoms_offset (which is struct.token_idx)
     expected_bytes.extend_from_slice(&initial_token_idx.to_be_bytes());
 
-    // all_randoms content - skips (token_idx - all_randoms_offset) from the in-memory Bytes
+    // all_randoms content - skips (token_idx - all_randoms_offset) from the
+    // in-memory Bytes
     let skip_len = (initial_token_idx - token_set.all_randoms_offset) as usize * RANDOM_LEN;
-    // The bytes written are from index `skip_len` in `all_randoms_in_memory` to the end.
+    // The bytes written are from index `skip_len` in `all_randoms_in_memory` to the
+    // end.
     expected_bytes.extend_from_slice(&token_set.all_randoms[skip_len..]);
 
     assert_eq!(read_buf, expected_bytes);
@@ -886,7 +893,8 @@ fn test_save_to_file_success_replaces_old() {
         initial_token_idx
     );
     let initial_file_path = pub_sub_dir.join(initial_filename);
-    // Create a dummy file content for the old file (doesn't need to be fully correct)
+    // Create a dummy file content for the old file (doesn't need to be fully
+    // correct)
     fs::File::create(&initial_file_path)
         .unwrap_or_else(|e| panic!("{:?}", e))
         .write_all(b"dummy content")
@@ -937,9 +945,10 @@ fn test_save_to_file_error_enc_key_mismatch() {
         _ => panic!("Expected EncKeyMismatchError"),
     }
 
-    // Verify no file was created (or an incomplete one was potentially left, depending on OS/timing)
-    // Checking for existence is tricky as create() might succeed before write_all fails.
-    // A robust test might check file size if it exists. For simplicity, skip strict file check here.
+    // Verify no file was created (or an incomplete one was potentially left,
+    // depending on OS/timing) Checking for existence is tricky as create()
+    // might succeed before write_all fails. A robust test might check file size
+    // if it exists. For simplicity, skip strict file check here.
     assert_eq!(token_set.path, PathBuf::new()); // Path should not be updated on error
 }
 
@@ -1022,7 +1031,8 @@ fn test_save_to_file_error_file_remove_error() {
     let initial_file_path = pub_sub_dir.join(initial_filename);
     fs::File::create(&initial_file_path).expect("Failed to create file for remove error test");
 
-    // Make pub_sub_dir read-only to prevent removal of the children files (platform dependent)
+    // Make pub_sub_dir read-only to prevent removal of the children files (platform
+    // dependent)
     let mut perms = fs::metadata(&pub_sub_dir)
         .expect("Failed to get metadata")
         .permissions();
@@ -1220,10 +1230,11 @@ fn test_integration_save_load_use() -> Result<(), TokenSetError> {
     // Create a *new* TokenSet instance loaded from the file after using some tokens
     // This simulates loading the state at a later point.
     // Manually create the file with the state as if tokens were used and saved.
-    // This is complex to simulate accurately without testing save/load cycles directly.
+    // This is complex to simulate accurately without testing save/load cycles
+    // directly.
 
-    // Let's instead simulate loading from the file AS IS after the first save (token_idx 0)
-    // and then simulate using tokens on the loaded instance.
+    // Let's instead simulate loading from the file AS IS after the first save
+    // (token_idx 0) and then simulate using tokens on the loaded instance.
 
     // Load the token set from the file we just saved
     let loaded_token_set = TokenSet::from_file(token_set.path.clone(), is_pub, topic.to_string())?;

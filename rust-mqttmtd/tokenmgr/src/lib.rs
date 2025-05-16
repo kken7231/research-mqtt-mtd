@@ -1,6 +1,5 @@
 use crate::errors::TokenFetchError;
-use libmqttmtd::auth_serv::issuer;
-use libmqttmtd::socket::tls::TlsClient;
+use libmqttmtd::{auth_serv::issuer, socket::tls::TlsClient};
 use std::sync::Arc;
 use tokio::net::ToSocketAddrs;
 
@@ -33,8 +32,8 @@ pub async fn fetch_tokens<A: ToSocketAddrs + Send + 'static>(
         request.aead_algo(),
         request.num_tokens_divided_by_4(),
     )
-        .await
-        .map_err(|e| TokenFetchError::SocketReadError(e))?
+    .await
+    .map_err(|e| TokenFetchError::SocketReadError(e))?
     {
         Ok(success_response)
     } else {
