@@ -41,8 +41,6 @@ struct IntegrationTestsConfig {
     mqtt_interface_port: u16,
     cli_cert: PathBuf,
     cli_key: PathBuf,
-    subscriber_cert: PathBuf,
-    subscriber_key: PathBuf,
     ca_certs_dir: PathBuf,
     client_auth_disabled: bool,
 }
@@ -55,12 +53,6 @@ fn load_config() -> Result<IntegrationTestsConfig, ConfigError> {
         .set_default("mqtt_interface_port", 11883)?
         .set_default("cli_cert", "../../tests/certs/clients/client1.crt")?
         .set_default("cli_key", "../../tests/certs/clients/client1.pem")?
-        .set_default(
-            "subscriber_cert",
-            "../../tests/certs/clients/subscriber.crt",
-        )?
-        .set_default("subscriber_key", "../../tests/certs/clients/subscriber.pem")?
-        .set_default("ca_certs_dir", "../../tests/certs/ca/")?
         .set_default("client_auth_disabled", false)?;
 
     if let Ok(conf_path) = std::env::var("INTEGRATION_TESTS_CONF") {
@@ -196,9 +188,6 @@ async fn assert_subscribe(
     notify: Arc<Notify>,
     broker_host: impl Into<String>,
     broker_port: u16,
-    subscriber_cert: PathBuf,
-    subscriber_key: PathBuf,
-    ca_certs_dir: PathBuf,
     topic: String,
     expected_payload: impl Into<Bytes>,
 ) -> Result<(), v5::ConnectionError> {
@@ -516,9 +505,6 @@ async fn test_mqtt_publish_success_idx_0() -> Result<(), Box<dyn std::error::Err
         notify.clone(),
         broker_host,
         broker_port,
-        config.subscriber_cert.clone(),
-        config.subscriber_key.clone(),
-        config.ca_certs_dir.clone(),
         topic_moved,
         payload_raw,
     )
@@ -588,9 +574,6 @@ async fn test_mqtt_publish_success_all_indices() -> Result<(), Box<dyn std::erro
             notify.clone(),
             broker_host,
             broker_port,
-            config.subscriber_cert.clone(),
-            config.subscriber_key.clone(),
-            config.ca_certs_dir.clone(),
             topic_moved,
             payload_raw,
         )
@@ -659,9 +642,6 @@ async fn test_mqtt_publish_fail_wrong_token() -> Result<(), Box<dyn std::error::
         notify.clone(),
         broker_host,
         broker_port,
-        config.subscriber_cert.clone(),
-        config.subscriber_key.clone(),
-        config.ca_certs_dir.clone(),
         topic_moved,
         payload_raw,
     )
@@ -676,3 +656,5 @@ async fn test_mqtt_publish_fail_wrong_token() -> Result<(), Box<dyn std::error::
 
     Ok(())
 }
+
+

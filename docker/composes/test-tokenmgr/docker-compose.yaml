@@ -20,12 +20,12 @@ services:
     networks:
       - inner-default
     volumes:
-      - "../rust-mqttmtd:/rust-mqttmtd"
-      - "../tests/certs/ca/ca.crt:/certs/ca/ca.crt"
-      - "../tests/certs/clients:/certs/clients"
-      - "../tests/mqttmtd/conf:/mqttmtd/conf"
-      - "../tests/mosquitto/conf:/mosquitto/conf"
-      - "../tests/scripts:/scripts"
+      - "../../../rust-mqttmtd:/rust-mqttmtd"
+      - "../../../tests/certs/ca/ca.crt:/certs/ca/ca.crt"
+      - "../../../tests/certs/clients:/certs/clients"
+      - "../../../tests/mqttmtd/conf:/mqttmtd/conf"
+      - "../../../tests/mosquitto/conf:/mosquitto/conf"
+      - "../../../tests/scripts:/scripts"
     tty: true
     stdin_open: true
     init: true

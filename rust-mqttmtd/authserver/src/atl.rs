@@ -375,8 +375,6 @@ impl AccessTokenList {
         {
             let lookup_map = self.inner_lookup.read().await;
             
-            println!("lookup_map: {:?}", lookup_map);
-
             // Look up timestamp in lookup_map (O(1))
             let token_set_arc = match lookup_map.get(&masked_timestamp) {
                 None => return Ok(None),

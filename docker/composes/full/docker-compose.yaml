@@ -2,7 +2,7 @@ services:
   server:
     build:
       context: ../../..
-      dockerfile: ../../Dockerfiles/Dockerfile.server
+      dockerfile: ./docker/Dockerfiles/Dockerfile.server
     container_name: server
     environment:
       - PROTOCOL=${PROTOCOL}
