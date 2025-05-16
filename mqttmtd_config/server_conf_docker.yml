@@ -1,0 +1,19 @@
+socktimeout:
+  external: 5_000_000_000
+  local: 5_000_000_000
+
+filepaths:
+  tokensdir: /mqttmtd/tokens/
+  aclfile: /mqttmtd/config/acl.yml
+
+ports:
+  issuer: 18883
+  verifier: 21883
+  mqttinterface: 1883
+  mqttserver: 11883
+  dashboard: 8080
+
+certs:
+  cacert: /mqttmtd/certs/ca/ca.pem
+  servercert: /mqttmtd/certs/server/server.pem
+  serverkey: /mqttmtd/certs/server/server.key

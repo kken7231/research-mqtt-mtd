@@ -1,0 +1,19 @@
+GIT_ROOT=$(git rev-parse --show-toplevel)
+pushd ${GIT_ROOT}/certcreate; rm -f ../certs/clients/client.*; ./gen_client.sh -c ../certs -n "client"; popd
+
+# Check if a client name is provided
+if [ -z "$1" ]; then
+  echo "Usage: $0 <client_name>"
+  exit 1
+fi
+
+CLIENT_NAME=$1
+
+docker rm -f mqttmtd_${CLIENT_NAME}
+
+# Build the Docker image with the specified client name
+docker build -t mqttmtd_${CLIENT_NAME}_image --build-arg CLIENT_NAME=${CLIENT_NAME} -f ${GIT_ROOT}/docker/Dockerfile.client ${GIT_ROOT}
+
+# Run the Docker container with the specified client name
+# docker run --rm --name mqttmtd_${CLIENT_NAME} --tty --network net mqttmtd_${CLIENT_NAME}_image
+docker run -d --rm --name mqttmtd_${CLIENT_NAME} --tty --network mqttmtd-net -v ${GIT_ROOT}/go:/mqttmtd/go:ro mqttmtd_${CLIENT_NAME}_image 
