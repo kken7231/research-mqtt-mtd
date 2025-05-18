@@ -1,7 +1,9 @@
+use std::fmt::Display;
 use clap::Parser;
 use config::{Config, File};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use struct_display_macro::ToStringLines;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about)]
@@ -45,7 +47,7 @@ pub(super) struct CliArgs {
 }
 
 /// Expresses a collection of configurable values.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, ToStringLines)]
 pub(super) struct AppConfig {
     pub server_cert_pem: PathBuf,
     pub server_key_pem: PathBuf,

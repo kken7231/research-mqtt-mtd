@@ -17,4 +17,3 @@ pub fn nonce_from_bytes_to_u128(algo: SupportedAlgorithm, bs: Bytes) -> u128 {
     });
     nonce
 }
-

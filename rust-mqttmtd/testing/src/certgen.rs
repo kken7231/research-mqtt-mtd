@@ -1,6 +1,5 @@
 use clap::Args;
 use config::{Config, ConfigError, File};
-use libmqttmtd::config_helper::display_config;
 use rcgen::{
     BasicConstraints, Certificate, CertificateParams, DistinguishedName, DnType,
     ExtendedKeyUsagePurpose, IsCa, KeyPair, KeyUsagePurpose, PKCS_ECDSA_P256_SHA256,
@@ -13,6 +12,7 @@ use std::{
     path::{Path, PathBuf},
 };
 use time::{Duration, OffsetDateTime};
+use struct_display_macro::ToStringLines;
 
 #[derive(Args)]
 pub struct CertgenArgs {
@@ -58,7 +58,7 @@ pub struct CertgenArgs {
     conf: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, ToStringLines)]
 pub struct CertgenConfig {
     pub output_dir: PathBuf,
     pub key_algo: String,
@@ -176,12 +176,10 @@ pub fn certgen(args: CertgenArgs) -> Result<(), CertgenError> {
     // Parse command-line arguments
     let config = load_config(args).map_err(|e| CertgenError::LoadConfigFailedError(e))?;
 
-    for line in display_config("certgen", &config)
-        .map_err(|_e| CertgenError::DisplayConfigFailedError())?
+    config
+        .to_string_lines("certgen")
         .iter()
-    {
-        println!("{}", line);
-    }
+        .for_each(|line| println!("{}", line));
 
     // Create output directories
     if let Err(_) = fs::create_dir_all(&config.output_dir) {

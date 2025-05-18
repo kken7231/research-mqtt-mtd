@@ -5,10 +5,7 @@ mod publish;
 mod subscribe;
 
 use crate::config::load_config;
-use libmqttmtd::{
-    config_helper::display_config,
-    socket::plain::{PlainServer, ServerType::GLOBAL},
-};
+use libmqttmtd::socket::plain::{PlainServer, ServerType::GLOBAL};
 use std::error::Error;
 
 pub async fn run_server() -> Result<(), Box<dyn Error>> {
@@ -22,9 +19,10 @@ pub async fn run_server() -> Result<(), Box<dyn Error>> {
     };
 
     // Print configuration
-    for line in display_config("MQTT Interface", &config)?.iter() {
-        mqttinterface_println!("{}", line);
-    }
+    config
+        .to_string_lines("MQTT Interface")
+        .iter()
+        .for_each(|line| mqttinterface_println!("{}", line));
 
     // open server
     let _server = PlainServer::new(config.port, None, GLOBAL)

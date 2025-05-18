@@ -3,16 +3,13 @@ use std::{error::Error, sync::Arc};
 use acl::AccessControlList;
 use atl::AccessTokenList;
 use config::load_config;
-use libmqttmtd::{
-    config_helper::display_config,
-    socket::{
-        plain::{
-            PlainServer,
-            ServerType::{GLOBAL, LOCAL},
-        },
-        tls::TlsServer,
-        tls_config::TlsConfigLoader,
+use libmqttmtd::socket::{
+    plain::{
+        PlainServer,
+        ServerType::{GLOBAL, LOCAL},
     },
+    tls::TlsServer,
+    tls_config::TlsConfigLoader,
 };
 
 mod acl;
@@ -28,7 +25,8 @@ pub async fn run_server() -> Result<(), Box<dyn Error>> {
     let config = load_config().inspect_err(|e| proc_eprintln!("failed to load config: {}", e))?;
 
     // Print configuration
-    display_config("Auth Server", &config)?
+    config
+        .to_string_lines("Auth Server")
         .iter()
         .for_each(|line| proc_println!("{}", line));
 
@@ -45,7 +43,7 @@ pub async fn run_server() -> Result<(), Box<dyn Error>> {
         config.ca_certs_dir,
         config.client_auth_disabled,
     )
-        .inspect_err(|e| proc_eprintln!("found issue in loading Tls config: {}", e))?;
+    .inspect_err(|e| proc_eprintln!("found issue in loading Tls config: {}", e))?;
 
     // open verifier
     let atl_for_verifier = atl.clone();
@@ -79,6 +77,6 @@ pub async fn run_server() -> Result<(), Box<dyn Error>> {
             result
         },
     }
-        .unwrap()
-        .map_err(|e| Box::new(e) as Box<dyn Error>)
+    .unwrap()
+    .map_err(|e| Box::new(e) as Box<dyn Error>)
 }

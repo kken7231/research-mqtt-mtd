@@ -14,10 +14,10 @@ use std::{
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
-use tokio::sync::RwLock;
+use tokio::sync::Mutex;
 
 /// # Set of tokens
-/// Owns various parameters for a set of token. To be added in [AccessTokenList] after wrapped with [std::sync::RwLock] and [std::sync::Arc].
+/// Owns various parameters for a set of token. To be added in [AccessTokenList] after wrapped with [tokio::sync::Mutex] and [std::sync::Arc].
 #[derive(Debug)]
 pub(crate) struct TokenSet {
     masked_timestamp: u64,
@@ -104,14 +104,14 @@ type MaskedTimestamp = u64;
 #[derive(Debug)]
 pub(crate) struct AccessTokenList {
     /// Arc for shared ownership across threads.
-    /// RwLock for concurrent readers or exclusive writer access.
+    /// Mutex for concurrent readers or exclusive writer access.
     /// Key: expiration datetime
-    inner_sorted: Arc<RwLock<BTreeMap<FullTimestamp, Arc<RwLock<TokenSet>>>>>,
+    inner_sorted: Arc<Mutex<BTreeMap<FullTimestamp, Arc<Mutex<TokenSet>>>>>,
 
     /// Hashmap for faster lookup on token verification
     /// Key: masked timestamp
     /// Value: key of inner_sorted (expiration datetime)
-    inner_lookup: Arc<RwLock<HashMap<MaskedTimestamp, Arc<RwLock<TokenSet>>>>>,
+    inner_lookup: Arc<Mutex<HashMap<MaskedTimestamp, Arc<Mutex<TokenSet>>>>>,
 
     /// Random Generator
     rng: SystemRandom,
@@ -120,8 +120,8 @@ pub(crate) struct AccessTokenList {
 impl AccessTokenList {
     pub(crate) fn new() -> Self {
         Self {
-            inner_sorted: Arc::new(RwLock::new(BTreeMap::new())),
-            inner_lookup: Arc::new(RwLock::new(HashMap::new())),
+            inner_sorted: Arc::new(Mutex::new(BTreeMap::new())),
+            inner_lookup: Arc::new(Mutex::new(HashMap::new())),
             rng: SystemRandom::new(),
         }
     }
@@ -159,7 +159,7 @@ impl AccessTokenList {
 
     /// Issues a new timestamp (nanoseconds since epoch) and files the token set
     /// to the map.
-    /// Acquires a write lock. O(log n) for `sorted_map` + O(1) for `lookup_map`
+    /// Acquires a lock. O(log n) for `sorted_map` + O(1) for `lookup_map`
     pub async fn file(
         &self,
         mut token_set: TokenSet,
@@ -168,7 +168,7 @@ impl AccessTokenList {
         let mut all_randoms = BytesMut::zeroed(token_set.num_tokens as usize * RANDOM_LEN);
         let mut generated_tokens: HashSet<[u8; RANDOM_LEN]> = HashSet::new();
         let mut cur_idx = 0usize;
-        // To ensure uniquness of all_randoms, we use hashset
+        // To ensure uniqueness of all_randoms, we use hashset
         while generated_tokens.len() < token_set.num_tokens as usize {
             let mut current_token_bytes = [0u8; RANDOM_LEN];
             self.rng
@@ -202,17 +202,17 @@ impl AccessTokenList {
     /// O(log n) for `sorted_map` + O(1) for `lookup_map`
     ///
     /// # Locks
-    /// - `inner_sorted`: write
-    /// - `inner_lookup`: write
+    /// - `inner_sorted`
+    /// - `inner_lookup`
     pub async fn file_without_rand_init(
         &self,
         mut token_set: TokenSet,
     ) -> Result<(issuer::ResponseWriter, u64), ATLError> {
-        // Acquire a write lock first
-        let mut sorted_map = self.inner_sorted.write().await;
-        let mut lookup_map = self.inner_lookup.write().await;
+        // Acquire a lock first
+        let mut sorted_map = self.inner_sorted.lock().await;
+        let mut lookup_map = self.inner_lookup.lock().await;
 
-        // Get the current timestamp after write lock acquired
+        // Get the current timestamp after lock acquired
         let full_timestamp = Self::get_current_timestamp()?;
         let masked_timestamp = Self::get_masked_timestamp(full_timestamp.clone());
         let expiration_timestamp =
@@ -235,7 +235,7 @@ impl AccessTokenList {
         // Add the new entry. Because we issue timestamps sequentially,
         // and SystemTime is generally monotonic (or increases),
         // pushing to the end maintains the sorted order by timestamp.
-        let arced = Arc::new(RwLock::new(token_set));
+        let arced = Arc::new(Mutex::new(token_set));
         sorted_map.insert(expiration_timestamp, arced.clone());
         lookup_map.insert(masked_timestamp, arced.clone());
 
@@ -248,20 +248,20 @@ impl AccessTokenList {
     /// Returns a number of removed token sets.
     ///
     /// # Locks
-    /// - `inner_sorted`: write
-    /// - `inner_lookup`: write
-    /// - TokenSets that are to be removed: read
+    /// - `inner_sorted`
+    /// - `inner_lookup`
+    /// - TokenSets that are to be removed
     pub async fn remove_expired(&self) -> Result<usize, ATLError> {
-        // Get the current timestamp before write lock acquired
+        // Get the current timestamp before lock acquired
         let current_timestamp = Self::get_current_timestamp()?;
 
-        // Acquire a write lock
-        let mut sorted_map = self.inner_sorted.write().await;
+        // Acquire a lock
+        let mut sorted_map = self.inner_sorted.lock().await;
 
-        let new_sorted_map: BTreeMap<u64, Arc<RwLock<TokenSet>>>;
+        let new_sorted_map: BTreeMap<u64, Arc<Mutex<TokenSet>>>;
         let count: usize;
         {
-            let mut lookup_map = self.inner_lookup.write().await;
+            let mut lookup_map = self.inner_lookup.lock().await;
 
             // Split with the boundary (O(log n))
             new_sorted_map = sorted_map.split_off(&current_timestamp);
@@ -270,13 +270,13 @@ impl AccessTokenList {
             // lookup_map: O(k)
             count = sorted_map.len();
             for removed in sorted_map.iter() {
-                let token_set = removed.1.read().await;
+                let token_set = removed.1.lock().await;
 
                 if let None = lookup_map.remove(&token_set.masked_timestamp) {
                     return Err(ATLError::TwoMapsNotConsistentError());
                 };
             }
-        } // self.inner_lookup write lock
+        } // self.inner_lookup lock
 
         // Finally swap
         *sorted_map = new_sorted_map;
@@ -288,13 +288,13 @@ impl AccessTokenList {
     /// O(log n) complexity.
     ///
     /// # Locks
-    /// - `inner_sorted`: write
-    /// - `inner_lookup`: write
-    /// - TokenSet that found: read
+    /// - `inner_sorted`
+    /// - `inner_lookup`
+    /// - TokenSet that found
     pub async fn revoke_token(&self, masked_timestamp: MaskedTimestamp) -> Result<bool, ATLError> {
-        // Acquire a write lock
-        let mut sorted_map = self.inner_sorted.write().await;
-        let mut lookup_map = self.inner_lookup.write().await;
+        // Acquire a lock
+        let mut sorted_map = self.inner_sorted.lock().await;
+        let mut lookup_map = self.inner_lookup.lock().await;
 
         // Look up in lookup_map (O(1))
         let token_set = match lookup_map.get(&masked_timestamp) {
@@ -304,13 +304,13 @@ impl AccessTokenList {
 
         // Remove an entry from lookup_map with expiration timestamp
         {
-            let expiration_timestamp = token_set.read().await.expiration_timestamp;
+            let expiration_timestamp = token_set.lock().await.expiration_timestamp;
 
             // Remove entry from sorted_map (O(log n))
             if let None = sorted_map.remove(&expiration_timestamp) {
                 return Err(ATLError::TwoMapsNotConsistentError());
             }
-        } // token_set read lock
+        } // token_set lock
 
         // Remove an entry from lookup_map (O(1))
         lookup_map.remove(&masked_timestamp);
@@ -323,8 +323,8 @@ impl AccessTokenList {
     /// Increments `token_idx`.
     ///
     /// # Locks
-    /// - `inner_lookup`: read
-    /// - TokenSet that found: write
+    /// - `inner_lookup`
+    /// - TokenSet that found
     pub async fn verify(
         &self,
         token: &[u8; TOKEN_LEN],
@@ -336,17 +336,17 @@ impl AccessTokenList {
         random.copy_from_slice(&token[TIMESTAMP_LEN..TOKEN_LEN]);
         let masked_timestamp = Self::assemble_masked_u64_from_part(&timestamp);
 
-        // Acquire a read lock
+        // Acquire a lock
         let revocation_needed;
         let res: Result<Option<verifier::ResponseWriter>, ATLError>;
         {
-            let lookup_map = self.inner_lookup.read().await;
+            let lookup_map = self.inner_lookup.lock().await;
             // Look up timestamp in lookup_map (O(1))
             let token_set_arc = match lookup_map.get(&masked_timestamp) {
                 None => return Ok(None),
                 Some(ts) => ts,
             };
-            let mut token_set = token_set_arc.write().await;
+            let mut token_set = token_set_arc.lock().await;
 
             // Verification
             let current_timestamp: u64 = SystemTime::now()
@@ -378,7 +378,7 @@ impl AccessTokenList {
 
                 res = Ok(None);
             };
-        } // self.inner_lookup read lock & token_set_arc write lock
+        } // self.inner_lookup lock & token_set_arc lock
 
         if revocation_needed {
             if let Err(e) = self.revoke_token(masked_timestamp).await {
@@ -417,7 +417,7 @@ mod tests {
             valid_dur,
             SupportedAlgorithm::Aes128Gcm,
         )
-            .expect("Failed to create test TokenSet")
+        .expect("Failed to create test TokenSet")
     }
 
     #[tokio::test]
@@ -464,11 +464,11 @@ mod tests {
         let timestamp = AccessTokenList::sparse_masked_u64_to_part(masked_timestamp);
         let all_randoms: Bytes;
         {
-            let lookup_map = atl.inner_lookup.read().await;
+            let lookup_map = atl.inner_lookup.lock().await;
             let token_set = lookup_map
                 .get(&masked_timestamp)
                 .expect("Failed to get token set")
-                .read()
+                .lock()
                 .await;
             all_randoms = token_set.all_randoms.clone();
         }
@@ -484,11 +484,11 @@ mod tests {
             let resp = atl.verify(&token).await.expect("Verification failed");
             assert!(resp.is_some(), "failed to verify at {}", i);
             if i < 3 {
-                let lookup_map = atl.inner_lookup.read().await;
+                let lookup_map = atl.inner_lookup.lock().await;
                 let token_set = lookup_map
                     .get(&masked_timestamp)
                     .expect("Failed to get token set")
-                    .read()
+                    .lock()
                     .await;
                 assert_eq!(
                     token_set.token_idx,
@@ -501,7 +501,7 @@ mod tests {
         // The token set should be revoked after the last token is used
         assert!(
             atl.inner_lookup
-                .read()
+                .lock()
                 .await
                 .get(&masked_timestamp)
                 .is_none(),
@@ -533,7 +533,7 @@ mod tests {
         // The token set should NOT be revoked
         assert!(
             atl.inner_lookup
-                .read()
+                .lock()
                 .await
                 .get(&masked_timestamp)
                 .is_some(),
@@ -583,7 +583,7 @@ mod tests {
         // Check initial state (all should be present)
         let token1: [u8; TOKEN_LEN];
         {
-            let lookup_map = atl.inner_lookup.read().await;
+            let lookup_map = atl.inner_lookup.lock().await;
             assert!(lookup_map.get(&masked_timestamp1).is_some());
             assert!(lookup_map.get(&masked_timestamp2).is_some());
             assert!(lookup_map.get(&masked_timestamp3).is_some());
@@ -593,12 +593,12 @@ mod tests {
         // also expired, but with 1000s duration it's highly unlikely in a test.
         // ts1 check - fail
         {
-            let lookup_map = atl.inner_lookup.read().await;
+            let lookup_map = atl.inner_lookup.lock().await;
 
             let token_set1 = lookup_map
                 .get(&masked_timestamp1)
                 .expect("Failed to get token set")
-                .read()
+                .lock()
                 .await;
             token1 = token_set1
                 .current_token()
@@ -613,12 +613,12 @@ mod tests {
         // ts2 check - success
         let token2: [u8; TOKEN_LEN];
         {
-            let lookup_map = atl.inner_lookup.read().await;
+            let lookup_map = atl.inner_lookup.lock().await;
 
             let token_set2 = lookup_map
                 .get(&masked_timestamp2)
                 .expect("Failed to get token set")
-                .read()
+                .lock()
                 .await;
             token2 = token_set2
                 .current_token()
@@ -630,12 +630,12 @@ mod tests {
         // ts3 check - fail
         let token3: [u8; TOKEN_LEN];
         {
-            let lookup_map = atl.inner_lookup.read().await;
+            let lookup_map = atl.inner_lookup.lock().await;
 
             let token_set3 = lookup_map
                 .get(&masked_timestamp3)
                 .expect("Failed to get token set")
-                .read()
+                .lock()
                 .await;
             token3 = token_set3
                 .current_token()
@@ -673,11 +673,11 @@ mod tests {
 
         // Check initial state (all should be present)
         {
-            let lookup_map = atl.inner_lookup.read().await;
+            let lookup_map = atl.inner_lookup.lock().await;
             assert!(lookup_map.get(&masked_timestamp1).is_some());
             assert!(lookup_map.get(&masked_timestamp2).is_some());
             assert!(lookup_map.get(&masked_timestamp3).is_some());
-        } // atl.inner_lookup read lock
+        } // atl.inner_lookup lock
 
         // Remove expired tokens
         let removed_count = atl.remove_expired().await.expect("remove_expired failed");
@@ -694,7 +694,7 @@ mod tests {
 
         // Check state after removal
         {
-            let lookup_map = atl.inner_lookup.read().await;
+            let lookup_map = atl.inner_lookup.lock().await;
             assert!(
                 lookup_map.get(&masked_timestamp1).is_none(),
                 "ts1 should be removed"
@@ -707,9 +707,9 @@ mod tests {
                 lookup_map.get(&masked_timestamp2).is_some(),
                 "ts2 should NOT be removed"
             );
-        } // atl.inner_lookup read lock
+        } // atl.inner_lookup lock
 
-        let sorted_map = atl.inner_sorted.read().await;
+        let sorted_map = atl.inner_sorted.lock().await;
         // Check sorted map state - only ts2 should remain
         assert_eq!(
             sorted_map.len(),
@@ -721,7 +721,7 @@ mod tests {
                 .values()
                 .next()
                 .unwrap()
-                .read()
+                .lock()
                 .await
                 .masked_timestamp,
             masked_timestamp2
@@ -743,8 +743,8 @@ mod tests {
 
         // Check initial state
         {
-            let lookup_map = atl.inner_lookup.read().await;
-            let sorted_map = atl.inner_sorted.read().await;
+            let lookup_map = atl.inner_lookup.lock().await;
+            let sorted_map = atl.inner_sorted.lock().await;
             println!(
                 "{:?}, {}, {}",
                 sorted_map.keys().collect::<Vec<_>>(),
@@ -757,7 +757,7 @@ mod tests {
             assert!(lookup_map.contains_key(&masked_timestamp2));
             assert!(sorted_map.contains_key(&expiration_ts1));
             assert!(sorted_map.contains_key(&expiration_ts2));
-        } // atl.inner_lookup read lock & atl.inner_sorted read lock
+        } // atl.inner_lookup lock & atl.inner_sorted lock
 
         // Revoke ts1
         let revoked = atl
@@ -768,15 +768,15 @@ mod tests {
 
         // Check state after revoking ts1
         {
-            let lookup_map = atl.inner_lookup.read().await;
-            let sorted_map = atl.inner_sorted.read().await;
+            let lookup_map = atl.inner_lookup.lock().await;
+            let sorted_map = atl.inner_sorted.lock().await;
             assert_eq!(lookup_map.len(), 1);
             assert_eq!(sorted_map.len(), 1);
             assert!(!lookup_map.contains_key(&masked_timestamp1));
             assert!(lookup_map.contains_key(&masked_timestamp2));
             assert!(!sorted_map.contains_key(&expiration_ts1));
             assert!(sorted_map.contains_key(&expiration_ts2));
-        } // atl.inner_lookup read lock & atl.inner_sorted read lock
+        } // atl.inner_lookup lock & atl.inner_sorted lock
 
         // Try to revoke ts1 again
         let revoked_again = atl
@@ -796,8 +796,8 @@ mod tests {
         assert!(revoked_ts2, "Revoking existing token should return true");
 
         // Check state after revoking ts2
-        let lookup_map = atl.inner_lookup.read().await;
-        let sorted_map = atl.inner_sorted.read().await;
+        let lookup_map = atl.inner_lookup.lock().await;
+        let sorted_map = atl.inner_sorted.lock().await;
         assert_eq!(lookup_map.len(), 0);
         assert_eq!(sorted_map.len(), 0);
     }
