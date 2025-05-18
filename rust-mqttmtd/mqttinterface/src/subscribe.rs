@@ -1,5 +1,5 @@
 use crate::mqttinterface_println;
-use base64::{Engine, engine::general_purpose};
+use base64::{engine::general_purpose, Engine};
 use bytes::{BufMut, Bytes, BytesMut};
 use libmqttmtd::{
     aead,
@@ -30,10 +30,6 @@ impl ClientSubscriptionInfo {
             nonce_base: 0,
             enc_key: Bytes::new(),
         }
-    }
-
-    pub(super) fn is_subscribed(&self) -> bool {
-        self.is_subscribed
     }
 }
 
@@ -67,7 +63,7 @@ pub async fn unfreeze_subscribe(
             .write_to(&mut stream)
             .await
             .map_err(|e| SubscribeUnfreezeError::VerifierRequestWriteError(e))?;
-        let mut buf = BytesMut::zeroed(verifier::REQ_RESP_MIN_BUFLEN);
+        let mut buf = BytesMut::zeroed(verifier::REQ_RESP_MIN_BUF_LEN);
         res = verifier::ResponseReader::read_from(&mut stream, &mut buf[..])
             .await
             .map_err(|e| SubscribeUnfreezeError::VerifierResponseReadError(e))?;
@@ -87,14 +83,14 @@ pub async fn unfreeze_subscribe(
 
             // Restore nonce_base
             let mut nonce_bytes = [0u8; 16];
-            nonce_bytes[16 - response.aead_algo.nonce_len()..]
+            nonce_bytes[16 - response.algo.nonce_len()..]
                 .copy_from_slice(response.nonce.as_ref());
             let nonce = u128::from_be_bytes(nonce_bytes);
             let nonce_base = nonce - (info.token_idx as u128);
 
             info.nonce_base = nonce_base;
             info.enc_key = response.enc_key;
-            info.algo = response.aead_algo;
+            info.algo = response.algo;
         }
 
         Ok(Some(subscribe))
@@ -191,55 +187,16 @@ pub async fn freeze_subscribed_publish(
 
 #[derive(Debug)]
 pub enum SubscribedPublishFreezeError {
-    /// Wraps [base64::DecodeError]
-    TokenDecodeError(base64::DecodeError),
-
-    /// Wraps [libmqttmtd::auth_serv::error::AuthServerParserError] error on
-    /// request generation
-    VerifierRequestCreateError(libmqttmtd::auth_serv::error::AuthServerParserError),
-
-    /// Wraps [libmqttmtd::socket::error::SocketError] error on client connect
-    VerifierConnectError(libmqttmtd::socket::error::SocketError),
-
-    /// Wraps [libmqttmtd::auth_serv::error::AuthServerParserError] error on
-    /// writing request
-    VerifierRequestWriteError(libmqttmtd::auth_serv::error::AuthServerParserError),
-
-    /// Wraps [libmqttmtd::auth_serv::error::AuthServerParserError] error on
-    /// reading response
-    VerifierResponseReadError(libmqttmtd::auth_serv::error::AuthServerParserError),
-
     /// Wraps [ring::error::Unspecified] on sealing a packet
     PayloadSealError(ring::error::Unspecified),
-
-    /// Indicates that the nonce is too short
-    NonceTooShortError,
 }
 
 impl std::error::Error for SubscribedPublishFreezeError {}
 impl Display for SubscribedPublishFreezeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SubscribedPublishFreezeError::TokenDecodeError(e) => {
-                write!(f, "token decoding (base64) failed: {}", e)
-            }
-            SubscribedPublishFreezeError::VerifierRequestCreateError(e) => {
-                write!(f, "failed to create a verifier request: {}", e)
-            }
-            SubscribedPublishFreezeError::VerifierConnectError(e) => {
-                write!(f, "failed to connect to verifier: {}", e)
-            }
-            SubscribedPublishFreezeError::VerifierRequestWriteError(e) => {
-                write!(f, "failed to write request to verifier: {}", e)
-            }
-            SubscribedPublishFreezeError::VerifierResponseReadError(e) => {
-                write!(f, "failed to read response from verifier: {}", e)
-            }
             SubscribedPublishFreezeError::PayloadSealError(e) => {
                 write!(f, "failed to seal a packet: {}", e)
-            }
-            SubscribedPublishFreezeError::NonceTooShortError => {
-                write!(f, "nonce is too short")
             }
         }
     }

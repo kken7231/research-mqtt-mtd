@@ -1,5 +1,3 @@
-use std::fmt::Formatter;
-
 /// Error for issuer/verifier request/response parsing
 ///
 /// Wraps three errors:
@@ -25,8 +23,8 @@ pub enum AuthServerParserError {
     /// Wraps [std::io::Error] error in writing to a socket
     SocketWriteError(std::io::Error),
 
-    /// Wraps [std::str::Utf8Error]
-    Utf8Error(std::str::Utf8Error),
+    /// Wraps [std::string::FromUtf8Error]
+    Utf8Error(std::string::FromUtf8Error),
 
     /// Wraps [crate::aead::algo::AeadAlgorithmNotSupportedError]
     AlgoNotSupportedError(crate::aead::algo::AeadAlgorithmNotSupportedError),
@@ -56,7 +54,7 @@ impl std::fmt::Display for AuthServerParserError {
                 write!(f, "utf8 conversion error: {}", e)
             }
             AuthServerParserError::AlgoNotSupportedError(e) => {
-                write!(f, "aead algo not supported error: {}", e)
+                write!(f, "AEAD algo not supported error: {}", e)
             }
             AuthServerParserError::InvalidIssuerRequestError(e) => {
                 write!(f, "invalid issuer request detected: {}", e)
@@ -64,8 +62,8 @@ impl std::fmt::Display for AuthServerParserError {
         }
     }
 }
-impl From<std::str::Utf8Error> for AuthServerParserError {
-    fn from(value: std::str::Utf8Error) -> Self {
+impl From<std::string::FromUtf8Error> for AuthServerParserError {
+    fn from(value: std::string::FromUtf8Error) -> Self {
         AuthServerParserError::Utf8Error(value)
     }
 }
@@ -92,7 +90,7 @@ pub enum IssuerRequestValidationError {
 impl std::error::Error for IssuerRequestValidationError {}
 
 impl std::fmt::Display for IssuerRequestValidationError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             IssuerRequestValidationError::NumTokensDiv4OutOfRangeError(num) => {
                 write!(f, "number of tokens out of range: {}", num)

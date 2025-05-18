@@ -1,47 +1,41 @@
 #[macro_export]
-macro_rules! authserver_println {
+macro_rules! proc_println {
     ($($arg:tt)*) => {
-        // println!("auth_server| {}", format!($($arg)*))
         println!("{}", format!($($arg)*))
     };
 }
 
 #[macro_export]
-macro_rules! authserver_issuer_println {
+macro_rules! issuer_println {
     ($addr:expr, $($arg:tt)*) => {
-        // println!("auth_server(issuer)| [{}] {}", $addr, format!($($arg)*))
         println!("(issuer)| [{}] {}", $addr, format!($($arg)*))
     };
 }
 
 #[macro_export]
-macro_rules! authserver_verifier_println {
+macro_rules! verifier_println {
     ($addr:expr, $($arg:tt)*) => {
-        // println!("auth_server(verifier)| [{}] {}", $addr, format!($($arg)*))
         println!("(verifier)| [{}] {}", $addr, format!($($arg)*))
     };
 }
 
 #[macro_export]
-macro_rules! authserver_eprintln {
+macro_rules! proc_eprintln {
     ($($arg:tt)*) => {
-        // eprintln!("auth_server| {}", format!($($arg)*))
         eprintln!("{}", format!($($arg)*))
     };
 }
 
 #[macro_export]
-macro_rules! authserver_issuer_eprintln {
+macro_rules! issuer_eprintln {
     ($addr:expr, $($arg:tt)*) => {
-        // eprintln!("auth_server(issuer)| [{}] {}", $addr, format!($($arg)*))
         eprintln!("(issuer)| [{}] {}", $addr, format!($($arg)*))
     };
 }
 
 #[macro_export]
-macro_rules! authserver_verifier_eprintln {
+macro_rules! verifier_eprintln {
     ($addr:expr, $($arg:tt)*) => {
-        // eprintln!("auth_server(verifier)| [{}] {}", $addr, format!($($arg)*))
         eprintln!("(verifier)| [{}] {}", $addr, format!($($arg)*))
     };
 }

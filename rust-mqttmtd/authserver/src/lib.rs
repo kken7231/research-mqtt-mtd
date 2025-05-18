@@ -25,18 +25,12 @@ mod verifier;
 
 pub async fn run_server() -> Result<(), Box<dyn Error>> {
     // Parse command-line arguments
-    let config = match load_config() {
-        Ok(cfg) => cfg,
-        Err(e) => {
-            eprintln!("Error loading configuration: {}", e);
-            return Err(Box::new(e));
-        }
-    };
+    let config = load_config().inspect_err(|e| proc_eprintln!("failed to load config: {}", e))?;
 
     // Print configuration
-    for line in display_config("Auth Server", &config)?.iter() {
-        authserver_println!("{}", line);
-    }
+    display_config("Auth Server", &config)?
+        .iter()
+        .for_each(|line| proc_println!("{}", line));
 
     // Initialize ATL
     let atl = Arc::new(AccessTokenList::new());
@@ -45,18 +39,13 @@ pub async fn run_server() -> Result<(), Box<dyn Error>> {
     let acl = Arc::new(AccessControlList::from_yaml(config.acl)?);
 
     // server config
-    let issuer_config = match TlsConfigLoader::load_server_config(
+    let issuer_config = TlsConfigLoader::load_server_config(
         config.server_cert_pem,
         config.server_key_pem,
         config.ca_certs_dir,
         config.client_auth_disabled,
-    ) {
-        Err(e) => {
-            authserver_eprintln!("found issue in loading Tls config: {}", e);
-            return Err(Box::new(e));
-        }
-        Ok(config) => config,
-    };
+    )
+        .inspect_err(|e| proc_eprintln!("found issue in loading Tls config: {}", e))?;
 
     // open verifier
     let atl_for_verifier = atl.clone();
@@ -64,7 +53,7 @@ pub async fn run_server() -> Result<(), Box<dyn Error>> {
         let atl_for_this_connection = atl_for_verifier.clone();
         verifier::handler(atl_for_this_connection, s, addr)
     });
-    authserver_println!(
+    proc_println!(
         "launched verifier interface at port {}",
         config.verifier_port
     );
@@ -77,19 +66,19 @@ pub async fn run_server() -> Result<(), Box<dyn Error>> {
             let acl_for_this_connection = acl.clone();
             issuer::handler(acl_for_this_connection, atl_for_this_connection, s, addr)
         });
-    authserver_println!("launched issuer interface at port {}", config.issuer_port);
+    proc_println!("launched issuer interface at port {}", config.issuer_port);
 
     // Wait till either one of two ends
     tokio::select! {
         result = verifier => {
-            eprintln!("verifier interface ended. stopping issuer as well...");
+            proc_eprintln!("verifier interface ended. stopping issuer as well...");
             result
         },
         result = issuer => {
-            eprintln!("issuer interface ended. stopping verifier as well...");
+            proc_eprintln!("issuer interface ended. stopping verifier as well...");
             result
         },
     }
-    .unwrap()
-    .map_err(|e| Box::new(e) as Box<dyn Error>)
+        .unwrap()
+        .map_err(|e| Box::new(e) as Box<dyn Error>)
 }

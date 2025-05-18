@@ -1,5 +1,5 @@
 use crate::errors::TokenSetError;
-use base64::{Engine, engine::general_purpose};
+use base64::{engine::general_purpose, Engine};
 use bytes::{Bytes, BytesMut};
 use libmqttmtd::{
     aead::{algo::SupportedAlgorithm, open, seal},
@@ -167,8 +167,8 @@ impl TokenSet {
         request: &issuer::Request,
         response: issuer::ResponseReader,
     ) -> Result<Self, TokenSetError> {
-        // aead_algo
-        let algo = request.aead_algo();
+        // algo
+        let algo = request.algo();
 
         // nonce_base
         if response.nonce_base().len() < algo.nonce_len() {
@@ -200,7 +200,7 @@ impl TokenSet {
             all_randoms_offset: 0,
             topic: request.topic().to_owned(),
             is_pub: request.is_pub(),
-            algo: request.aead_algo(),
+            algo: request.algo(),
             enc_key: Bytes::copy_from_slice(response.enc_key()),
             nonce_base,
         })
@@ -239,7 +239,7 @@ impl TokenSet {
             fs::File::open(&path).map_err(|e| TokenSetError::FileOpenError(e))?;
         let mut buf = [0u8; 2];
 
-        // aead_algo
+        // algo
         file.read_exact(&mut buf[0..1])
             .map_err(|e| TokenSetError::FileReadError(e))?;
         let algo = SupportedAlgorithm::try_from(buf[0])
@@ -342,7 +342,7 @@ impl TokenSet {
             fs::File::create(&path).map_err(|e| TokenSetError::FileCreateError(e))?;
         let mut buf = [0u8; 2];
 
-        // aead_algo
+        // algo
         buf[0] = self.algo as u8;
         file.write_all(&buf[0..1])
             .map_err(|e| TokenSetError::FileWriteError(e))?;

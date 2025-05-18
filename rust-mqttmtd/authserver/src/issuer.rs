@@ -5,7 +5,7 @@ use std::{net::SocketAddr, sync::Arc, time::Duration};
 use crate::{
     acl::AccessControlList,
     atl::{AccessTokenList, TokenSet},
-    authserver_issuer_eprintln, authserver_issuer_println,
+    issuer_eprintln, issuer_println,
 };
 use libmqttmtd::auth_serv::issuer;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -17,11 +17,11 @@ macro_rules! send_issuer_err_resp_if_err {
         match $result {
             Ok(v) => v,
             Err(e) => {
-                authserver_issuer_eprintln!($addr, $err_str, e);
+                issuer_eprintln!($addr, $err_str, e);
                 if let Err(send_err) =
                     issuer::ResponseWriter::write_error_to(&mut $stream, &mut $buf[..]).await
                 {
-                    authserver_issuer_eprintln!(
+                    issuer_eprintln!(
                         $addr,
                         "Error sending out issuer (error) response: {}",
                         send_err
@@ -41,7 +41,7 @@ pub(crate) async fn handler<IO: AsyncRead + AsyncWrite + Unpin>(
     mut stream: TlsStream<IO>,
     addr: SocketAddr,
 ) {
-    let mut buf = [0u8; issuer::REQ_RESP_MIN_BUFLEN];
+    let mut buf = [0u8; issuer::REQ_RESP_MIN_BUF_LEN];
 
     // Parse request
     let req = send_issuer_err_resp_if_err!(
@@ -78,11 +78,11 @@ pub(crate) async fn handler<IO: AsyncRead + AsyncWrite + Unpin>(
                 })
             });
     if user_hostname == None {
-        authserver_issuer_eprintln!(addr, "failed to extract DNS name from SAN extension");
+        issuer_eprintln!(addr, "failed to extract DNS name from SAN extension");
         if let Err(send_err) =
             issuer::ResponseWriter::write_error_to(&mut stream, &mut buf[..]).await
         {
-            authserver_issuer_eprintln!(
+            issuer_eprintln!(
                 addr,
                 "Error sending out issuer (error) response: {}",
                 send_err
@@ -94,11 +94,11 @@ pub(crate) async fn handler<IO: AsyncRead + AsyncWrite + Unpin>(
 
     // Check with ACL if access can be granted
     if !acl.check_if_allowed(user_hostname, req.topic(), req.is_pub()) {
-        authserver_issuer_eprintln!(addr, "failed ACL verification");
+        issuer_eprintln!(addr, "failed ACL verification");
         if let Err(send_err) =
             issuer::ResponseWriter::write_error_to(&mut stream, &mut buf[..]).await
         {
-            authserver_issuer_eprintln!(
+            issuer_eprintln!(
                 addr,
                 "Error sending out issuer (error) response: {}",
                 send_err
@@ -109,12 +109,12 @@ pub(crate) async fn handler<IO: AsyncRead + AsyncWrite + Unpin>(
 
     // Create a token set
     let token_set = send_issuer_err_resp_if_err!(
-        TokenSet::create_without_rand_init(
+        TokenSet::new(
             req.num_tokens_divided_by_4(),
             req.topic().to_string(),
             req.is_pub(),
             Duration::from_secs(300),
-            req.aead_algo(),
+            req.algo(),
         ),
         "error acquiring atl write lock: {}",
         stream,
@@ -123,7 +123,7 @@ pub(crate) async fn handler<IO: AsyncRead + AsyncWrite + Unpin>(
     );
 
     // File a token_set
-    let (token_set, masked_timestamp) = send_issuer_err_resp_if_err!(
+    let (resp, _) = send_issuer_err_resp_if_err!(
         atl.file(token_set).await,
         "error issuing a token set: {}",
         stream,
@@ -131,23 +131,10 @@ pub(crate) async fn handler<IO: AsyncRead + AsyncWrite + Unpin>(
         buf
     );
 
-    // Acquire a read lock of the filed token_set
-    let token_set = token_set.read().await;
-
-    // Get parameters
-    let enc_key = token_set.enc_key();
-    let nonce_base = token_set.nonce_base();
-    let mut timestamp = [0u8; 6];
-    timestamp[..].copy_from_slice(&masked_timestamp.to_be_bytes()[1..7]);
-    let all_randoms = token_set.all_randoms();
-
     // Send success response
-    if let Err(e) = issuer::ResponseWriter::new(&enc_key, &nonce_base, timestamp, &all_randoms)
-        .write_success_to(&mut stream, &mut buf[..])
-        .await
-    {
-        authserver_issuer_eprintln!(addr, "error sending out issuer response: {}", e);
+    if let Err(e) = resp.write_success_to(&mut stream, &mut buf[..]).await {
+        issuer_eprintln!(addr, "error sending out issuer response: {}", e);
     } else {
-        authserver_issuer_println!(addr, "Issuer response sent out");
+        issuer_println!(addr, "Issuer response sent out");
     }
 }

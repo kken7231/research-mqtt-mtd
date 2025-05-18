@@ -9,7 +9,7 @@ use libmqttmtd::aead::algo::{
 };
 // Assuming these traits are defined in libmqttmtd
 use libmqttmtd::consts::{RANDOM_LEN, TIMESTAMP_LEN};
-use rand::{RngCore, seq::IndexedRandom};
+use rand::{seq::IndexedRandom, RngCore};
 use std::{
     os::unix::fs::PermissionsExt,
     path::PathBuf,
@@ -55,8 +55,8 @@ impl TestDataHydrator {
                     SupportedAlgorithm::Aes256Gcm,
                     SupportedAlgorithm::Chacha20Poly1305,
                 ]
-                .choose(&mut self.rng)
-                .unwrap())
+                    .choose(&mut self.rng)
+                    .unwrap())
             }
         };
         let mut nonce_base = [0u8; 16];
@@ -105,11 +105,11 @@ async fn new_response_reader(
     nonce_base: Bytes,
     timestamp: [u8; TIMESTAMP_LEN],
     all_randoms: Bytes,
-    aead_algo: SupportedAlgorithm,
+    algo: SupportedAlgorithm,
     num_tokens_divided_by_4: u8,
 ) -> Result<issuer::ResponseReader, Box<dyn std::error::Error>> {
-    let writer = issuer::ResponseWriter::new(&enc_key, &nonce_base, timestamp, &all_randoms);
-    let mut buf = [0u8; issuer::REQ_RESP_MIN_BUFLEN];
+    let writer = issuer::ResponseWriter::new(enc_key.clone(), nonce_base.clone(), timestamp, all_randoms.clone());
+    let mut buf = [0u8; issuer::REQ_RESP_MIN_BUF_LEN];
 
     let mut inner_vec: Vec<u8> = Vec::new();
 
@@ -122,11 +122,11 @@ async fn new_response_reader(
     Ok(issuer::ResponseReader::read_from(
         &mut async_reader,
         &mut buf[..],
-        aead_algo,
+        algo,
         num_tokens_divided_by_4,
     )
-    .await?
-    .unwrap())
+        .await?
+        .unwrap())
 }
 
 async fn req_res_from_tokenset(token_set: &TokenSet) -> (issuer::Request, issuer::ResponseReader) {
@@ -136,7 +136,7 @@ async fn req_res_from_tokenset(token_set: &TokenSet) -> (issuer::Request, issuer
         token_set.algo,
         token_set.topic.clone(),
     )
-    .unwrap_or_else(|e| panic!("{:?}", e));
+        .unwrap_or_else(|e| panic!("{:?}", e));
 
     let response = new_response_reader(
         token_set.enc_key.clone(),
@@ -148,8 +148,8 @@ async fn req_res_from_tokenset(token_set: &TokenSet) -> (issuer::Request, issuer
         token_set.algo,
         token_set.num_tokens.rotate_right(2) as u8,
     )
-    .await
-    .unwrap_or_else(|e| panic!("{:?}", e));
+        .await
+        .unwrap_or_else(|e| panic!("{:?}", e));
 
     (request, response)
 }
@@ -414,7 +414,7 @@ fn test_from_file_success_idx_0_offset_0() {
         token_set_original.is_pub,
         token_set_original.topic.clone(),
     )
-    .unwrap_or_else(|e| panic!("failed to get a tokenset {}", e));
+        .unwrap_or_else(|e| panic!("failed to get a tokenset {}", e));
 
     assert_eq!(token_set.path, file_path);
     assert_eq!(token_set.topic, token_set_original.topic);
@@ -448,7 +448,7 @@ fn test_from_file_success_idx_greater_than_0_offset_equal_idx() {
         token_set_original.is_pub,
         token_set_original.topic.clone(),
     )
-    .unwrap_or_else(|e| panic!("failed to get a tokenset {}", e));
+        .unwrap_or_else(|e| panic!("failed to get a tokenset {}", e));
 
     assert_eq!(token_set.path, file_path);
     assert_eq!(token_set.topic, token_set_original.topic);
@@ -485,7 +485,7 @@ fn test_from_file_success_idx_greater_than_0_offset_less_than_idx() {
         token_set_original.is_pub,
         token_set_original.topic.clone(),
     )
-    .unwrap_or_else(|e| panic!("failed to get a tokenset {}", e));
+        .unwrap_or_else(|e| panic!("failed to get a tokenset {}", e));
 
     assert_eq!(token_set.path, file_path);
     assert_eq!(token_set.topic, token_set_original.topic);
@@ -546,7 +546,7 @@ fn test_from_file_error_invalid_cur_idx_in_filename() {
         token_set_original.is_pub,
         token_set_original.topic.clone(),
     )
-    .unwrap_or_else(|e| panic!("failed to get a tokenset {}", e));
+        .unwrap_or_else(|e| panic!("failed to get a tokenset {}", e));
     let topic_encoded = TokenSet::topic_b64encode(token_set.topic.clone());
 
     // Invalid index format
@@ -651,7 +651,7 @@ fn test_from_file_error_nonce_len_mismatch_read() -> Result<(), ()> {
         &token_set.nonce_base.to_be_bytes()[16 - token_set.algo.nonce_len()..]
             [..token_set.algo.nonce_len() - 1],
     )
-    .expect("failed to write file"); // too small nonce
+        .expect("failed to write file"); // too small nonce
     file.write_all(&[token_set.num_tokens.rotate_right(2) as u8])
         .expect("failed to write file");
     file.write_all(&token_set.timestamp)

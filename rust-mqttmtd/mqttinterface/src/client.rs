@@ -4,10 +4,10 @@ use mqttbytes::v5::{self, Packet, Publish, Subscribe};
 
 use crate::{
     mqttinterface_eprintln, mqttinterface_println,
-    publish::{PublishUnfreezeError, unfreeze_publish},
+    publish::{unfreeze_publish, PublishUnfreezeError},
     subscribe::{
-        ClientSubscriptionInfo, SubscribeUnfreezeError, SubscribedPublishFreezeError,
-        freeze_subscribed_publish, unfreeze_subscribe,
+        freeze_subscribed_publish, unfreeze_subscribe, ClientSubscriptionInfo,
+        SubscribeUnfreezeError, SubscribedPublishFreezeError,
     },
 };
 use std::{net::SocketAddr, sync::Arc};
@@ -105,7 +105,7 @@ pub async fn handler(
                                     addr,
                                     verifier_port,
                                 )
-                                .await
+                                    .await
                                 {
                                     Ok(Some(unfreezed)) => unfreezed.write(&mut encoded_packet),
                                     Ok(None) => continue,

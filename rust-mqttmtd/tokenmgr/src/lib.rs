@@ -17,7 +17,7 @@ pub async fn fetch_tokens<A: ToSocketAddrs + Send + 'static>(
         .connect("server")
         .await
         .map_err(|e| TokenFetchError::IssuerConnectError(e))?;
-    let mut buf = [0u8; issuer::REQ_RESP_MIN_BUFLEN];
+    let mut buf = [0u8; issuer::REQ_RESP_MIN_BUF_LEN];
 
     // Write a request
     request
@@ -29,11 +29,11 @@ pub async fn fetch_tokens<A: ToSocketAddrs + Send + 'static>(
     if let Some(success_response) = issuer::ResponseReader::read_from(
         &mut issuer_stream,
         &mut buf[..],
-        request.aead_algo(),
+        request.algo(),
         request.num_tokens_divided_by_4(),
     )
-    .await
-    .map_err(|e| TokenFetchError::SocketReadError(e))?
+        .await
+        .map_err(|e| TokenFetchError::SocketReadError(e))?
     {
         Ok(success_response)
     } else {

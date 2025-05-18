@@ -66,7 +66,7 @@ impl PlainServer {
     pub fn spawn<F, Fut>(self, handler: F) -> JoinHandle<Result<(), SocketError>>
     where
         F: Fn(TcpStream, SocketAddr) -> Fut + Send + Sync + 'static,
-        Fut: std::future::Future<Output = ()> + Send + 'static,
+        Fut: std::future::Future<Output=()> + Send + 'static,
     {
         sock_serv_println!("spawning socket server...");
         tokio::spawn(async move {
@@ -210,7 +210,7 @@ mod tests {
             Duration::from_secs(1),
             PlainServer::new(PORT, TO_SERVER, LOCAL).spawn(|_, _| async {}),
         )
-        .await
+            .await
         {
             Ok(Ok(Err(SocketError::InvalidTimeoutError(e)))) => assert_eq!(e, TO_SERVER),
             _ => panic!(),
@@ -234,7 +234,7 @@ mod tests {
             Duration::from_secs(1),
             PlainClient::new(format!("localhost:{}", PORT), TO_CLIENT).connect(),
         )
-        .await
+            .await
         {
             Ok(Ok(_)) => {}
             _ => panic!(),
@@ -251,7 +251,7 @@ mod tests {
             Duration::from_secs(2),
             PlainClient::new(format!("localhost:{}", PORT), TO_CLIENT).connect(),
         )
-        .await
+            .await
         {
             Ok(Err(SocketError::ConnectError(e))) => {
                 assert_eq!(e.kind(), ErrorKind::ConnectionRefused)

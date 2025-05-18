@@ -2,14 +2,14 @@
 
 use std::{net::SocketAddr, sync::Arc};
 
-use rustls::{ClientConfig, ServerConfig, pki_types::ServerName};
+use rustls::{pki_types::ServerName, ClientConfig, ServerConfig};
 
 use tokio::{
     net::{TcpStream, ToSocketAddrs},
     task::JoinHandle,
-    time::{Duration, timeout},
+    time::{timeout, Duration},
 };
-use tokio_rustls::{TlsAcceptor, TlsConnector, client, server};
+use tokio_rustls::{client, server, TlsAcceptor, TlsConnector};
 
 use super::{
     error::SocketError,
@@ -42,7 +42,7 @@ impl TlsServer {
     pub fn spawn<F, Fut>(self, handler: F) -> JoinHandle<Result<(), SocketError>>
     where
         F: Fn(server::TlsStream<TcpStream>, SocketAddr) -> Fut + Send + Sync + 'static,
-        Fut: std::future::Future<Output = ()> + Send + 'static,
+        Fut: std::future::Future<Output=()> + Send + 'static,
     {
         let acceptor = self.acceptor.clone();
         let handler = Arc::new(handler);
@@ -132,7 +132,7 @@ mod tests {
     use crate::socket::{plain::ServerType::LOCAL, tls_config::TlsConfigLoader};
     use rcgen::CertifiedKey;
     use std::{
-        fs::{File, create_dir_all},
+        fs::{create_dir_all, File},
         io::{ErrorKind, Write},
         path::Path,
         sync::Once,
@@ -277,7 +277,7 @@ mod tests {
             Duration::from_secs(1),
             TlsServer::new(PORT, TO_SERVER, LOCAL, conf_server).spawn(|_, _| async {}),
         )
-        .await
+            .await
         {
             Ok(Ok(Err(SocketError::InvalidTimeoutError(d)))) => assert_eq!(d, TO_SERVER),
             _ => panic!(),
@@ -304,7 +304,7 @@ mod tests {
             TlsClient::new(format!("localhost:{}", PORT), TO_CLIENT, conf_client)
                 .connect(DOMAIN_SERV),
         )
-        .await
+            .await
         {
             Ok(Ok(_)) => {}
             _ => panic!(),
@@ -323,7 +323,7 @@ mod tests {
             TlsClient::new(format!("localhost:{}", PORT), TO_CLIENT, conf_client)
                 .connect(DOMAIN_SERV),
         )
-        .await
+            .await
         {
             Ok(Err(SocketError::ConnectError(e))) => {
                 assert!(e.kind() == ErrorKind::ConnectionRefused)

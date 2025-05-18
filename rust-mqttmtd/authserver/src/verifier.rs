@@ -5,17 +5,17 @@ use std::{net::SocketAddr, sync::Arc};
 use libmqttmtd::auth_serv::verifier;
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::{atl::AccessTokenList, authserver_verifier_eprintln, authserver_verifier_println};
+use crate::{atl::AccessTokenList, verifier_eprintln, verifier_println};
 
 macro_rules! send_verifier_err_resp_if_err {
     ($result:expr, $err_str:expr, $stream:expr, $addr:expr, $buf:expr) => { // Accept two expressions: the Result and the error string
         match $result {
             Ok(v) => v,
             Err(e) => {
-                authserver_verifier_eprintln!($addr, $err_str, e); // Use the provided error string expression
+                verifier_eprintln!($addr, $err_str, e); // Use the provided error string expression
                 // Assuming ResponseWriter, stream, and buf are available in the scope where the macro is used
                 if let Err(send_err) = verifier::ResponseWriter::write_error_to(&mut $stream, &mut $buf[..]).await {
-                    authserver_verifier_eprintln!($addr, "Error sending out verifier (error) response: {}", send_err);
+                    verifier_eprintln!($addr, "Error sending out verifier (error) response: {}", send_err);
                 };
                 return;
             }
@@ -30,7 +30,7 @@ pub(crate) async fn handler(
     mut stream: impl AsyncRead + AsyncWrite + Unpin,
     addr: SocketAddr,
 ) {
-    let mut buf = [0u8; verifier::REQ_RESP_MIN_BUFLEN];
+    let mut buf = [0u8; verifier::REQ_RESP_MIN_BUF_LEN];
 
     // Parse request
     let req = send_verifier_err_resp_if_err!(
@@ -51,29 +51,19 @@ pub(crate) async fn handler(
     );
 
     // Send response
-    let result = if let Some(token_set) = token_set {
-        authserver_verifier_println!(addr, "Verification successful");
-        let mut token_set = token_set.write().await;
-        let resp_writer = verifier::ResponseWriter::new(
-            token_set.is_pub(),
-            token_set.aead_algo(),
-            &token_set.current_nonce()[..],
-            token_set.topic(),
-            token_set.enc_key(),
-        )
-        .write_success_to(&mut stream, &mut buf[..])
-        .await;
-        token_set.increment_token_idx();
-
+    let result = if let Some(resp_writer) = token_set {
+        verifier_println!(addr, "Verification successful");
         resp_writer
+            .write_success_to(&mut stream, &mut buf[..])
+            .await
     } else {
-        authserver_verifier_println!(addr, "Verification failed");
+        verifier_println!(addr, "Verification failed");
         verifier::ResponseWriter::write_failure_to(&mut stream, &mut buf[..]).await
     };
 
     if let Err(e) = result {
-        authserver_verifier_eprintln!(addr, "error sending out verifier response: {}", e);
+        verifier_eprintln!(addr, "error sending out verifier response: {}", e);
     } else {
-        authserver_verifier_println!(addr, "Verifier response sent out")
+        verifier_println!(addr, "Verifier response sent out")
     }
 }

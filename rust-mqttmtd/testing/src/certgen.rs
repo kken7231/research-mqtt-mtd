@@ -257,7 +257,7 @@ pub fn certgen(args: CertgenArgs) -> Result<(), CertgenError> {
         &server_key_path,
         &server_cert_path,
     )
-    .map_err(|e| CertgenError::SaveKeyCertFailedError(e))?;
+        .map_err(|e| CertgenError::SaveKeyCertFailedError(e))?;
     println!(
         "Server certificate and key saved to {:?} and {:?}",
         server_cert_path, server_key_path
@@ -293,7 +293,7 @@ pub fn certgen(args: CertgenArgs) -> Result<(), CertgenError> {
             &client_key_path,
             &client_cert_path,
         )
-        .map_err(|e| CertgenError::SaveKeyCertFailedError(e))?;
+            .map_err(|e| CertgenError::SaveKeyCertFailedError(e))?;
         println!(
             "  Client certificate and key saved to {:?} and {:?}",
             client_cert_path, client_key_path

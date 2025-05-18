@@ -12,51 +12,51 @@ pub(crate) enum AccessType {
     PubSub,
 }
 
-/// Entry in the Access Control List.
-#[derive(Debug, Deserialize)]
-pub(crate) struct HostnameEntry {
-    topic: String,
-    access: AccessType,
-}
-
-/// Access Control List. Manages the scope of Publish/Subscribe access per topic
-/// per user.
+/// Access Control List. Manages the scope of Publish/Subscribe access per topic per user.
 #[derive(Debug)]
 pub(crate) struct AccessControlList {
+    /// {Hostname: {Topic: AccessType}}
     hostnames: HashMap<String, HashMap<String, AccessType>>,
 }
+
+static EXPECTED_ACCESS_TYPES_FOR_SUB: [AccessType; 2] = [AccessType::SubOnly, AccessType::PubSub];
+static EXPECTED_ACCESS_TYPES_FOR_PUB: [AccessType; 2] = [AccessType::PubOnly, AccessType::PubSub];
 
 impl AccessControlList {
     /// Reads a yaml file at the given path and returns deserialized instance.
     pub(crate) fn from_yaml<P: AsRef<Path>>(path: P) -> Result<Self, ACLError> {
+        // Open file
         let contents = fs::File::open(path).map_err(|e| ACLError::OpenYamlFailedError(e))?;
+
+        // Parse the file into a HashMap
         let hostnames: HashMap<String, HashMap<String, AccessType>> =
             serde_yaml::from_reader(contents).map_err(|e| ACLError::ParseYamlFailedError(e))?;
+
         Ok(Self { hostnames })
     }
 
-    /// Checks if the given access kind is allowed.
+    /// Checks if the given access kind is allowed. True if allowed.
     pub(crate) fn check_if_allowed(
         &self,
         hostname: impl Into<String>,
         topic: impl Into<String>,
         access_is_pub: bool,
     ) -> bool {
+        // Get a static reference to the "expected_access_types"
         let expected_access_types = if access_is_pub {
-            [AccessType::PubOnly, AccessType::PubSub]
+            &EXPECTED_ACCESS_TYPES_FOR_PUB
         } else {
-            [AccessType::SubOnly, AccessType::PubSub]
+            &EXPECTED_ACCESS_TYPES_FOR_SUB
         };
 
-        if let Some(topics) = self.hostnames.get(&hostname.into()) {
-            if let Some(access_type) = topics.get(&topic.into()) {
+        // Return check result if the matched entry is present, otherwise false
+        self.hostnames
+            .get(&hostname.into())
+            .and_then(|topics| topics.get(&topic.into()))
+            .map_or(false, |access_type| {
+                println!("{:?}, {:?}", access_type, expected_access_types);
                 expected_access_types.contains(access_type)
-            } else {
-                false
-            }
-        } else {
-            false
-        }
+            })
     }
 }
 
@@ -69,7 +69,7 @@ mod tests {
 
     use tempfile::tempdir;
 
-    use crate::{acl::AccessControlList, authserver_println, error::ACLError};
+    use crate::{acl::AccessControlList, error::ACLError, proc_println};
 
     #[test]
     fn load_pass() {
@@ -96,12 +96,12 @@ client_b:
 
         // Load the hostnames from the YAML file
         let acl = AccessControlList::from_yaml(&temp_yaml);
-        authserver_println!("{:?}", &acl);
+        proc_println!("{:?}", &acl);
         assert!(acl.is_ok());
         let acl = acl.unwrap();
-        authserver_println!("Successfully loaded hostnames:");
+        proc_println!("Successfully loaded hostnames:");
         for hostname_map in acl.hostnames {
-            authserver_println!("{:?}", hostname_map);
+            proc_println!("{:?}", hostname_map);
         }
 
         // Clean up the sample file
@@ -133,7 +133,7 @@ client_b:
 
         // Load the hostnames from the YAML file
         let acl = AccessControlList::from_yaml(&temp_yaml);
-        authserver_println!("{:?}", &acl);
+        proc_println!("{:?}", &acl);
         assert!(acl.is_ok());
         let acl = acl.unwrap();
 

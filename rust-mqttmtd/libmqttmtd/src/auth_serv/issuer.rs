@@ -4,15 +4,17 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use super::error::{AuthServerParserError, IssuerRequestValidationError};
 use crate::{
     aead::algo::SupportedAlgorithm,
+    auth_serv_read, auth_serv_read_into_new_bytes, auth_serv_write,
     consts::{RANDOM_LEN, TIMESTAMP_LEN},
+    get_buf_checked,
 };
 
 /// Minimum required buffer length for the buf for both request parsing and
 /// response parsing.
-pub const REQ_RESP_MIN_BUFLEN: usize = if REQUEST_MIN_BUFLEN > RESPONSE_MIN_BUFLEN {
-    REQUEST_MIN_BUFLEN
+pub const REQ_RESP_MIN_BUF_LEN: usize = if REQUEST_MIN_BUF_LEN > RESPONSE_MIN_BUF_LEN {
+    REQUEST_MIN_BUF_LEN
 } else {
-    RESPONSE_MIN_BUFLEN
+    RESPONSE_MIN_BUF_LEN
 };
 
 /// # Request for Issuer interface
@@ -32,7 +34,7 @@ pub const REQ_RESP_MIN_BUFLEN: usize = if REQUEST_MIN_BUFLEN > RESPONSE_MIN_BUFL
 /// 1. Compound byte
 ///   - bit 7: `is_pub`: tokens for pub/sub
 ///   - bit 6-0: `num_tokens_divided_by_4`: number of tokens divided by 4
-/// 2. `aead_algo` (u8): AEAD algorithm identifier according to
+/// 2. `algo` (u8): AEAD algorithm identifier according to
 ///    [libmqttmtd::aead::algo::SupportedAlgorithm]
 /// 3. `topic_len` (u16, big endian): length of `topic`
 /// 4. `topic`: Topic Names or Topic Filters
@@ -40,34 +42,24 @@ pub const REQ_RESP_MIN_BUFLEN: usize = if REQUEST_MIN_BUFLEN > RESPONSE_MIN_BUFL
 pub struct Request {
     is_pub: bool,
     num_tokens_divided_by_4: u8,
-    aead_algo: SupportedAlgorithm,
+    algo: SupportedAlgorithm,
     topic: String,
 }
 
-/// buffer for (compound byte + aead_algo) and topic_len
-pub const REQUEST_MIN_BUFLEN: usize = 2;
-
-impl std::fmt::Display for Request {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "issuer resuest: is_pub:{}, num_tokens_divided_dy_4:{}, topic:\"{}\"",
-            self.is_pub, self.num_tokens_divided_by_4, self.topic
-        )
-    }
-}
+/// buffer for (compound byte + algo) and topic_len
+pub const REQUEST_MIN_BUF_LEN: usize = 4;
 
 impl Request {
     pub fn new(
         is_pub: bool,
         num_tokens_divided_by_4: u8,
-        aead_algo: SupportedAlgorithm,
+        algo: SupportedAlgorithm,
         topic: impl Into<String>,
     ) -> Result<Self, IssuerRequestValidationError> {
         let req = Self {
             is_pub,
             num_tokens_divided_by_4,
-            aead_algo,
+            algo,
             topic: topic.into(),
         };
         req.validate()?;
@@ -94,87 +86,12 @@ impl Request {
         self.num_tokens_divided_by_4
     }
 
-    pub fn aead_algo(&self) -> SupportedAlgorithm {
-        self.aead_algo
+    pub fn algo(&self) -> SupportedAlgorithm {
+        self.algo
     }
 
     pub fn topic(&self) -> &str {
         &self.topic
-    }
-
-    async fn _read_compound_aead_algo<R: AsyncRead + Unpin>(
-        stream: &mut R,
-        buf: &mut [u8],
-    ) -> Result<(bool, u8, SupportedAlgorithm), AuthServerParserError> {
-        stream
-            .read_exact(&mut buf[0..2])
-            .await
-            .map_err(|e| AuthServerParserError::SocketReadError(e))?;
-        let is_pub = buf[0] & 0x80 != 0;
-        let num_tokens_divided_by_4 = buf[0] & 0x7F;
-        let aead_algo = SupportedAlgorithm::try_from(buf[1])?;
-        Ok((is_pub, num_tokens_divided_by_4, aead_algo))
-    }
-
-    async fn _write_compound_aead_algo<W: AsyncWrite + Unpin>(
-        &self,
-        stream: &mut W,
-        buf: &mut [u8],
-    ) -> Result<usize, AuthServerParserError> {
-        let mut first_byte = *self.num_tokens_divided_by_4.to_be_bytes().last().unwrap() & 0x7F;
-        if self.is_pub {
-            first_byte |= 0x80;
-        }
-        buf[0] = first_byte;
-        buf[1] = self.aead_algo as u8;
-        stream
-            .write_all(&buf[0..2])
-            .await
-            .map_err(|e| AuthServerParserError::SocketWriteError(e))?;
-        Ok(2)
-    }
-
-    async fn _read_topic<R: AsyncRead + Unpin>(
-        stream: &mut R,
-        buf: &mut [u8],
-    ) -> Result<String, AuthServerParserError> {
-        // topic_len
-        stream
-            .read_exact(&mut buf[0..2])
-            .await
-            .map_err(|e| AuthServerParserError::SocketReadError(e))?;
-        let topic_len = (usize::from(buf[0]) << 8) | usize::from(buf[1]);
-
-        // topic
-        let mut topic = vec![0u8; topic_len];
-        stream
-            .read_exact(&mut topic)
-            .await
-            .map_err(|e| AuthServerParserError::SocketReadError(e))?;
-
-        Ok(std::str::from_utf8(&topic[..])?.to_owned())
-    }
-
-    async fn _write_topic<W: AsyncWrite + Unpin>(
-        &self,
-        stream: &mut W,
-        buf: &mut [u8],
-    ) -> Result<usize, AuthServerParserError> {
-        // topic_len
-        let topic_len_bytes = self.topic.len().to_be_bytes();
-        buf[0..2].copy_from_slice(&topic_len_bytes[topic_len_bytes.len() - 2..]);
-        stream
-            .write_all(&buf[0..2])
-            .await
-            .map_err(|e| AuthServerParserError::SocketWriteError(e))?;
-
-        // topic
-        stream
-            .write_all(&self.topic.as_bytes())
-            .await
-            .map_err(|e| AuthServerParserError::SocketWriteError(e))?;
-
-        Ok(2 + self.topic.len())
     }
 
     pub async fn read_from<R: AsyncRead + Unpin>(
@@ -182,27 +99,21 @@ impl Request {
         buf: impl Into<Option<&mut [u8]>>,
     ) -> Result<Self, AuthServerParserError> {
         // Buf len check
-        let buf = match buf.into() {
-            Some(b) if b.len() < REQUEST_MIN_BUFLEN => {
-                return Err(AuthServerParserError::BufferTooSmallError());
-            }
-            Some(b) => b,
-            None => &mut [0u8; REQUEST_MIN_BUFLEN][..],
-        };
+        let buf = get_buf_checked!(buf.into(), REQUEST_MIN_BUF_LEN);
 
-        // is_pub, num_tokens_divided_dy_4, aead_algo
-        let (is_pub, num_tokens_divided_by_4, aead_algo) =
-            Self::_read_compound_aead_algo(stream, buf).await?;
+        // Read from stream
+        auth_serv_read!(stream, &mut buf[0..4]);
+        let is_pub = buf[0] & 0x80 != 0;
+        let num_tokens_divided_by_4 = buf[0] & 0x7F;
+        let algo = SupportedAlgorithm::try_from(buf[1])?;
+        let topic_len = (usize::from(buf[2]) << 8) | usize::from(buf[3]);
 
-        // topic_len, topic
-        let topic = Self::_read_topic(stream, buf).await?;
+        // topic
+        let mut topic = vec![0u8; topic_len];
+        auth_serv_read!(stream, &mut topic);
+        let topic = String::from_utf8(topic)?;
 
-        Ok(Self::new(
-            is_pub,
-            num_tokens_divided_by_4,
-            aead_algo,
-            topic,
-        )?)
+        Ok(Self::new(is_pub, num_tokens_divided_by_4, algo, topic)?)
     }
 
     pub async fn write_to<W: AsyncWrite + Unpin>(
@@ -210,28 +121,25 @@ impl Request {
         stream: &mut W,
         buf: impl Into<Option<&mut [u8]>>,
     ) -> Result<usize, AuthServerParserError> {
+        // Topic len check
         if self.topic.len() > 0xFFFF {
             return Err(AuthServerParserError::TopicTooLongError());
         }
 
         // Buf len check
-        let buf = match buf.into() {
-            Some(b) if b.len() < REQUEST_MIN_BUFLEN => {
-                return Err(AuthServerParserError::BufferTooSmallError());
-            }
-            Some(b) => b,
-            None => &mut [0u8; REQUEST_MIN_BUFLEN][..],
-        };
+        let buf = get_buf_checked!(buf.into(), REQUEST_MIN_BUF_LEN);
 
-        let mut cursor: usize = 0;
-
-        // is_pub, num_tokens_divided_dy_4, aead_algo
-        cursor += self._write_compound_aead_algo(stream, buf).await?;
-
-        // topic_len, topic
-        cursor += self._write_topic(stream, buf).await?;
-
-        Ok(cursor)
+        // Write to stream
+        let mut first_byte = *self.num_tokens_divided_by_4.to_be_bytes().last().unwrap() & 0x7F;
+        if self.is_pub {
+            first_byte |= 0x80;
+        }
+        buf[0] = first_byte;
+        buf[1] = self.algo as u8;
+        buf[2..4].copy_from_slice(&(self.topic.len() as u16).to_be_bytes()[..]);
+        auth_serv_write!(stream, &buf[0..4]);
+        auth_serv_write!(stream, self.topic.as_bytes());
+        Ok(4 + self.topic.len())
     }
 }
 
@@ -245,27 +153,27 @@ impl Request {
 /// 3. `all_random_bytes`
 ///
 /// ## v2
-/// 1. `status` (u8, refer to [self::ResponseStatus])
+/// 1. `status` (u8, refer to [ResponseStatus])
 /// 2. `enc_key`
 /// 3. `nonce_base`
 /// 4. `timestamp`
 /// 5. `all_randoms` (length = num_tokens_divided_by_4*4*RANDOM_LEN)
-pub struct ResponseWriter<'a, 'b, 'c> {
-    enc_key: &'a [u8],
-    nonce_base: &'b [u8],
+pub struct ResponseWriter {
+    enc_key: Bytes,
+    nonce_base: Bytes,
     timestamp: [u8; TIMESTAMP_LEN],
-    all_randoms: &'c [u8],
+    all_randoms: Bytes,
 }
 
 /// buffer for status
-pub const RESPONSE_MIN_BUFLEN: usize = 1;
+pub const RESPONSE_MIN_BUF_LEN: usize = 1;
 
-impl<'a, 'b, 'c> ResponseWriter<'a, 'b, 'c> {
+impl ResponseWriter {
     pub fn new(
-        enc_key: &'a [u8],
-        nonce_base: &'b [u8],
+        enc_key: Bytes,
+        nonce_base: Bytes,
         timestamp: [u8; TIMESTAMP_LEN],
-        all_randoms: &'c [u8],
+        all_randoms: Bytes,
     ) -> Self {
         Self {
             enc_key,
@@ -275,68 +183,11 @@ impl<'a, 'b, 'c> ResponseWriter<'a, 'b, 'c> {
         }
     }
 
-    async fn _write_status<W: AsyncWrite + Unpin>(
-        stream: &mut W,
-        buf: &mut [u8],
-        status: &ResponseStatus,
-    ) -> Result<usize, AuthServerParserError> {
-        buf[0] = *status as u8;
-        stream
-            .write_all(&mut buf[0..1])
-            .await
-            .map_err(|e| AuthServerParserError::SocketWriteError(e))?;
-        Ok(1)
-    }
-
-    async fn _write_enc_key<W: AsyncWrite + Unpin>(
-        &self,
-        stream: &mut W,
-    ) -> Result<usize, AuthServerParserError> {
-        stream
-            .write_all(&self.enc_key)
-            .await
-            .map_err(|e| AuthServerParserError::SocketWriteError(e))?;
-        Ok(self.enc_key.len())
-    }
-
-    async fn _write_nonce_base<W: AsyncWrite + Unpin>(
-        &self,
-        stream: &mut W,
-    ) -> Result<usize, AuthServerParserError> {
-        stream
-            .write_all(&self.nonce_base)
-            .await
-            .map_err(|e| AuthServerParserError::SocketWriteError(e))?;
-        Ok(self.nonce_base.len())
-    }
-
-    async fn _write_timestamp<W: AsyncWrite + Unpin>(
-        &self,
-        stream: &mut W,
-    ) -> Result<usize, AuthServerParserError> {
-        stream
-            .write_all(&self.timestamp)
-            .await
-            .map_err(|e| AuthServerParserError::SocketWriteError(e))?;
-        Ok(self.timestamp.len())
-    }
-
-    async fn _write_all_randoms<W: AsyncWrite + Unpin>(
-        &self,
-        stream: &mut W,
-    ) -> Result<usize, AuthServerParserError> {
-        stream
-            .write_all(&self.all_randoms)
-            .await
-            .map_err(|e| AuthServerParserError::SocketWriteError(e))?;
-        Ok(self.all_randoms.len())
-    }
-
     pub async fn write_error_to<W: AsyncWrite + Unpin>(
         stream: &mut W,
         buf: impl Into<Option<&mut [u8]>>,
     ) -> Result<usize, AuthServerParserError> {
-        Self::write_to(None, stream, buf, ResponseStatus::Error).await
+        Self::write_to(None, stream, buf, self::ResponseStatus::Error).await
     }
 
     pub async fn write_success_to<W: AsyncWrite + Unpin>(
@@ -354,37 +205,27 @@ impl<'a, 'b, 'c> ResponseWriter<'a, 'b, 'c> {
         status: ResponseStatus,
     ) -> Result<usize, AuthServerParserError> {
         // Buf len check
-        let buf = match buf.into() {
-            Some(b) if b.len() < RESPONSE_MIN_BUFLEN => {
-                return Err(AuthServerParserError::BufferTooSmallError());
-            }
-            Some(b) => b,
-            None => &mut [0u8; RESPONSE_MIN_BUFLEN][..],
-        };
+        let buf = get_buf_checked!(buf.into(), RESPONSE_MIN_BUF_LEN);
 
-        let mut cursor: usize = 0;
+        // status first
+        buf[0] = status as u8;
+        auth_serv_write!(stream, &buf[..1]);
 
-        // status
-        cursor += Self::_write_status(stream, buf, &status).await?;
+        // status check
         if status != ResponseStatus::Success || resp.is_none() {
-            return Ok(cursor);
+            return Ok(1);
         }
-
         let resp = resp.unwrap();
 
-        // enc_key
-        cursor += resp._write_enc_key(stream).await?;
-
-        // nonce_base
-        cursor += resp._write_nonce_base(stream).await?;
-
-        // timestamp
-        cursor += resp._write_timestamp(stream).await?;
-
-        // all_random_bytes
-        cursor += resp._write_all_randoms(stream).await?;
-
-        Ok(cursor)
+        // other attributes if success
+        auth_serv_write!(stream, &resp.enc_key);
+        auth_serv_write!(stream, &resp.nonce_base);
+        auth_serv_write!(stream, &resp.timestamp);
+        auth_serv_write!(stream, &resp.all_randoms);
+        Ok(1 + resp.enc_key.len()
+            + resp.nonce_base.len()
+            + resp.timestamp.len()
+            + resp.all_randoms.len())
     }
 }
 
@@ -413,102 +254,36 @@ impl ResponseReader {
         &self.all_randoms
     }
 
-    async fn _read_status<R: AsyncRead + Unpin>(
-        stream: &mut R,
-        buf: &mut [u8],
-    ) -> Result<ResponseStatus, AuthServerParserError> {
-        stream
-            .read_exact(&mut buf[0..1])
-            .await
-            .map_err(|e| AuthServerParserError::SocketReadError(e))?;
-        Ok(ResponseStatus::from(buf[0]))
-    }
-
-    async fn _read_enc_key<R: AsyncRead + Unpin>(
-        stream: &mut R,
-        enc_key_len: usize,
-    ) -> Result<Bytes, AuthServerParserError> {
-        let mut enc_key = BytesMut::zeroed(enc_key_len);
-        stream
-            .read_exact(&mut enc_key)
-            .await
-            .map_err(|e| AuthServerParserError::SocketReadError(e))?;
-        Ok(enc_key.freeze())
-    }
-
-    async fn _read_nonce_base<R: AsyncRead + Unpin>(
-        stream: &mut R,
-        nonce_len: usize,
-    ) -> Result<Bytes, AuthServerParserError> {
-        let mut nonce_base = BytesMut::zeroed(nonce_len);
-        stream
-            .read_exact(&mut nonce_base)
-            .await
-            .map_err(|e| AuthServerParserError::SocketReadError(e))?;
-        Ok(nonce_base.freeze())
-    }
-
-    async fn _read_timestamp<R: AsyncRead + Unpin>(
-        stream: &mut R,
-    ) -> Result<[u8; TIMESTAMP_LEN], AuthServerParserError> {
-        let mut timestamp = [0u8; TIMESTAMP_LEN];
-        stream
-            .read_exact(&mut timestamp[..])
-            .await
-            .map_err(|e| AuthServerParserError::SocketReadError(e))?;
-        Ok(timestamp)
-    }
-
-    async fn _read_all_randoms<R: AsyncRead + Unpin>(
-        stream: &mut R,
-        num_tokens_divided_by_4: u8,
-    ) -> Result<Bytes, AuthServerParserError> {
-        let mut all_randoms =
-            BytesMut::zeroed((num_tokens_divided_by_4 as usize).rotate_left(2) * RANDOM_LEN);
-        stream
-            .read_exact(&mut all_randoms)
-            .await
-            .map_err(|e| AuthServerParserError::SocketReadError(e))?;
-        Ok(all_randoms.freeze())
-    }
-
     pub async fn read_from<R: AsyncRead + Unpin>(
         stream: &mut R,
         buf: impl Into<Option<&mut [u8]>>,
-        aead_algo: SupportedAlgorithm,
+        algo: SupportedAlgorithm,
         num_tokens_divided_by_4: u8,
     ) -> Result<Option<Self>, AuthServerParserError> {
         // Buf len check
-        let buf = match buf.into() {
-            Some(b) if b.len() < RESPONSE_MIN_BUFLEN => {
-                return Err(AuthServerParserError::BufferTooSmallError());
-            }
-            Some(b) => b,
-            None => &mut [0u8; RESPONSE_MIN_BUFLEN][..],
-        };
+        let buf = get_buf_checked!(buf.into(), RESPONSE_MIN_BUF_LEN);
 
         // status
-        let status = Self::_read_status(stream, buf).await?;
+        auth_serv_read!(stream, &mut buf[..1]);
+        let status = ResponseStatus::from(buf[0]);
         if status != ResponseStatus::Success {
             return Ok(None);
         }
 
-        // enc_key
-        let enc_key = Self::_read_enc_key(stream, aead_algo.key_len()).await?;
-
-        // nonce_base
-        let nonce_base = Self::_read_nonce_base(stream, aead_algo.nonce_len()).await?;
-
-        // timestamp
-        let timestamp = Self::_read_timestamp(stream).await?;
-
-        // all_randoms
-        let all_randoms = Self::_read_all_randoms(stream, num_tokens_divided_by_4).await?;
+        // other attributes if success
+        auth_serv_read_into_new_bytes!(enc_key, stream, algo.key_len());
+        auth_serv_read_into_new_bytes!(nonce_base, stream, algo.nonce_len());
+        auth_serv_read_into_new_bytes!(timestamp, stream, TIMESTAMP_LEN);
+        auth_serv_read_into_new_bytes!(
+            all_randoms,
+            stream,
+            ((num_tokens_divided_by_4 as usize) << 2) * RANDOM_LEN
+        );
 
         Ok(Some(Self {
             enc_key,
             nonce_base,
-            timestamp,
+            timestamp: timestamp.as_ref().try_into().unwrap(),
             all_randoms,
         }))
     }
@@ -547,21 +322,16 @@ mod tests {
     use tokio::io::AsyncReadExt;
     use tokio_test::io::Builder;
 
-    // Helper to create a dummy AccessTokenList for handler tests
-    // fn create_dummy_atl() -> Arc<RwLock<AccessTokenList>> {
-    //     Arc::new(RwLock::new(AccessTokenList::new()))
-    // }
-
     #[tokio::test]
     async fn request_write_read_roundtrip() {
         let original_req = Arc::new(
             Request::new(
                 true,                          // is_pub
                 5,                             // num_tokens_divided_dy_4 (fits in 7 bits)
-                SupportedAlgorithm::Aes256Gcm, // aead_algo
+                SupportedAlgorithm::Aes256Gcm, // algo
                 "test/topic/req".to_string(),  // topic
             )
-            .expect("failed to create a request"),
+                .expect("failed to create a request"),
         );
 
         let expected_bytes = [
@@ -594,7 +364,7 @@ mod tests {
             parsed_req.num_tokens_divided_by_4,
             original_req.num_tokens_divided_by_4
         );
-        assert_eq!(parsed_req.aead_algo, original_req.aead_algo);
+        assert_eq!(parsed_req.algo, original_req.algo);
         assert_eq!(parsed_req.topic, original_req.topic);
         assert_eq!(written_len, expected_bytes.len(), "Written length mismatch");
     }
@@ -636,15 +406,15 @@ mod tests {
 
     #[tokio::test]
     async fn response_write_read_success_roundtrip() {
-        let enc_key = Bytes::from(vec![
+        let enc_key = Bytes::from_static(&[
             0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22,
             0x33, 0x44,
         ]); // Dummy key
         let timestamp = [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]; // Dummy timestamp
-        let nonce_base = [
+        let nonce_base = Bytes::from_static(&[
             0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF,
-        ]; // Dummy nonce_base
-        let all_randoms = Bytes::from(vec![
+        ]); // Dummy nonce_base
+        let all_randoms = Bytes::from_static(&[
             0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E,
             0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
         ]); // Dummy randoms (e.g., 1 token * 8 bytes)
@@ -666,8 +436,7 @@ mod tests {
             0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
         ];
 
-        let original_resp_writer =
-            ResponseWriter::new(&enc_key, &nonce_base, timestamp, &all_randoms);
+        let original_resp_writer = ResponseWriter::new(enc_key, nonce_base, timestamp, all_randoms);
 
         // Mock stream to write to
         let mut mock_stream = Builder::new().write(&expected_bytes).read(&[]).build();
@@ -682,22 +451,22 @@ mod tests {
         let mut read_stream = Builder::new().read(&expected_bytes).build();
 
         let mut read_buf = [0u8; 8]; // Provide buffer
-        println!("{}", (all_randoms.len() / RANDOM_LEN).rotate_right(2));
+        println!("{}", (original_resp_writer.all_randoms.len() / RANDOM_LEN).rotate_right(2));
         let parsed_resp_option = ResponseReader::read_from(
             &mut read_stream,
             &mut read_buf[..],
             SupportedAlgorithm::Aes128Gcm,
-            (all_randoms.len() / RANDOM_LEN).rotate_right(2) as u8, // num_tokens_divided_dy_4
+            (original_resp_writer.all_randoms.len() / RANDOM_LEN).rotate_right(2) as u8, // num_tokens_divided_dy_4
         )
-        .await
-        .expect("Failed to read response");
+            .await
+            .expect("Failed to read response");
 
         assert!(parsed_resp_option.is_some());
         let parsed_resp = parsed_resp_option.unwrap();
 
-        assert_eq!(parsed_resp.enc_key.as_ref(), enc_key.as_ref());
+        assert_eq!(parsed_resp.enc_key.as_ref(), original_resp_writer.enc_key.as_ref());
         assert_eq!(parsed_resp.timestamp, timestamp);
-        assert_eq!(parsed_resp.all_randoms.as_ref(), all_randoms.as_ref());
+        assert_eq!(parsed_resp.all_randoms.as_ref(), original_resp_writer.all_randoms.as_ref());
         assert_eq!(written_len, expected_bytes.len(), "Written length mismatch");
     }
 
@@ -722,11 +491,11 @@ mod tests {
         let parsed_resp_option = ResponseReader::read_from(
             &mut read_stream,
             &mut read_buf[..],
-            SupportedAlgorithm::Aes128Gcm, // Dummy aead_algo (not used for error)
+            SupportedAlgorithm::Aes128Gcm, // Dummy algo (not used for error)
             1,                             // Dummy num_tokens_divided_dy_4 (not used for error)
         )
-        .await
-        .expect("Failed to read response");
+            .await
+            .expect("Failed to read response");
 
         assert!(
             parsed_resp_option.is_none(),
@@ -745,7 +514,7 @@ mod tests {
             SupportedAlgorithm::Aes128Gcm,
             1,
         )
-        .await;
+            .await;
 
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -757,10 +526,4 @@ mod tests {
         let mut read_buf = [0u8; 3];
         let _ = mock_stream.read(&mut read_buf).await;
     }
-
-    // // Note: Testing the `handler` function directly is more complex as it
-    // involves // ATL interaction and random generation. You would need to
-    // mock ATL behavior // or use a real ATL instance and control time for
-    // expiration tests. // The tests above cover the
-    // serialization/deserialization logic which is a key part.
 }

@@ -2,9 +2,11 @@
 
 use crate::error::ATLError;
 use bytes::{Bytes, BytesMut};
+use libmqttmtd::auth_serv::{issuer, verifier};
 use libmqttmtd::{
     aead::algo::SupportedAlgorithm,
     consts::{RANDOM_LEN, TIMESTAMP_LEN, TOKEN_LEN},
+    utils,
 };
 use ring::rand::{SecureRandom, SystemRandom};
 use std::{
@@ -15,9 +17,7 @@ use std::{
 use tokio::sync::RwLock;
 
 /// # Set of tokens
-/// Owns various parameters for a set of token. To be added in
-/// [self::AccessTokenList]  after wrapped with [std::sync::RwLock] and
-/// [std::sync::Arc].
+/// Owns various parameters for a set of token. To be added in [AccessTokenList] after wrapped with [std::sync::RwLock] and [std::sync::Arc].
 #[derive(Debug)]
 pub(crate) struct TokenSet {
     masked_timestamp: u64,
@@ -36,14 +36,11 @@ pub(crate) struct TokenSet {
 }
 
 impl TokenSet {
-    /// Increments `token_idx` by one. Has no check.
-    pub(crate) fn increment_token_idx(&mut self) {
-        self.token_idx += 1;
-    }
-
+    /// Initializes a new [TokenSet]. Random values such as `enc_key` and `nonce_base` are not initialized here.
+    /// Initialization of those values is what [AccessTokenList] is responsible for.
     /// # Parameters:
     /// - `valid_dur`: must be less than one year, otherwise error thrown
-    pub(crate) fn create_without_rand_init(
+    pub(crate) fn new(
         num_tokens_divided_by_4: u8,
         topic: String,
         is_pub: bool,
@@ -75,34 +72,7 @@ impl TokenSet {
         })
     }
 
-    pub fn enc_key(&self) -> &[u8] {
-        &self.enc_key
-    }
-
-    pub fn nonce_base(&self) -> Vec<u8> {
-        let mut nonce_bytes = vec![0u8; self.algo.nonce_len()];
-        self.nonce_base
-            .to_be_bytes()
-            .iter()
-            .skip(128 / 8 - self.algo.nonce_len())
-            .enumerate()
-            .for_each(|(i, b)| nonce_bytes[i] = *b);
-        nonce_bytes
-    }
-
-    pub fn topic(&self) -> &str {
-        &self.topic
-    }
-
-    pub fn is_pub(&self) -> bool {
-        self.is_pub
-    }
-
-    pub fn all_randoms(&self) -> &[u8] {
-        &self.all_randoms
-    }
-
-    pub fn current_random(&self) -> Result<&[u8], ATLError> {
+    pub(crate) fn current_random(&self) -> Result<&[u8], ATLError> {
         let token_idx_usize = self.token_idx as usize;
         if (token_idx_usize + 1) * RANDOM_LEN <= self.all_randoms.len() {
             Ok(&self.all_randoms[token_idx_usize * RANDOM_LEN..(token_idx_usize + 1) * RANDOM_LEN])
@@ -111,7 +81,7 @@ impl TokenSet {
         }
     }
 
-    pub fn current_token(&self) -> Result<[u8; TOKEN_LEN], ATLError> {
+    pub(crate) fn current_token(&self) -> Result<[u8; TOKEN_LEN], ATLError> {
         let timestamp = AccessTokenList::sparse_masked_u64_to_part(self.masked_timestamp);
         let random = self.current_random()?;
         let mut token = [0u8; TOKEN_LEN];
@@ -121,20 +91,9 @@ impl TokenSet {
         Ok(token)
     }
 
-    pub fn current_nonce(&self) -> Bytes {
+    pub(crate) fn current_nonce(&self) -> Bytes {
         let nonce = self.nonce_base + self.token_idx as u128;
-        let mut nonce_bytes = BytesMut::zeroed(self.algo.nonce_len());
-        nonce
-            .to_be_bytes()
-            .iter()
-            .skip(128 / 8 - self.algo.nonce_len())
-            .enumerate()
-            .for_each(|(i, b)| nonce_bytes[i] = *b);
-        nonce_bytes.freeze()
-    }
-
-    pub fn aead_algo(&self) -> SupportedAlgorithm {
-        self.algo
+        utils::nonce_from_u128_to_bytes(self.algo, nonce)
     }
 }
 
@@ -204,7 +163,7 @@ impl AccessTokenList {
     pub async fn file(
         &self,
         mut token_set: TokenSet,
-    ) -> Result<(Arc<RwLock<TokenSet>>, u64), ATLError> {
+    ) -> Result<(issuer::ResponseWriter, u64), ATLError> {
         // Fill all_randoms
         let mut all_randoms = BytesMut::zeroed(token_set.num_tokens as usize * RANDOM_LEN);
         let mut generated_tokens: HashSet<[u8; RANDOM_LEN]> = HashSet::new();
@@ -248,7 +207,7 @@ impl AccessTokenList {
     pub async fn file_without_rand_init(
         &self,
         mut token_set: TokenSet,
-    ) -> Result<(Arc<RwLock<TokenSet>>, u64), ATLError> {
+    ) -> Result<(issuer::ResponseWriter, u64), ATLError> {
         // Acquire a write lock first
         let mut sorted_map = self.inner_sorted.write().await;
         let mut lookup_map = self.inner_lookup.write().await;
@@ -265,6 +224,14 @@ impl AccessTokenList {
         token_set.masked_timestamp = masked_timestamp;
         token_set.expiration_timestamp = expiration_timestamp;
 
+        // Copy to issuer::ResponseWriter
+        let resp = issuer::ResponseWriter::new(
+            token_set.enc_key.clone(),
+            utils::nonce_from_u128_to_bytes(token_set.algo, token_set.nonce_base),
+            Self::sparse_masked_u64_to_part(token_set.masked_timestamp),
+            token_set.all_randoms.clone(),
+        );
+
         // Add the new entry. Because we issue timestamps sequentially,
         // and SystemTime is generally monotonic (or increases),
         // pushing to the end maintains the sorted order by timestamp.
@@ -272,7 +239,7 @@ impl AccessTokenList {
         sorted_map.insert(expiration_timestamp, arced.clone());
         lookup_map.insert(masked_timestamp, arced.clone());
 
-        Ok((arced, full_timestamp))
+        Ok((resp, full_timestamp))
     }
 
     /// Removes expired tokens from the beginning up to a given full timestamp.
@@ -353,7 +320,7 @@ impl AccessTokenList {
 
     /// Looks up a specific token and verify it.
     /// O(log n) complexity.
-    /// DOES NOT increment `token_idx`.
+    /// Increments `token_idx`.
     ///
     /// # Locks
     /// - `inner_lookup`: read
@@ -361,7 +328,7 @@ impl AccessTokenList {
     pub async fn verify(
         &self,
         token: &[u8; TOKEN_LEN],
-    ) -> Result<Option<Arc<RwLock<TokenSet>>>, ATLError> {
+    ) -> Result<Option<verifier::ResponseWriter>, ATLError> {
         // Prepare masked timestamp and random bytes
         let mut timestamp = [0u8; TIMESTAMP_LEN];
         let mut random = [0u8; RANDOM_LEN];
@@ -370,37 +337,46 @@ impl AccessTokenList {
         let masked_timestamp = Self::assemble_masked_u64_from_part(&timestamp);
 
         // Acquire a read lock
-        let mut revocation_needed = false;
-        let res: Result<Option<Arc<RwLock<TokenSet>>>, ATLError>;
+        let revocation_needed;
+        let res: Result<Option<verifier::ResponseWriter>, ATLError>;
         {
             let lookup_map = self.inner_lookup.read().await;
-
             // Look up timestamp in lookup_map (O(1))
             let token_set_arc = match lookup_map.get(&masked_timestamp) {
                 None => return Ok(None),
                 Some(ts) => ts,
             };
+            let mut token_set = token_set_arc.write().await;
 
-            let token_set = token_set_arc.write().await;
-
-            // For expiration check
+            // Verification
             let current_timestamp: u64 = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .map_err(|e| ATLError::NegativeTimeDifferenceError(e))?
                 .as_nanos() as u64;
+            let is_expired = current_timestamp >= token_set.expiration_timestamp;
+            let is_idx_out_of_bounds = token_set.token_idx >= token_set.num_tokens;
 
-            // Verify random
-            let cur_random = token_set.current_random()?;
-            res = if current_timestamp >= token_set.expiration_timestamp
-                || token_set.token_idx >= token_set.num_tokens
-            {
-                revocation_needed = true;
-                Ok(None)
-            } else if cur_random.eq(&random) {
-                let cloned = token_set_arc.clone();
-                Ok(Some(cloned))
+            if !is_expired && !is_idx_out_of_bounds && token_set.current_random()?.eq(&random) {
+                // Verification success
+                // Construct a new ResponseWriter
+                let resp = verifier::ResponseWriter::new(
+                    token_set.is_pub,
+                    token_set.algo,
+                    token_set.current_nonce().clone(),
+                    Bytes::from(token_set.topic.clone()),
+                    token_set.enc_key.to_owned(),
+                );
+
+                // Increment and revocation check
+                token_set.token_idx += 1;
+                revocation_needed = token_set.token_idx >= token_set.num_tokens;
+
+                res = Ok(Some(resp));
             } else {
-                Ok(None)
+                // Verification failed
+                revocation_needed = is_expired || is_idx_out_of_bounds;
+
+                res = Ok(None);
             };
         } // self.inner_lookup read lock & token_set_arc write lock
 
@@ -420,6 +396,7 @@ mod tests {
         atl::{AccessTokenList, TokenSet},
         error::ATLError,
     };
+    use bytes::Bytes;
     use libmqttmtd::{
         aead::algo::SupportedAlgorithm,
         consts::{RANDOM_LEN, TIMESTAMP_LEN, TOKEN_LEN},
@@ -433,20 +410,20 @@ mod tests {
 
     // Helper to create a basic TokenSet for testing
     fn create_test_token_set(num_tokens_divided_by_4: u8, valid_dur: Duration) -> TokenSet {
-        TokenSet::create_without_rand_init(
+        TokenSet::new(
             num_tokens_divided_by_4,
             "test/topic".to_string(),
             true, // is_pub
             valid_dur,
             SupportedAlgorithm::Aes128Gcm,
         )
-        .expect("Failed to create test TokenSet")
+            .expect("Failed to create test TokenSet")
     }
 
     #[tokio::test]
     async fn token_set_create_without_rand_init_valid_duration() {
         let valid_dur = Duration::from_secs(364 * 24 * 3600); // Less than a year
-        let token_set = TokenSet::create_without_rand_init(
+        let token_set = TokenSet::new(
             10,
             "topic".to_string(),
             true,
@@ -460,7 +437,7 @@ mod tests {
     #[tokio::test]
     async fn token_set_create_without_rand_init_invalid_duration() {
         let invalid_dur = Duration::from_secs(366 * 24 * 3600); // More than a year
-        let token_set = TokenSet::create_without_rand_init(
+        let token_set = TokenSet::new(
             10,
             "topic".to_string(),
             true,
@@ -475,37 +452,50 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn atl_file_and_verify_single_token() {
+    async fn atl_file_and_verify_multiple_tokens() {
         let atl = create_atl();
         let token_set = create_test_token_set(1, Duration::from_secs(60));
 
         // File the token set (generates randoms and key)
-        let (arced_token_set, _full_timestamp) =
-            atl.file(token_set).await.expect("Failed to file token set");
+        let (_, full_timestamp) = atl.file(token_set).await.expect("Failed to file token set");
 
-        let mut masked_timestamp: u64 = 0;
-        for i in 1..5u16 {
+        // Look up the token_set
+        let masked_timestamp = AccessTokenList::get_masked_timestamp(full_timestamp);
+        let timestamp = AccessTokenList::sparse_masked_u64_to_part(masked_timestamp);
+        let all_randoms: Bytes;
+        {
+            let lookup_map = atl.inner_lookup.read().await;
+            let token_set = lookup_map
+                .get(&masked_timestamp)
+                .expect("Failed to get token set")
+                .read()
+                .await;
+            all_randoms = token_set.all_randoms.clone();
+        }
+
+        for i in 0..4usize {
             // Manually construct a token using the filed data
-            let token: [u8; TOKEN_LEN];
-            {
-                let token_set = arced_token_set.read().await;
-                masked_timestamp = token_set.masked_timestamp.clone();
-                token = token_set
-                    .current_token()
-                    .expect("failed constructing the current token");
-            } // arced_token_set read lock
+            let mut token = [0u8; TOKEN_LEN];
+            token[..TIMESTAMP_LEN].copy_from_slice(&timestamp[..]);
+            token[TIMESTAMP_LEN..]
+                .copy_from_slice(&all_randoms[(RANDOM_LEN * i)..(RANDOM_LEN * (i + 1))]);
 
-            // Verify the token
-            let verified_token_set_arc = atl.verify(&token).await.expect("Verification failed");
-            assert!(verified_token_set_arc.is_some());
-            let verified_token = verified_token_set_arc.unwrap();
-            {
-                let verified_token = verified_token.read().await;
+            // Verify resp and the token_set
+            let resp = atl.verify(&token).await.expect("Verification failed");
+            assert!(resp.is_some(), "failed to verify at {}", i);
+            if i < 3 {
+                let lookup_map = atl.inner_lookup.read().await;
+                let token_set = lookup_map
+                    .get(&masked_timestamp)
+                    .expect("Failed to get token set")
+                    .read()
+                    .await;
                 assert_eq!(
-                    verified_token.token_idx, i,
+                    token_set.token_idx,
+                    i as u16 + 1,
                     "token_idx should be incremented"
                 );
-            } // verified_token read lock
+            }
         }
 
         // The token set should be revoked after the last token is used
@@ -520,89 +510,23 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn atl_file_and_verify_multiple_tokens() {
-        let atl = create_atl();
-        let num_tokens_divided_by_4 = 3u8;
-        let num_tokens = num_tokens_divided_by_4 as u16 * 4;
-        let token_set = create_test_token_set(num_tokens_divided_by_4, Duration::from_secs(60));
-
-        let (arced_token_set, _) = atl.file(token_set).await.expect("Failed to file token set");
-
-        let masked_timestamp;
-        let mut random_bytes_vec = Vec::new();
-
-        // Get data needed to construct tokens
-        {
-            let token_set_guard = arced_token_set.read().await;
-            masked_timestamp =
-                AccessTokenList::sparse_masked_u64_to_part(token_set_guard.masked_timestamp);
-            for i in 0..num_tokens {
-                // Manually get the random bytes for each token index
-                let random_slice = &token_set_guard.all_randoms
-                    [i as usize * RANDOM_LEN..(i as usize + 1) * RANDOM_LEN];
-                let mut random_array = [0u8; RANDOM_LEN];
-                random_array.copy_from_slice(random_slice);
-                random_bytes_vec.push(random_array);
-            }
-        } // arced_token_set read lock
-
-        let mut last_masked_timestamp = 0;
-
-        for i in 0..num_tokens {
-            let mut token = [0u8; TOKEN_LEN];
-            token[..TIMESTAMP_LEN].copy_from_slice(&masked_timestamp);
-            token[TIMESTAMP_LEN..].copy_from_slice(&random_bytes_vec[i as usize]);
-
-            let verified_token_set_arc = atl.verify(&token).await.expect("Verification failed");
-
-            assert!(verified_token_set_arc.is_some());
-            let verified_token = verified_token_set_arc.unwrap();
-            {
-                let verified_token = verified_token.read().await;
-                assert_eq!(
-                    verified_token.token_idx,
-                    i + 1,
-                    "token_idx should be incremented after token {}",
-                    i
-                );
-                last_masked_timestamp = verified_token.masked_timestamp;
-            } // verified_token read lock
-        }
-
-        // After using the last token, the set should be revoked
-        assert!(
-            atl.inner_lookup
-                .read()
-                .await
-                .get(&last_masked_timestamp)
-                .is_none(),
-            "TokenSet should be revoked after last token"
-        );
-    }
-
-    #[tokio::test]
     async fn atl_verify_invalid_random() {
         let atl = create_atl();
         let token_set = create_test_token_set(1, Duration::from_secs(60));
 
-        let (arced_token_set, _) = atl.file(token_set).await.expect("Failed to file token set");
+        let (_, full_timestamp) = atl.file(token_set).await.expect("Failed to file token set");
 
-        let masked_timestamp;
+        let masked_timestamp = AccessTokenList::get_masked_timestamp(full_timestamp);
+        let timestamp = AccessTokenList::sparse_masked_u64_to_part(masked_timestamp);
         let mut token = [0u8; TOKEN_LEN];
-        {
-            let token_set = arced_token_set.read().await;
-            masked_timestamp =
-                AccessTokenList::sparse_masked_u64_to_part(token_set.masked_timestamp);
-            token[..libmqttmtd::consts::TIMESTAMP_LEN].copy_from_slice(&masked_timestamp);
-            // Use invalid random bytes
-            token[libmqttmtd::consts::TIMESTAMP_LEN..]
-                .copy_from_slice(&[0xFF; libmqttmtd::consts::RANDOM_LEN]);
-        } // arced_token_set read lock
+        token[..TIMESTAMP_LEN].copy_from_slice(&timestamp);
+        // Use invalid random bytes
+        token[TIMESTAMP_LEN..].copy_from_slice(&[0xFF; RANDOM_LEN]);
 
-        let verified_token_set_arc = atl.verify(&token).await.expect("Verification failed");
+        let resp = atl.verify(&token).await.expect("Verification failed");
 
         assert!(
-            verified_token_set_arc.is_none(),
+            resp.is_none(),
             "Verification should fail for invalid random"
         );
 
@@ -611,9 +535,7 @@ mod tests {
             atl.inner_lookup
                 .read()
                 .await
-                .get(&AccessTokenList::assemble_masked_u64_from_part(
-                    &masked_timestamp
-                ))
+                .get(&masked_timestamp)
                 .is_some(),
             "TokenSet should not be revoked after failed verification"
         );
@@ -643,85 +565,87 @@ mod tests {
 
         // File tokens with different expiration times
         let ts1 = create_test_token_set(1, short_duration);
-        let (arced_ts1, _) = atl.file(ts1).await.expect("File ts1 failed");
+        let (_, full_timestamp1) = atl.file(ts1).await.expect("File ts1 failed");
+        let masked_timestamp1 = AccessTokenList::get_masked_timestamp(full_timestamp1);
 
         tokio::time::sleep(Duration::from_millis(20)).await; // Wait for ts1 to expire
 
         let ts2 = create_test_token_set(1, long_duration);
-        let (arced_ts2, _) = atl.file(ts2).await.expect("File ts2 failed");
+        let (_, full_timestamp2) = atl.file(ts2).await.expect("File ts2 failed");
+        let masked_timestamp2 = AccessTokenList::get_masked_timestamp(full_timestamp2);
 
         let ts3 = create_test_token_set(1, short_duration);
-        let (arced_ts3, _) = atl.file(ts3).await.expect("File ts3 failed");
+        let (_, full_timestamp3) = atl.file(ts3).await.expect("File ts3 failed");
+        let masked_timestamp3 = AccessTokenList::get_masked_timestamp(full_timestamp3);
 
         tokio::time::sleep(Duration::from_millis(20)).await; // Wait for ts3 to expire
 
         // Check initial state (all should be present)
+        let token1: [u8; TOKEN_LEN];
         {
             let lookup_map = atl.inner_lookup.read().await;
-            assert!(
-                lookup_map
-                    .get(&arced_ts1.read().await.masked_timestamp)
-                    .is_some()
-            );
-            assert!(
-                lookup_map
-                    .get(&arced_ts2.read().await.masked_timestamp)
-                    .is_some()
-            );
-            assert!(
-                lookup_map
-                    .get(&arced_ts3.read().await.masked_timestamp)
-                    .is_some()
-            );
-        } // atl.inner_lookup read lock
+            assert!(lookup_map.get(&masked_timestamp1).is_some());
+            assert!(lookup_map.get(&masked_timestamp2).is_some());
+            assert!(lookup_map.get(&masked_timestamp3).is_some());
+        }
 
         // Depending on exact timing and system clock, it could potentially be 3 if ts2
         // also expired, but with 1000s duration it's highly unlikely in a test.
+        // ts1 check - fail
         {
-            // ts1 check - fail
-            let token = arced_ts1
+            let lookup_map = atl.inner_lookup.read().await;
+
+            let token_set1 = lookup_map
+                .get(&masked_timestamp1)
+                .expect("Failed to get token set")
                 .read()
-                .await
+                .await;
+            token1 = token_set1
                 .current_token()
                 .expect("failed constructing the current token");
-
-            let verified_token_set_arc = atl.verify(&token).await.expect("Verification failed");
-
-            assert!(
-                verified_token_set_arc.is_none(),
-                "Verification should fail for an expired token"
-            );
         }
+        let resp = atl.verify(&token1).await.expect("Verification failed");
+        assert!(
+            resp.is_none(),
+            "Verification should fail for an expired token"
+        );
+
+        // ts2 check - success
+        let token2: [u8; TOKEN_LEN];
         {
-            // ts2 check - success
-            let token = arced_ts2
+            let lookup_map = atl.inner_lookup.read().await;
+
+            let token_set2 = lookup_map
+                .get(&masked_timestamp2)
+                .expect("Failed to get token set")
                 .read()
-                .await
+                .await;
+            token2 = token_set2
                 .current_token()
                 .expect("failed constructing the current token");
-
-            let verified_token_set_arc = atl.verify(&token).await.expect("Verification failed");
-
-            assert!(
-                verified_token_set_arc.is_some(),
-                "Verification should pass for a valid token"
-            );
         }
+        let resp = atl.verify(&token2).await.expect("Verification failed");
+        assert!(resp.is_some(), "Verification should pass for a valid token");
+
+        // ts3 check - fail
+        let token3: [u8; TOKEN_LEN];
         {
-            // ts3 check - fail
-            let token = arced_ts3
+            let lookup_map = atl.inner_lookup.read().await;
+
+            let token_set3 = lookup_map
+                .get(&masked_timestamp3)
+                .expect("Failed to get token set")
                 .read()
-                .await
+                .await;
+            token3 = token_set3
                 .current_token()
                 .expect("failed constructing the current token");
-
-            let verified_token_set_arc = atl.verify(&token).await.expect("Verification failed");
-
-            assert!(
-                verified_token_set_arc.is_none(),
-                "Verification should fail for an expired token"
-            );
         }
+        let resp = atl.verify(&token3).await.expect("Verification failed");
+        assert!(
+            resp.is_none(),
+            "Verification should fail for an expired token"
+        );
     }
 
     #[tokio::test]
@@ -732,36 +656,27 @@ mod tests {
 
         // File tokens with different expiration times
         let ts1 = create_test_token_set(1, short_duration);
-        let (arced_ts1, _) = atl.file(ts1).await.expect("File ts1 failed");
+        let (_, full_timestamp1) = atl.file(ts1).await.expect("File ts1 failed");
+        let masked_timestamp1 = AccessTokenList::get_masked_timestamp(full_timestamp1);
 
         tokio::time::sleep(Duration::from_millis(20)).await; // Wait for ts1 to expire
 
         let ts2 = create_test_token_set(1, long_duration);
-        let (arced_ts2, _) = atl.file(ts2).await.expect("File ts2 failed");
+        let (_, full_timestamp2) = atl.file(ts2).await.expect("File ts2 failed");
+        let masked_timestamp2 = AccessTokenList::get_masked_timestamp(full_timestamp2);
 
         let ts3 = create_test_token_set(1, short_duration);
-        let (arced_ts3, _) = atl.file(ts3).await.expect("File ts3 failed");
+        let (_, full_timestamp3) = atl.file(ts3).await.expect("File ts3 failed");
+        let masked_timestamp3 = AccessTokenList::get_masked_timestamp(full_timestamp3);
 
         tokio::time::sleep(Duration::from_millis(20)).await; // Wait for ts3 to expire
 
         // Check initial state (all should be present)
         {
             let lookup_map = atl.inner_lookup.read().await;
-            assert!(
-                lookup_map
-                    .get(&arced_ts1.read().await.masked_timestamp)
-                    .is_some()
-            );
-            assert!(
-                lookup_map
-                    .get(&arced_ts2.read().await.masked_timestamp)
-                    .is_some()
-            );
-            assert!(
-                lookup_map
-                    .get(&arced_ts3.read().await.masked_timestamp)
-                    .is_some()
-            );
+            assert!(lookup_map.get(&masked_timestamp1).is_some());
+            assert!(lookup_map.get(&masked_timestamp2).is_some());
+            assert!(lookup_map.get(&masked_timestamp3).is_some());
         } // atl.inner_lookup read lock
 
         // Remove expired tokens
@@ -781,21 +696,15 @@ mod tests {
         {
             let lookup_map = atl.inner_lookup.read().await;
             assert!(
-                lookup_map
-                    .get(&arced_ts1.read().await.masked_timestamp)
-                    .is_none(),
+                lookup_map.get(&masked_timestamp1).is_none(),
                 "ts1 should be removed"
             );
             assert!(
-                lookup_map
-                    .get(&arced_ts3.read().await.masked_timestamp)
-                    .is_none(),
+                lookup_map.get(&masked_timestamp3).is_none(),
                 "ts3 should be removed"
             );
             assert!(
-                lookup_map
-                    .get(&arced_ts2.read().await.masked_timestamp)
-                    .is_some(),
+                lookup_map.get(&masked_timestamp2).is_some(),
                 "ts2 should NOT be removed"
             );
         } // atl.inner_lookup read lock
@@ -807,15 +716,15 @@ mod tests {
             1,
             "Expected 1 token set remaining in sorted map"
         );
-        assert!(
+        assert_eq!(
             sorted_map
                 .values()
                 .next()
                 .unwrap()
                 .read()
                 .await
-                .masked_timestamp
-                == arced_ts2.read().await.masked_timestamp
+                .masked_timestamp,
+            masked_timestamp2
         );
     }
 
@@ -823,30 +732,36 @@ mod tests {
     async fn atl_revoke_token() {
         let atl = create_atl();
         let ts1 = create_test_token_set(1, Duration::from_secs(60));
-        let (arced_ts1, _) = atl.file(ts1).await.expect("File ts1 failed");
-        let masked_ts1 = arced_ts1.read().await.masked_timestamp;
-        let expiration_ts1 = arced_ts1.read().await.expiration_timestamp;
+        let (_, full_timestamp1) = atl.file(ts1).await.expect("File ts1 failed");
+        let masked_timestamp1 = AccessTokenList::get_masked_timestamp(full_timestamp1);
+        let expiration_ts1 = full_timestamp1 + Duration::from_secs(60).as_nanos() as u64;
 
         let ts2 = create_test_token_set(1, Duration::from_secs(60));
-        let (arced_ts2, _) = atl.file(ts2).await.expect("File ts2 failed");
-        let masked_ts2 = arced_ts2.read().await.masked_timestamp;
-        let expiration_ts2 = arced_ts2.read().await.expiration_timestamp;
+        let (_, full_timestamp2) = atl.file(ts2).await.expect("File ts2 failed");
+        let masked_timestamp2 = AccessTokenList::get_masked_timestamp(full_timestamp2);
+        let expiration_ts2 = full_timestamp2 + Duration::from_secs(60).as_nanos() as u64;
 
         // Check initial state
         {
             let lookup_map = atl.inner_lookup.read().await;
             let sorted_map = atl.inner_sorted.read().await;
+            println!(
+                "{:?}, {}, {}",
+                sorted_map.keys().collect::<Vec<_>>(),
+                expiration_ts1,
+                expiration_ts2
+            );
             assert_eq!(lookup_map.len(), 2);
             assert_eq!(sorted_map.len(), 2);
-            assert!(lookup_map.contains_key(&masked_ts1));
-            assert!(lookup_map.contains_key(&masked_ts2));
+            assert!(lookup_map.contains_key(&masked_timestamp1));
+            assert!(lookup_map.contains_key(&masked_timestamp2));
             assert!(sorted_map.contains_key(&expiration_ts1));
             assert!(sorted_map.contains_key(&expiration_ts2));
         } // atl.inner_lookup read lock & atl.inner_sorted read lock
 
         // Revoke ts1
         let revoked = atl
-            .revoke_token(masked_ts1)
+            .revoke_token(masked_timestamp1)
             .await
             .expect("Revoke ts1 failed");
         assert!(revoked, "Revoking existing token should return true");
@@ -857,15 +772,15 @@ mod tests {
             let sorted_map = atl.inner_sorted.read().await;
             assert_eq!(lookup_map.len(), 1);
             assert_eq!(sorted_map.len(), 1);
-            assert!(!lookup_map.contains_key(&masked_ts1));
-            assert!(lookup_map.contains_key(&masked_ts2));
+            assert!(!lookup_map.contains_key(&masked_timestamp1));
+            assert!(lookup_map.contains_key(&masked_timestamp2));
             assert!(!sorted_map.contains_key(&expiration_ts1));
             assert!(sorted_map.contains_key(&expiration_ts2));
         } // atl.inner_lookup read lock & atl.inner_sorted read lock
 
         // Try to revoke ts1 again
         let revoked_again = atl
-            .revoke_token(masked_ts1)
+            .revoke_token(masked_timestamp1)
             .await
             .expect("Revoke ts1 again failed");
         assert!(
@@ -875,7 +790,7 @@ mod tests {
 
         // Revoke ts2
         let revoked_ts2 = atl
-            .revoke_token(masked_ts2)
+            .revoke_token(masked_timestamp2)
             .await
             .expect("Revoke ts2 failed");
         assert!(revoked_ts2, "Revoking existing token should return true");
@@ -891,24 +806,24 @@ mod tests {
     async fn atl_assemble_and_sparse_masked_timestamp() {
         let full_timestamp: u64 = 0x1122334455667788; // Example timestamp
         let masked_timestamp = AccessTokenList::get_masked_timestamp(full_timestamp);
-        // Expected masked: 0x0000334455667700 (bytes 2-7)
-        assert_eq!(masked_timestamp, 0x0000334455667700u64);
+        // Expected masked: 0x0022334455667700 (bytes 2-7)
+        assert_eq!(masked_timestamp, 0x0022334455667700u64);
 
         let sparse_part = AccessTokenList::sparse_masked_u64_to_part(masked_timestamp);
-        // Expected sparse part: [0x33, 0x44, 0x55, 0x66, 0x77, 0x00]
-        assert_eq!(sparse_part, [0x33, 0x44, 0x55, 0x66, 0x77, 0x00]);
+        // Expected sparse part: [0x22, 0x33, 0x44, 0x55, 0x66, 0x77]
+        assert_eq!(sparse_part, [0x22, 0x33, 0x44, 0x55, 0x66, 0x77]);
 
         let assembled_masked_timestamp =
             AccessTokenList::assemble_masked_u64_from_part(&sparse_part);
-        // Expected assembled: 0x0000334455667700
+        // Expected assembled: 0x0022334455667700
         assert_eq!(assembled_masked_timestamp, masked_timestamp);
 
         // Test with another timestamp
         let full_timestamp2: u64 = 0xAABBCCDDEEFF1122;
         let masked_timestamp2 = AccessTokenList::get_masked_timestamp(full_timestamp2);
-        assert_eq!(masked_timestamp2, 0x0000CCDDEEFF1100u64);
+        assert_eq!(masked_timestamp2, 0x00BBCCDDEEFF1100u64);
         let sparse_part2 = AccessTokenList::sparse_masked_u64_to_part(masked_timestamp2);
-        assert_eq!(sparse_part2, [0xCC, 0xDD, 0xEE, 0xFF, 0x11, 0x00]);
+        assert_eq!(sparse_part2, [0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x11]);
         let assembled_masked_timestamp2 =
             AccessTokenList::assemble_masked_u64_from_part(&sparse_part2);
         assert_eq!(assembled_masked_timestamp2, masked_timestamp2);

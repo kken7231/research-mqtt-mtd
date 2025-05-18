@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use base64::{Engine, engine::general_purpose};
+use base64::{engine::general_purpose, Engine};
 use bytes::BytesMut;
 use libmqttmtd::{
     aead::{self},
@@ -34,14 +34,14 @@ pub async fn unfreeze_publish(
             .write_to(&mut stream)
             .await
             .map_err(|e| PublishUnfreezeError::VerifierRequestWriteError(e))?;
-        let mut buf = BytesMut::zeroed(verifier::REQ_RESP_MIN_BUFLEN);
+        let mut buf = BytesMut::zeroed(verifier::REQ_RESP_MIN_BUF_LEN);
         res = verifier::ResponseReader::read_from(&mut stream, &mut buf[..])
             .await
             .map_err(|e| PublishUnfreezeError::VerifierResponseReadError(e))?;
     } // stream
 
     if let Some(response) = res {
-        let nonce_len = response.aead_algo.nonce_len();
+        let nonce_len = response.algo.nonce_len();
         if nonce_len > response.nonce.len() {
             return Err(PublishUnfreezeError::NonceTooShortError);
         }
@@ -50,13 +50,13 @@ pub async fn unfreeze_publish(
 
         // open payload
         aead::open(
-            response.aead_algo,
+            response.algo,
             &response.enc_key,
             &response.nonce,
             &mut in_out[..],
         )
-        .map_err(|e| PublishUnfreezeError::PayloadOpenError(e))?;
-        let tag_len = response.aead_algo.tag_len();
+            .map_err(|e| PublishUnfreezeError::PayloadOpenError(e))?;
+        let tag_len = response.algo.tag_len();
         in_out.truncate(in_out.len() - tag_len);
         publish.payload = in_out.freeze();
         publish.topic = response.topic;
