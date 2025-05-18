@@ -105,7 +105,7 @@ impl Request {
 ///             - 2: CHACHA20_POLY1305
 ///     3. len_topic, big endian (len=2 bytes)
 ///     4. topic (len=len_topic bytes)
-///     5. enc_key (len=enc_key bytes)
+///     5. enc_key
 ///     6. nonce
 /// case fail:
 ///     (none)

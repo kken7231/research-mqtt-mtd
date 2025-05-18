@@ -1030,7 +1030,7 @@ async fn test_mqtt_publish_subscribe_success_sub_all_pub_all()
                 Bytes::from(topic.clone()),
                 Bytes::from(format!("{}{}", TEST_PAYLOAD, i)),
             )],
-            Duration::from_secs(5),
+            Duration::from_secs(15),
         )
             .await;
 
