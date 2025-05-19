@@ -5,17 +5,17 @@ edition = "2024"
 
 [dependencies]
 libmqttmtd = { path = "../libmqttmtd" }
-struct_display_macro = { path = "../struct_display_macro" }
+to_string_lines_macro = { path = "../to_string_lines_macro" }
 bytes = { workspace = true }
 ring = { workspace = true }
 tokio = { workspace = true }
 tokio-rustls = { workspace = true }
 serde = { workspace = true }
-serde_yaml = { workspace = true }
 clap = { workspace = true }
 config = { workspace = true }
 
 x509-parser = "0.17.0"
+serde_yaml = "0.9.34"
 
 [dev-dependencies]
 tempfile = { workspace = true }

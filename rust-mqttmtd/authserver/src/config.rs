@@ -1,9 +1,8 @@
-use std::fmt::Display;
 use clap::Parser;
 use config::{Config, File};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use struct_display_macro::ToStringLines;
+use to_string_lines_macro::ToStringLines;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about)]

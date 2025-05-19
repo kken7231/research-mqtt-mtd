@@ -18,7 +18,7 @@ use std::{
     sync::{Arc, LazyLock, OnceLock},
     time::Duration,
 };
-use struct_display_macro::ToStringLines;
+use to_string_lines_macro::ToStringLines;
 use tokenmgr::{fetch_tokens, tokenset::TokenSet};
 use tokio::{
     sync::{Notify, RwLock},
@@ -123,7 +123,7 @@ fn get_tls_config(config: &Arc<IntegrationTestsConfig>) -> Arc<rustls::ClientCon
         &config.ca_certs_dir,
         config.client_auth_disabled,
     )
-    .expect("failed to get tls_config out of config")
+        .expect("failed to get tls_config out of config")
 }
 
 fn get_issuer_addr(config: &Arc<IntegrationTestsConfig>) -> SocketAddr {
@@ -184,11 +184,11 @@ async fn mqtt_publish(
             }
         }
     })
-    .await
-    .unwrap_or_else(|e| {
-        eprintln!("[mqtt_publish] timed out");
-        Err(v5::ConnectionError::Timeout(e))
-    })
+        .await
+        .unwrap_or_else(|e| {
+            eprintln!("[mqtt_publish] timed out");
+            Err(v5::ConnectionError::Timeout(e))
+        })
 }
 
 async fn assert_subscribe(
@@ -239,11 +239,11 @@ async fn assert_subscribe(
             }
         }
     })
-    .await
-    .unwrap_or_else(|e| {
-        eprintln!("[assert_subscribe] timed out");
-        Err(v5::ConnectionError::Timeout(e))
-    })
+        .await
+        .unwrap_or_else(|e| {
+            eprintln!("[assert_subscribe] timed out");
+            Err(v5::ConnectionError::Timeout(e))
+        })
 }
 
 async fn assert_subscribe_mqttmtd(
@@ -317,11 +317,11 @@ async fn assert_subscribe_mqttmtd(
             }
         }
     })
-    .await
-    .unwrap_or_else(|e| {
-        eprintln!("[assert_subscribe] timed out");
-        Err(v5::ConnectionError::Timeout(e))
-    })
+        .await
+        .unwrap_or_else(|e| {
+            eprintln!("[assert_subscribe] timed out");
+            Err(v5::ConnectionError::Timeout(e))
+        })
 }
 
 #[tokio::test]
@@ -583,7 +583,7 @@ async fn test_mqtt_publish_success_idx_0() -> Result<(), Box<dyn std::error::Err
             first_token,
             payload,
         )
-        .await
+            .await
     });
     let subscriber = assert_subscribe(
         notify.clone(),
@@ -592,7 +592,7 @@ async fn test_mqtt_publish_success_idx_0() -> Result<(), Box<dyn std::error::Err
         topic_moved,
         payload_raw,
     )
-    .await;
+        .await;
 
     assert!(subscriber.is_ok());
 
@@ -652,7 +652,7 @@ async fn test_mqtt_publish_success_all() -> Result<(), Box<dyn std::error::Error
                 token,
                 payload,
             )
-            .await
+                .await
         });
         let subscriber = assert_subscribe(
             notify.clone(),
@@ -661,7 +661,7 @@ async fn test_mqtt_publish_success_all() -> Result<(), Box<dyn std::error::Error
             topic_moved,
             payload_raw,
         )
-        .await;
+            .await;
 
         assert!(subscriber.is_ok());
 
@@ -718,7 +718,7 @@ async fn test_mqtt_publish_fail_wrong_token() -> Result<(), Box<dyn std::error::
             wrong_token,
             payload,
         )
-        .await
+            .await
     });
 
     let subscriber = assert_subscribe(
@@ -728,7 +728,7 @@ async fn test_mqtt_publish_fail_wrong_token() -> Result<(), Box<dyn std::error::
         topic_moved,
         payload_raw,
     )
-    .await;
+        .await;
 
     match subscriber {
         Err(v5::ConnectionError::Timeout(_)) => {}
@@ -772,7 +772,7 @@ async fn test_mqtt_subscribe_fail_wrong_token() -> Result<(), Box<dyn std::error
         vec![],
         Duration::from_secs(2),
     )
-    .await;
+        .await;
 
     assert!(subscriber.is_err());
 
@@ -838,7 +838,7 @@ async fn test_mqtt_publish_subscribe_success_idx_0() -> Result<(), Box<dyn std::
             first_token_pub,
             payload,
         )
-        .await
+            .await
     });
     let subscriber = assert_subscribe_mqttmtd(
         &token_set_sub,
@@ -849,7 +849,7 @@ async fn test_mqtt_publish_subscribe_success_idx_0() -> Result<(), Box<dyn std::
         vec![(Bytes::from(topic), Bytes::from(payload_raw))],
         Duration::from_secs(5),
     )
-    .await;
+        .await;
 
     assert!(subscriber.is_ok());
 
@@ -858,7 +858,7 @@ async fn test_mqtt_publish_subscribe_success_idx_0() -> Result<(), Box<dyn std::
 
 #[tokio::test]
 async fn test_mqtt_publish_subscribe_success_sub_first_pub_all()
--> Result<(), Box<dyn std::error::Error>> {
+    -> Result<(), Box<dyn std::error::Error>> {
     let config = get_test_config();
     let topic = get_testing_topic().await;
 
@@ -923,7 +923,7 @@ async fn test_mqtt_publish_subscribe_success_sub_first_pub_all()
                 token,
                 payload,
             )
-            .await
+                .await
         });
     }
     let subscriber = assert_subscribe_mqttmtd(
@@ -942,7 +942,7 @@ async fn test_mqtt_publish_subscribe_success_sub_first_pub_all()
             .collect(),
         Duration::from_secs(15),
     )
-    .await;
+        .await;
 
     assert!(subscriber.is_ok());
 
@@ -951,7 +951,7 @@ async fn test_mqtt_publish_subscribe_success_sub_first_pub_all()
 
 #[tokio::test]
 async fn test_mqtt_publish_subscribe_success_sub_all_pub_all()
--> Result<(), Box<dyn std::error::Error>> {
+    -> Result<(), Box<dyn std::error::Error>> {
     let config = get_test_config();
     let topic = get_testing_topic().await;
 
@@ -1015,7 +1015,7 @@ async fn test_mqtt_publish_subscribe_success_sub_all_pub_all()
                 token_pub,
                 payload,
             )
-            .await
+                .await
         });
 
         let subscriber = assert_subscribe_mqttmtd(
@@ -1030,7 +1030,7 @@ async fn test_mqtt_publish_subscribe_success_sub_all_pub_all()
             )],
             Duration::from_secs(15),
         )
-        .await;
+            .await;
 
         assert!(subscriber.is_ok());
 

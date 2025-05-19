@@ -81,6 +81,8 @@ impl TokenSet {
         }
     }
 
+
+    #[cfg(test)]
     pub(crate) fn current_token(&self) -> Result<[u8; TOKEN_LEN], ATLError> {
         let timestamp = AccessTokenList::sparse_masked_u64_to_part(self.masked_timestamp);
         let random = self.current_random()?;
@@ -417,7 +419,7 @@ mod tests {
             valid_dur,
             SupportedAlgorithm::Aes128Gcm,
         )
-        .expect("Failed to create test TokenSet")
+            .expect("Failed to create test TokenSet")
     }
 
     #[tokio::test]

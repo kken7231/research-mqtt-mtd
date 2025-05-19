@@ -1,7 +1,7 @@
 use clap::Parser;
 use config::{Config, ConfigError, File};
 use serde::{Deserialize, Serialize};
-use struct_display_macro::ToStringLines;
+use to_string_lines_macro::ToStringLines;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about)]

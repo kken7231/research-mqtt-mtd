@@ -1,5 +1,4 @@
-use std::{error::Error, sync::Arc};
-
+use crate::garbage_collector::spawn_garbage_collector;
 use acl::AccessControlList;
 use atl::AccessTokenList;
 use config::load_config;
@@ -11,11 +10,13 @@ use libmqttmtd::socket::{
     tls::TlsServer,
     tls_config::TlsConfigLoader,
 };
+use std::{error::Error, sync::Arc, time::Duration};
 
 mod acl;
 mod atl;
 mod config;
 mod error;
+mod garbage_collector;
 mod issuer;
 mod macros;
 mod verifier;
@@ -32,6 +33,8 @@ pub async fn run_server() -> Result<(), Box<dyn Error>> {
 
     // Initialize ATL
     let atl = Arc::new(AccessTokenList::new());
+    // run garbage collector
+    let _garbage_collector = spawn_garbage_collector(atl.clone(), Duration::from_secs(900));
 
     // Load ACL
     let acl = Arc::new(AccessControlList::from_yaml(config.acl)?);
@@ -43,7 +46,7 @@ pub async fn run_server() -> Result<(), Box<dyn Error>> {
         config.ca_certs_dir,
         config.client_auth_disabled,
     )
-    .inspect_err(|e| proc_eprintln!("found issue in loading Tls config: {}", e))?;
+        .inspect_err(|e| proc_eprintln!("found issue in loading Tls config: {}", e))?;
 
     // open verifier
     let atl_for_verifier = atl.clone();
@@ -77,6 +80,6 @@ pub async fn run_server() -> Result<(), Box<dyn Error>> {
             result
         },
     }
-    .unwrap()
-    .map_err(|e| Box::new(e) as Box<dyn Error>)
+        .unwrap()
+        .map_err(|e| Box::new(e) as Box<dyn Error>)
 }

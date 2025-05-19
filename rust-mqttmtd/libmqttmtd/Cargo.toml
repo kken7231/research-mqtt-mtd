@@ -9,8 +9,6 @@ ring = { workspace = true }
 tokio = { workspace = true, features = ["io-std"] }
 tokio-rustls = { workspace = true }
 rustls = { workspace = true }
-serde = { workspace = true }
-serde_yaml = { workspace = true }
 
 rcgen = "0.13.2"
 

@@ -719,8 +719,6 @@ dependencies = [
  "rcgen",
  "ring",
  "rustls 0.23.27",
- "serde",
- "serde_yaml",
  "tempfile",
  "tokio",
  "tokio-rustls 0.26.2",
@@ -818,7 +816,7 @@ dependencies = [
  "mqttbytes",
  "ring",
  "serde",
- "struct_display_macro",
+ "to_string_lines_macro",
  "tokio",
 ]
 
@@ -833,8 +831,8 @@ dependencies = [
  "ring",
  "serde",
  "serde_yaml",
- "struct_display_macro",
  "tempfile",
+ "to_string_lines_macro",
  "tokio",
  "tokio-rustls 0.26.2",
  "x509-parser",
@@ -1364,14 +1362,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
-name = "struct_display_macro"
-version = "0.1.0"
-dependencies = [
- "quote",
- "syn",
-]
-
-[[package]]
 name = "subtle"
 version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1421,8 +1411,8 @@ dependencies = [
  "dirs",
  "rcgen",
  "serde",
- "struct_display_macro",
  "time",
+ "to_string_lines_macro",
 ]
 
 [[package]]
@@ -1497,6 +1487,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "to_string_lines_macro"
+version = "0.1.0"
+dependencies = [
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "tokenmgr"
 version = "2.0.0"
 dependencies = [
@@ -1511,8 +1509,8 @@ dependencies = [
  "rumqttc",
  "rustls 0.23.27",
  "serde",
- "struct_display_macro",
  "tempfile",
+ "to_string_lines_macro",
  "tokio",
  "tokio-util",
  "uuid",

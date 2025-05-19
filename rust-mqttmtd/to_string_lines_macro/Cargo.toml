@@ -1,5 +1,5 @@
 [package]
-name = "struct_display_macro"
+name = "to_string_lines_macro"
 version = "0.1.0"
 edition = "2024"
 

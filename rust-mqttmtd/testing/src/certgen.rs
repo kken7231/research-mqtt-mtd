@@ -12,7 +12,7 @@ use std::{
     path::{Path, PathBuf},
 };
 use time::{Duration, OffsetDateTime};
-use struct_display_macro::ToStringLines;
+use to_string_lines_macro::ToStringLines;
 
 #[derive(Args)]
 pub struct CertgenArgs {
@@ -305,7 +305,6 @@ pub fn certgen(args: CertgenArgs) -> Result<(), CertgenError> {
 #[derive(Debug)]
 pub enum CertgenError {
     LoadConfigFailedError(ConfigError),
-    DisplayConfigFailedError(),
     DirCreationFailedError(PathBuf),
     UnknownKeyAlgoError(String),
     InvalidRSAKeySizeError(usize),
@@ -322,9 +321,6 @@ impl std::fmt::Display for CertgenError {
         match self {
             CertgenError::LoadConfigFailedError(e) => {
                 write!(f, "failed to load configuration {}", e)
-            }
-            CertgenError::DisplayConfigFailedError() => {
-                write!(f, "failed to display configuration")
             }
             CertgenError::DirCreationFailedError(path) => {
                 write!(f, "failed to create a directory at {:?}", path)

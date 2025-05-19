@@ -326,7 +326,7 @@ mod tests {
             .await
         {
             Ok(Err(SocketError::ConnectError(e))) => {
-                assert!(e.kind() == ErrorKind::ConnectionRefused)
+                assert_eq!(e.kind(), ErrorKind::ConnectionRefused)
             }
             _ => panic!(),
         };
