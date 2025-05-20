@@ -16,3 +16,4 @@ tempfile = "3.19.1"
 dirs = "6.0.0"
 rustls = { version = "0.23.26", default-features = false, features = ["ring"] }
 base64 = "0.22.1"
+uuid = { version = "1.16.0", features = ["v7"] }
