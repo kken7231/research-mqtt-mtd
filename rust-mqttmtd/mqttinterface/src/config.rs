@@ -1,6 +1,7 @@
 use clap::Parser;
 use config::{Config, ConfigError, File};
 use serde::{Deserialize, Serialize};
+use to_string_lines_macro::ToStringLines;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about)]
@@ -22,7 +23,7 @@ pub(super) struct CliArgs {
     conf: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, ToStringLines)]
 pub(super) struct AppConfig {
     pub port: u16,
     pub broker_port: u16,

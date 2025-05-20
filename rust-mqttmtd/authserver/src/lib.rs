@@ -1,24 +1,22 @@
-use std::{error::Error, sync::Arc};
-
+use crate::garbage_collector::spawn_garbage_collector;
 use acl::AccessControlList;
 use atl::AccessTokenList;
 use config::load_config;
-use libmqttmtd::{
-    config_helper::display_config,
-    socket::{
-        plain::{
-            PlainServer,
-            ServerType::{GLOBAL, LOCAL},
-        },
-        tls::TlsServer,
-        tls_config::TlsConfigLoader,
+use libmqttmtd::socket::{
+    plain::{
+        PlainServer,
+        ServerType::{GLOBAL, LOCAL},
     },
+    tls::TlsServer,
+    tls_config::TlsConfigLoader,
 };
+use std::{error::Error, sync::Arc, time::Duration};
 
 mod acl;
 mod atl;
 mod config;
 mod error;
+mod garbage_collector;
 mod issuer;
 mod macros;
 mod verifier;
@@ -28,12 +26,15 @@ pub async fn run_server() -> Result<(), Box<dyn Error>> {
     let config = load_config().inspect_err(|e| proc_eprintln!("failed to load config: {}", e))?;
 
     // Print configuration
-    display_config("Auth Server", &config)?
+    config
+        .to_string_lines("Auth Server")
         .iter()
         .for_each(|line| proc_println!("{}", line));
 
     // Initialize ATL
     let atl = Arc::new(AccessTokenList::new());
+    // run garbage collector
+    let _garbage_collector = spawn_garbage_collector(atl.clone(), Duration::from_secs(900));
 
     // Load ACL
     let acl = Arc::new(AccessControlList::from_yaml(config.acl)?);

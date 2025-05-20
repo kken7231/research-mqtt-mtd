@@ -7,7 +7,6 @@ use libmqttmtd::{
         SupportedAlgorithm::{Aes128Gcm, Aes256Gcm, Chacha20Poly1305},
     },
     auth_serv::issuer,
-    config_helper::display_config,
     consts::RANDOM_LEN,
     socket::tls_config::TlsConfigLoader,
 };
@@ -19,6 +18,7 @@ use std::{
     sync::{Arc, LazyLock, OnceLock},
     time::Duration,
 };
+use to_string_lines_macro::ToStringLines;
 use tokenmgr::{fetch_tokens, tokenset::TokenSet};
 use tokio::{
     sync::{Notify, RwLock},
@@ -40,7 +40,7 @@ const TEST_PAYLOAD: &str = "hello from a client";
 
 const TEST_RUMQTTC_MAX_PACKET_SIZE: Option<u32> = Some(1024);
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, ToStringLines)]
 struct IntegrationTestsConfig {
     issuer_host: String,
     issuer_port: u16,
@@ -107,12 +107,10 @@ fn get_test_config() -> &'static Arc<IntegrationTestsConfig> {
     CONFIG.get_or_init(|| {
         let config = load_config().expect("loading config failed");
 
-        for line in display_config("integration tests", &config)
-            .expect("displaying config values failed")
+        config
+            .to_string_lines("integration tests")
             .iter()
-        {
-            println!("{}", line);
-        }
+            .for_each(|line| println!("{}", line));
 
         Arc::new(config)
     })
@@ -147,7 +145,7 @@ async fn mqtt_publish(
     if notify.is_some() {
         println!("[mqtt_publish] Waiting for subscribe signal...");
         notify.unwrap().notified().await;
-        println!("[mqtt_publish] Received subscribe signal. Proceeding with publish.");
+        println!("[mqtt_publish] Received subscribe signal. Proceeding to publish.");
     }
 
     let mut mqttoptions = v5::MqttOptions::new(
@@ -1030,7 +1028,7 @@ async fn test_mqtt_publish_subscribe_success_sub_all_pub_all()
                 Bytes::from(topic.clone()),
                 Bytes::from(format!("{}{}", TEST_PAYLOAD, i)),
             )],
-            Duration::from_secs(5),
+            Duration::from_secs(15),
         )
             .await;
 

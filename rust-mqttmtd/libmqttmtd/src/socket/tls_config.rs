@@ -57,7 +57,7 @@ impl TlsConfigLoader {
         let config = rustls::ServerConfig::builder_with_provider(
             rustls::crypto::ring::default_provider().into(),
         )
-            .with_protocol_versions(&[&rustls::version::TLS13])?;
+        .with_protocol_versions(&[&rustls::version::TLS13])?;
 
         let config = if !no_client_auth {
             let cli_cert_verfier = WebPkiClientVerifier::builder(ca_roots).build()?;
@@ -93,8 +93,8 @@ impl TlsConfigLoader {
         let config = rustls::ClientConfig::builder_with_provider(
             rustls::crypto::ring::default_provider().into(),
         )
-            .with_protocol_versions(&[&rustls::version::TLS13])?
-            .with_root_certificates(ca_roots);
+        .with_protocol_versions(&[&rustls::version::TLS13])?
+        .with_root_certificates(ca_roots);
 
         let config = if !no_client_auth {
             config.with_client_auth_cert(vec![cli_cert], key)?

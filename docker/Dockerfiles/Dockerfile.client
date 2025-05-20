@@ -11,13 +11,7 @@ RUN rustup target add aarch64-unknown-linux-musl
 # all modules stated in the root Cargo.toml are needed, not just server tasks
 RUN mkdir -p /rust-mqttmtd
 WORKDIR /rust-mqttmtd
-COPY ./rust-mqttmtd/Cargo.lock /rust-mqttmtd
-COPY ./rust-mqttmtd/Cargo.toml /rust-mqttmtd
-COPY ./rust-mqttmtd/authserver /rust-mqttmtd/authserver
-COPY ./rust-mqttmtd/testing /rust-mqttmtd/testing
-COPY ./rust-mqttmtd/libmqttmtd /rust-mqttmtd/libmqttmtd
-COPY ./rust-mqttmtd/mqttinterface /rust-mqttmtd/mqttinterface
-COPY ./rust-mqttmtd/tokenmgr /rust-mqttmtd/tokenmgr
+COPY ./rust-mqttmtd/ /rust-mqttmtd
 
 # build authserver & mqttinterface
 RUN CC=gcc RUSTFLAGS="-C target-feature=+crt-static" cargo build --package tokenmgr --target aarch64-unknown-linux-musl
