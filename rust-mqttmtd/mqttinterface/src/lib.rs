@@ -1,6 +1,5 @@
 mod client;
 mod config;
-mod macros;
 mod publish;
 mod subscribe;
 
@@ -22,12 +21,12 @@ pub async fn run_server() -> Result<(), Box<dyn Error>> {
     config
         .to_string_lines("MQTT Interface")
         .iter()
-        .for_each(|line| mqttinterface_println!("{}", line));
+        .for_each(|line| println!("{}", line));
 
     // open server
     let _server = PlainServer::new(config.port, None, GLOBAL)
         .spawn(move |s, addr| client::handler(config.broker_port, config.verifier_port, s, addr));
-    mqttinterface_println!("launched mqtt interface at port {}", config.port);
+    println!("launched mqtt interface at port {}", config.port);
     _server.await??;
     Ok(())
 }

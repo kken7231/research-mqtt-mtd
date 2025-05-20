@@ -1,4 +1,3 @@
-use crate::mqttinterface_println;
 use base64::{engine::general_purpose, Engine};
 use bytes::{BufMut, Bytes, BytesMut};
 use libmqttmtd::{
@@ -83,8 +82,7 @@ pub async fn unfreeze_subscribe(
 
             // Restore nonce_base
             let mut nonce_bytes = [0u8; 16];
-            nonce_bytes[16 - response.algo.nonce_len()..]
-                .copy_from_slice(response.nonce.as_ref());
+            nonce_bytes[16 - response.algo.nonce_len()..].copy_from_slice(response.nonce.as_ref());
             let nonce = u128::from_be_bytes(nonce_bytes);
             let nonce_base = nonce - (info.token_idx as u128);
 
@@ -160,7 +158,7 @@ pub async fn freeze_subscribed_publish(
     {
         let info = subscription_info.read().await;
         if !info.is_subscribed {
-            mqttinterface_println!("No subscription registered so far, blocking...",);
+            println!("No subscription registered so far, blocking...",);
             return Ok(None);
         }
 
