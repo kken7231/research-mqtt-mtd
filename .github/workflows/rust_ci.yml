@@ -75,7 +75,7 @@ jobs:
 
       - name: Run certgen for certificate generation
         working-directory: ${{ env.RUST_WORKSPACE_DIR }}/testing/
-        run: cargo run -- certgen --conf ${{ env.CERTS_DIR }}/certgen.toml
+        run: cargo run -- certgen --conf ${{ env.CERTS_DIR }}/certgen.toml --output-dir ${{ env.CERTS_DIR }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
