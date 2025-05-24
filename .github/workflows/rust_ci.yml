@@ -99,12 +99,16 @@ jobs:
       - name: Compile test binary
         working-directory: ${{ env.RUST_WORKSPACE_DIR }}/tokenmgr/
         run: |
-          rm -f ./target/${{ env.CARGO_TARGET }}/debug/deps/tokenmgr-*
-          rm -f ./target/${{ env.CARGO_TARGET }}/debug/deps/integration_tests-*
+          rm -f ./target/${{ env.CARGO_TARGET }}/release/deps/tokenmgr-*
+          rm -f ./target/${{ env.CARGO_TARGET }}/release/deps/integration_tests-*
           mkdir -p ./compiled
           cargo test --release --no-run --color always --target ${{ env.CARGO_TARGET }}
-          mv ./target/${{ env.CARGO_TARGET }}/release/deps/tokenmgr ./compiled/tokenmgr-tests
-          mv ./target/${{ env.CARGO_TARGET }}/release/deps/integration_tests ./compiled/integration_tests
+          shopt -s extglob
+          tree ./target/${{ env.CARGO_TARGET }} -L 
+          tokenmgr_file=$(find ./target/${{ env.CARGO_TARGET }}/release/deps -maxdepth 1 -type f -name "tokenmgr-*" ! -name "*.d" -print -quit)
+          integration_tests_file=$(find ./target/${{ env.CARGO_TARGET }}/release/deps -maxdepth 1 -type f -name "integration_tests-*" ! -name "*.d" -print -quit)
+          mv $tokenmgr_file ./compiled/tokenmgr-tests
+          mv $integration_tests_file ./compiled/integration_tests
           ls -l ./compiled
 
       - name: Set up Docker Buildx
