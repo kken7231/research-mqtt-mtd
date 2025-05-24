@@ -92,8 +92,8 @@ jobs:
           rm -f ./target/${{ env.CARGO_TARGET }}/release/mqttinterface-*
           mkdir -p ./compiled
           cargo build --release --package mqttmtd-authserver --package mqttinterface --target ${{ env.CARGO_TARGET }}
-          mv "$(ls ./target/${{ env.CARGO_TARGET }}/release/mqttmtd-authserver-*!(*.d))" ./compiled/mqttmtd-authserver
-          mv "$(ls ./target/${{ env.CARGO_TARGET }}/release/mqttinterface-*!(*.d))" ./compiled/mqttinterface
+          mv $(bash -c "ls ./target/${{ env.CARGO_TARGET }}/release/mqttmtd-authserver-*!(*.d)") ./compiled/mqttmtd-authserver
+          mv $(bash -c "ls ./target/${{ env.CARGO_TARGET }}/release/mqttinterface-*!(*.d)") ./compiled/mqttinterface
           ls -l ./compiled
 
       - name: Compile test binary
@@ -103,8 +103,8 @@ jobs:
           rm -f ./target/${{ env.CARGO_TARGET }}/debug/deps/integration_tests-*
           mkdir -p ./compiled
           cargo test --no-run --color always --target ${{ env.CARGO_TARGET }}
-          mv "$(ls ./target/${{ env.CARGO_TARGET }}/debug/deps/tokenmgr-*!(*.d))" ./compiled/tokenmgr-tests
-          mv "$(ls ./target/${{ env.CARGO_TARGET }}/debug/deps/integration_tests-*!(*.d))" ./compiled/integration_tests
+          mv $(bash -c "ls ./target/${{ env.CARGO_TARGET }}/debug/deps/tokenmgr-*!(*.d)") ./compiled/tokenmgr-tests
+          mv $(bash -c "ls ./target/${{ env.CARGO_TARGET }}/debug/deps/integration_tests-*!(*.d)") ./compiled/integration_tests
           ls -l ./compiled
 
       - name: Set up Docker Buildx
