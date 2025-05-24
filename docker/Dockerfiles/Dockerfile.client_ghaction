@@ -28,4 +28,10 @@ RUN echo $' \n\
 ' >> /test.sh
 RUN chmod +x /test.sh
 
+# add user
+ARG CLIENT_UID=1001
+ARG CLIENT_NAME=client1
+RUN adduser -u ${CLIENT_UID} -D ${CLIENT_NAME}
+USER ${CLIENT_NAME}
+
 ENTRYPOINT ["dumb-init", "--", "/bin/sh", "/test.sh"]
