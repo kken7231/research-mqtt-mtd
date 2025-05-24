@@ -84,7 +84,6 @@ jobs:
         run: |
           sudo apt-get -y install musl-dev gcc
           rustup target add ${{ env.CARGO_TARGET }}
-          mkdir -p ../../compiled
 
       - name: Compile server binary
         working-directory: ${{ env.RUST_WORKSPACE_DIR }}/
