@@ -8,7 +8,6 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  CERTS_DIR: './tests/certs'
   RUST_WORKSPACE_DIR: './rust-mqttmtd'
   DOCKER_COMPOSE_DIR: './docker/composes/test-tokenmgr'
 
@@ -76,8 +75,8 @@ jobs:
       - name: Run certgen for certificate generation
         working-directory: ${{ env.RUST_WORKSPACE_DIR }}/testing/
         run: |
-          cargo run -- certgen --conf ${{ env.CERTS_DIR }}/certgen.toml --output-dir ${{ env.CERTS_DIR }}
-          ls -l ${{ env.CERTS_DIR }}
+          cargo run -- certgen --conf ../../tests/certs/certgen.toml --output-dir ../../tests/certs
+          ls -l ../../tests/certs
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
