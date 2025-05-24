@@ -10,7 +10,7 @@ tokio = { workspace = true, features = ["io-std"] }
 tokio-rustls = { workspace = true }
 rustls = { workspace = true }
 
-rcgen = "0.13.2"
+rcgen = { version = "0.13.2", default-features = false, features = ["ring", "pem"] }
 
 
 [dev-dependencies]
