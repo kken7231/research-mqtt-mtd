@@ -1,0 +1,54 @@
+## -----------------------------------------------
+## runner alpine
+## -----------------------------------------------
+FROM alpine:3.21 AS runner
+
+# install mosquitto and dumb-init
+RUN apk update && apk upgrade
+RUN apk add --no-cache mosquitto dumb-init
+
+# copy authserver & mqttinterface binary
+COPY ./rust-mqttmtd/target/x86_64-unknown-linux-musl/debug/mqttmtd-authserver /mqttmtd/bin/
+COPY ./rust-mqttmtd/target/x86_64-unknown-linux-musl/debug/mqttinterface /mqttmtd/bin/
+
+# copy certs
+COPY ./tests/certs/server /certs/server
+COPY ./tests/certs/ca/ca.crt /certs/ca/ca.crt
+COPY ./tests/certs/clients /certs/clients
+
+# copy confs
+COPY ./tests/mqttmtd/conf /mqttmtd/conf
+COPY ./tests/mosquitto/conf /mosquitto/conf
+
+# copy acl
+COPY ./tests/mqttmtd/acl.yaml /mqttmtd/acl.yaml
+
+# set entrypoint.sh
+CMD echo $' \n\
+mosquitto -v -c ./mosquitto/conf/plain.conf 2>&1 | awk \'{ print "(mosquitto) ", $0 }\' & \n\
+MOSQUITTO=$! \n\
+echo "Mosquitto started with PID \${MOSQUITTO}" \n\
+ \n\
+sleep 1 \n\
+ \n\
+/mqttmtd/bin/mqttmtd-authserver --conf ./mqttmtd/conf/authserver.toml 2>&1 | awk \'{ print "(authserver) ", $0 }\' & \n\
+AUTH_SERVER_PID=$! \n\
+echo "Auth server started with PID \${AUTH_SERVER_PID}" \n\
+ \n\
+sleep 1 \n\
+ \n\
+/mqttmtd/bin/mqttinterface --conf ./mqttmtd/conf/mqttinterface_plain.toml 2>&1 | awk \'{ print "(mqttinterface) ", $0 }\' & \n\
+MQTT_INTERFACE_PID=$! \n\
+echo "MQTT interface started with PID \${MQTT_INTERFACE_PID}" \n\
+ \n\
+echo "" \n\
+echo "Entrypoint: Setup complete. Marking application as ready." \n\
+touch "/mqttmtd/server_ready" \n\
+' >> /run.sh
+CMD chmod +x /run.sh
+
+# set healthcheck
+HEALTHCHECK --interval=5s --timeout=3s --start-period=30s --retries=3 \
+  CMD test -f /mqttmtd/server_ready || exit 1
+
+ENTRYPOINT ["dumb-init", "--", "/bin/sh", "/run.sh"]

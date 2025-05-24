@@ -9,12 +9,13 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_WORKSPACE_DIR: './rust-mqttmtd'
-  DOCKER_COMPOSE_DIR: './docker/composes/test-tokenmgr'
+  DOCKERFILE_DIR: './docker/dockerfiles/'
+  CARGO_TARGET: 'x86_64-unknown-linux-musl'
 
 jobs:
   cargo-tests:
     name: Cargo Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest # x86_64 guaranteed
     defaults:
       run:
         working-directory: ${{ env.RUST_WORKSPACE_DIR }}
@@ -78,27 +79,43 @@ jobs:
           cargo run -- certgen --conf ../../tests/certs/certgen.toml --output-dir ../../tests/certs
           ls -l ../../tests/certs
 
+      - name: Prepare musl toolchain
+        working-directory: ${{ env.RUST_WORKSPACE_DIR }}/tokenmgr/
+        run: |
+          apt-get -y install musl-dev gcc
+          rustup target add ${{ env.CARGO_TARGET }}
+          mkdir -p ../../compiled
+
+      - name: Compile server binary
+        working-directory: ${{ env.RUST_WORKSPACE_DIR }}/
+        run: |
+          cargo build --package mqttmtd-authserver --package mqttinterface --target ${{ env.CARGO_TARGET }}
+
+      - name: Compile test binary
+        working-directory: ${{ env.RUST_WORKSPACE_DIR }}/tokenmgr/
+        run: |
+          cargo test --no-run --color always --target ${{ env.CARGO_TARGET }}
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and run Docker Compose services
-        working-directory: ${{ env.DOCKER_COMPOSE_DIR }}/
+      - name: Build and run server
         run: |
-          docker compose up -d --build
+          docker network create inner-default
+          docker build --f ${{ env.DOCKERFILE_DIR }}/Dockerfile.server_ghaction -t server-image .
+          docker run --detach --rm --name server --network inner-default server-image
 
       - name: Wait for services to be healthy
-        working-directory: ${{ env.DOCKER_COMPOSE_DIR }}/
         run: |
-          echo "Waiting for services to start..."
+          echo "Waiting for server to start..."
           timeout 30s bash -c 'while [[ "$(docker inspect -f {{.State.Health.Status}} server)" != "healthy" ]]; do sleep 5; done'
 
-      - name: Run tests in Docker container
-        working-directory: ${{ env.DOCKER_COMPOSE_DIR }}/
+      - name: Build and run tester (client)
         run: |
-          docker compose exec -T client1 cargo test
+          docker build --f ${{ env.DOCKERFILE_DIR }}/Dockerfile.client_ghaction -t client-image .
+          docker run --rm --name client1 --network inner-default client-image
 
       - name: Stop and remove Docker Compose services
-        working-directory: ${{ env.DOCKER_COMPOSE_DIR }}/
         if: always()
         run: |
-          docker compose down -v --remove-orphans
+          docker stop server

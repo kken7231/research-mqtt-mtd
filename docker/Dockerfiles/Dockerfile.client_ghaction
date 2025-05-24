@@ -1,0 +1,33 @@
+## -----------------------------------------------
+## runner alpine
+## -----------------------------------------------
+FROM alpine:3.21
+
+# install mosquitto and dumb-init
+RUN apk update && apk upgrade
+RUN apk add --no-cache dumb-init
+
+# copy entrypoint shellscript
+COPY ./docker/entrypoints/entrypoint_server.sh /run.sh
+
+# copy authserver & mqttinterface binary
+COPY ./tests/debug/deps/tokenmgr-* /mqttmtd/bin/
+CMD mv /mqttmtd/bin/tokenmgr-* /mqttmtd/bin/tokenmgr
+COPY ./tests/debug/deps/integration_tests-* /mqttmtd/bin/
+CMD mv /mqttmtd/bin/integration_tests-* /mqttmtd/bin/integration_tests
+
+# copy certs
+COPY ./tests/certs/ca/ca.crt /certs/ca/ca.crt
+COPY ./tests/certs/clients /certs/clients
+
+# copy confs
+COPY ./tests/mqttmtd/conf /mqttmtd/conf
+COPY ./tests/mosquitto/conf /mosquitto/conf
+
+# set test.sh
+CMD echo $' \n\
+/mqttmtd/bin/tokenmgr && /mqttmtd/bin/integration_tests \n\
+' >> /run.sh
+CMD chmod +x /test.sh
+
+ENTRYPOINT ["dumb-init", "--", "/bin/sh", "/test.sh"]
