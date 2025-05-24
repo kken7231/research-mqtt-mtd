@@ -102,7 +102,7 @@ jobs:
         run: |
           docker network create inner-default
           ls -l ./rust-mqttmtd/target/x86_64-unknown-linux-musl/
-          docker build -f ${{ env.DOCKERFILE_DIR }}/Dockerfile.server_ghaction -t server-image .
+          docker build --no-cache -f ${{ env.DOCKERFILE_DIR }}/Dockerfile.server_ghaction -t server-image .
           docker run --detach --rm --name server --network inner-default server-image
 
       - name: Wait for services to be healthy
@@ -112,7 +112,7 @@ jobs:
 
       - name: Build and run tester (client)
         run: |
-          docker build -f ${{ env.DOCKERFILE_DIR }}/Dockerfile.client_ghaction -t client-image .
+          docker build --no-cache -f ${{ env.DOCKERFILE_DIR }}/Dockerfile.client_ghaction -t client-image .
           docker run --rm --name client1 --network inner-default client-image
 
       - name: Stop and remove Docker Compose services
