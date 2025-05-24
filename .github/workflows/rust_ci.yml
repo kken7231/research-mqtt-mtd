@@ -93,7 +93,7 @@ jobs:
           mkdir -p ./compiled
           cargo build --release --package mqttmtd-authserver --package mqttinterface --target ${{ env.CARGO_TARGET }}
           shopt -s extglob
-          tree ./target
+          tree ./target -L 2
           mqttmtd-authserver=$(ls -d "./target/${{ env.CARGO_TARGET }}/release/mqttmtd-authserver-*!(*.d)")
           mqttinterface=$(ls -d "./target/${{ env.CARGO_TARGET }}/release/mqttinterface-*!(*.d)")
           mv mqttmtd-authserver ./compiled/mqttmtd-authserver
