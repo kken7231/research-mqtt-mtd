@@ -2,9 +2,9 @@ name: Rust CI on v2
 
 on:
   push:
-    branches: [ "feat/16-ci-in-github-action" ]
+    branches: [ "v2" ]
   pull_request:
-    branches: [ "feat/16-ci-in-github-action" ]
+    branches: [ "v2" ]
 
 env:
   CARGO_TERM_COLOR: always
