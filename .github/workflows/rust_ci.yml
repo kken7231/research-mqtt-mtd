@@ -82,7 +82,7 @@ jobs:
       - name: Prepare musl toolchain
         working-directory: ${{ env.RUST_WORKSPACE_DIR }}/tokenmgr/
         run: |
-          apt-get -y install musl-dev gcc
+          sudo apt-get -y install musl-dev gcc
           rustup target add ${{ env.CARGO_TARGET }}
           mkdir -p ../../compiled
 
