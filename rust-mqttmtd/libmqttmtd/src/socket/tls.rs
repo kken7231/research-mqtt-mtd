@@ -328,10 +328,7 @@ mod tests {
             Ok(Err(SocketError::ConnectError(e))) => {
                 e.kind() == ErrorKind::ConnectionRefused
             }
-            other => {
-                println!("{:?}", other);
-                false
-            },
+            _ => false,
         });
     }
 
@@ -356,10 +353,7 @@ mod tests {
                 .await
             {
                 Err(SocketError::ConnectError(e)) => e.kind() == ErrorKind::ConnectionRefused,
-                other => { 
-                    println!("{:?}", other);
-                    false
-                },
+                _ => false,
             }
         );
     }
