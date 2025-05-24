@@ -8,9 +8,9 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  CERTS_DIR: 'tests/certs'
-  RUST_WORKSPACE_DIR: 'rust-mqttmtd'
-  DOCKER_COMPOSE_DIR: 'docker/composes/test-tokenmgr'
+  CERTS_DIR: './tests/certs'
+  RUST_WORKSPACE_DIR: './rust-mqttmtd'
+  DOCKER_COMPOSE_DIR: './docker/composes/test-tokenmgr'
 
 jobs:
   cargo-tests:
