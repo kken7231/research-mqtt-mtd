@@ -723,7 +723,6 @@ dependencies = [
  "tokio",
  "tokio-rustls 0.26.2",
  "tokio-test",
- "uuid",
 ]
 
 [[package]]

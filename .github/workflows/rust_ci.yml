@@ -1,0 +1,75 @@
+name: Rust CI on v2
+
+on:
+  push:
+    branches: [ "feat/16-ci-in-github-action" ]
+  pull_request:
+    branches: [ "feat/16-ci-in-github-action" ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_WORKSPACE_DIR: 'rust-mqttmtd'
+  DOCKER_COMPOSE_DIR: 'docker/composes/test-tokenmgr'
+
+jobs:
+  cargo-tests:
+    name: Cargo Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.RUST_WORKSPACE_DIR }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.RUST_WORKSPACE_DIR }}/.cargo/bin/
+            ${{ env.RUST_WORKSPACE_DIR }}/.cargo/registry/index/
+            ${{ env.RUST_WORKSPACE_DIR }}/.cargo/registry/cache/
+            ${{ env.RUST_WORKSPACE_DIR }}/.cargo/git/db/
+            ${{ env.RUST_WORKSPACE_DIR }}/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles(format('{0}/Cargo.lock', env.RUST_WORKSPACE_DIR)) }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Run tests for specific packages
+        run: |
+          cargo test --workspace --exclude tokenmgr --exclude to_string_lines_macro
+
+  docker-tests:
+    name: Docker Compose Tests
+    runs-on: ubuntu-latest
+    needs: cargo-tests
+    defaults:
+      run:
+        working-directory: ${{ env.DOCKER_COMPOSE_DIR }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and run Docker Compose services
+        run: docker-compose up -d --build
+
+      - name: Wait for services to be healthy
+        run: |
+          echo "Waiting for services to start..."
+          timeout 30s bash -c 'while [[ "$(docker inspect -f {{.State.Health.Status}} server)" != "healthy" ]]; do sleep 5; done'
+
+      - name: Run tests in Docker container
+        run: docker-compose exec -T client1 cargo test
+
+      - name: Stop and remove Docker Compose services
+        if: always()
+        run: docker-compose down -v --remove-orphans
