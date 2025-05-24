@@ -101,7 +101,7 @@ jobs:
       - name: Build and run server
         run: |
           docker network create inner-default
-          ls -l ./rust-mqttmtd/target/x86_64-unknown-linux-musl/
+          ls -l ./rust-mqttmtd/target/x86_64-unknown-linux-musl/release
           docker build --no-cache -f ${{ env.DOCKERFILE_DIR }}/Dockerfile.server_ghaction -t server-image .
           docker run --detach --rm --name server --network inner-default server-image
 
