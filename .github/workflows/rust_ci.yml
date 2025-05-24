@@ -82,7 +82,7 @@ jobs:
 
       - name: Build and run Docker Compose services
         working-directory: ${{ env.DOCKER_COMPOSE_DIR }}/
-        run: docker-compose up -d --build
+        run: docker compose up -d --build
 
       - name: Wait for services to be healthy
         working-directory: ${{ env.DOCKER_COMPOSE_DIR }}/
@@ -92,9 +92,9 @@ jobs:
 
       - name: Run tests in Docker container
         working-directory: ${{ env.DOCKER_COMPOSE_DIR }}/
-        run: docker-compose exec -T client1 cargo test
+        run: docker compose exec -T client1 cargo test
 
       - name: Stop and remove Docker Compose services
         working-directory: ${{ env.DOCKER_COMPOSE_DIR }}/
         if: always()
-        run: docker-compose down -v --remove-orphans
+        run: docker compose down -v --remove-orphans
