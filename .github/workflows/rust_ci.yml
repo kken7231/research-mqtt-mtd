@@ -8,6 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  CERTS_DIR: 'tests/certs'
   RUST_WORKSPACE_DIR: 'rust-mqttmtd'
   DOCKER_COMPOSE_DIR: 'docker/composes/test-tokenmgr'
 
@@ -55,6 +56,30 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.RUST_WORKSPACE_DIR }}/.cargo/bin/
+            ${{ env.RUST_WORKSPACE_DIR }}/.cargo/registry/index/
+            ${{ env.RUST_WORKSPACE_DIR }}/.cargo/registry/cache/
+            ${{ env.RUST_WORKSPACE_DIR }}/.cargo/git/db/
+            ${{ env.RUST_WORKSPACE_DIR }}/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles(format('{0}/Cargo.lock', env.RUST_WORKSPACE_DIR)) }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Run certgen for certificate generation
+        working-directory: ${{ env.DOCKER_COMPOSE_DIR }}/testing/
+        run: |
+          cargo run -- certgen --conf ${{ env.CERTS_DIR }}/certgen.toml
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

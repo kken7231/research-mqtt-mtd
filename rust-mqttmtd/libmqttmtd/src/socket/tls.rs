@@ -318,7 +318,7 @@ mod tests {
         let (_, conf_client) = create_load_sample_configs(true, DOMAIN_CA, DOMAIN_SERV, DOMAIN_CLI);
 
         // Try connecting
-        match timeout(
+        assert!(match timeout(
             Duration::from_secs(2),
             TlsClient::new(format!("localhost:{}", PORT), TO_CLIENT, conf_client)
                 .connect(DOMAIN_SERV),
@@ -326,10 +326,13 @@ mod tests {
             .await
         {
             Ok(Err(SocketError::ConnectError(e))) => {
-                assert_eq!(e.kind(), ErrorKind::ConnectionRefused)
+                e.kind() == ErrorKind::ConnectionRefused
             }
-            _ => panic!(),
-        };
+            other => {
+                println!("{:?}", other);
+                false
+            },
+        });
     }
 
     #[tokio::test]
@@ -353,7 +356,10 @@ mod tests {
                 .await
             {
                 Err(SocketError::ConnectError(e)) => e.kind() == ErrorKind::ConnectionRefused,
-                _ => false,
+                other => { 
+                    println!("{:?}", other);
+                    false
+                },
             }
         );
     }
