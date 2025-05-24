@@ -9,7 +9,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_WORKSPACE_DIR: './rust-mqttmtd'
-  DOCKERFILE_DIR: './docker/dockerfiles/'
+  DOCKERFILE_DIR: './docker/Dockerfiles/'
   CARGO_TARGET: 'x86_64-unknown-linux-musl'
 
 jobs:
