@@ -11,7 +11,7 @@ RUN apk add --no-cache dumb-init
 COPY ./docker/entrypoints/entrypoint_server.sh /run.sh
 
 # copy tokenmgr & integration_tests binary
-COPY ./rust-mqttmtd/compiled/tokenmgr /mqttmtd/bin/
+COPY ./rust-mqttmtd/compiled/tokenmgr-tests /mqttmtd/bin/
 COPY ./rust-mqttmtd/compiled/integration_tests /mqttmtd/bin/
 
 # copy certs
@@ -24,7 +24,7 @@ COPY ./tests/mosquitto/conf /mosquitto/conf
 
 # set test.sh
 RUN echo $' \n\
-/mqttmtd/bin/tokenmgr && /mqttmtd/bin/integration_tests \n\
+/mqttmtd/bin/tokenmgr-tests && /mqttmtd/bin/integration_tests \n\
 ' >> /run.sh
 RUN chmod +x /test.sh
 
