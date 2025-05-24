@@ -4,7 +4,7 @@ use bytes::{BufMut, Bytes, BytesMut};
 pub fn nonce_from_u128_to_bytes(algo: SupportedAlgorithm, u: u128) -> Bytes {
     let mut nonce_bytes = BytesMut::with_capacity(algo.nonce_len());
     (0..algo.nonce_len()).for_each(|i| {
-        nonce_bytes.put_u8(((u >> (8 * i)) & 0xFF) as u8);
+        nonce_bytes.put_u8(((u >> (8 * (algo.nonce_len() - i - 1))) & 0xFF) as u8);
     });
     nonce_bytes.freeze()
 }

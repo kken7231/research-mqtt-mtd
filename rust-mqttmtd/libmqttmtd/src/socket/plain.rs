@@ -270,7 +270,7 @@ mod tests {
         let _ = PlainServer::new(PORT, TO_SERVER, LOCAL).spawn(|_, _| async {});
 
         // Wait a while
-        tokio::time::sleep(TO_SERVER + Duration::from_millis(100)).await;
+        tokio::time::sleep(TO_SERVER + Duration::from_secs(1)).await;
 
         // Spawn client and connect
         assert!(

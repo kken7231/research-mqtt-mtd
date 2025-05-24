@@ -50,4 +50,8 @@ sleep 1
 MQTT_INTERFACE_PID=$!
 echo "MQTT interface started with PID ${MQTT_INTERFACE_PID}"
 
+echo ""
+echo "Entrypoint: Setup complete. Marking application as ready."
+touch "/mqttmtd/server_ready"
+
 wait -n
