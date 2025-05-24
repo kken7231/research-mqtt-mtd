@@ -12,9 +12,9 @@ COPY ./docker/entrypoints/entrypoint_server.sh /run.sh
 
 # copy authserver & mqttinterface binary
 COPY ./rust-mqttmtd/target/x86_64-unknown-linux-musl/deps/tokenmgr-* /mqttmtd/bin/
-CMD mv ./rust-mqttmtd/target/x86_64-unknown-linux-musl/deps/tokenmgr-* /mqttmtd/bin/tokenmgr
+RUN mv ./rust-mqttmtd/target/x86_64-unknown-linux-musl/deps/tokenmgr-* /mqttmtd/bin/tokenmgr
 COPY ./tests/debug/deps/integration_tests-* /mqttmtd/bin/
-CMD mv /mqttmtd/bin/integration_tests-* /mqttmtd/bin/integration_tests
+RUN mv /mqttmtd/bin/integration_tests-* /mqttmtd/bin/integration_tests
 
 # copy certs
 COPY ./tests/certs/ca/ca.crt /certs/ca/ca.crt
@@ -25,9 +25,9 @@ COPY ./tests/mqttmtd/conf /mqttmtd/conf
 COPY ./tests/mosquitto/conf /mosquitto/conf
 
 # set test.sh
-CMD echo $' \n\
+RUN echo $' \n\
 /mqttmtd/bin/tokenmgr && /mqttmtd/bin/integration_tests \n\
 ' >> /run.sh
-CMD chmod +x /test.sh
+RUN chmod +x /test.sh
 
 ENTRYPOINT ["dumb-init", "--", "/bin/sh", "/test.sh"]

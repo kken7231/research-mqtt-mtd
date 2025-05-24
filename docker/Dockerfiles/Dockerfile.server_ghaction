@@ -8,6 +8,7 @@ RUN apk update && apk upgrade
 RUN apk add --no-cache mosquitto dumb-init
 
 # copy authserver & mqttinterface binary
+RUN ls -l;
 COPY ./rust-mqttmtd/target/x86_64-unknown-linux-musl/mqttmtd-authserver /mqttmtd/bin/
 COPY ./rust-mqttmtd/target/x86_64-unknown-linux-musl/mqttinterface /mqttmtd/bin/
 
@@ -24,7 +25,7 @@ COPY ./tests/mosquitto/conf /mosquitto/conf
 COPY ./tests/mqttmtd/acl.yaml /mqttmtd/acl.yaml
 
 # set entrypoint.sh
-CMD echo $' \n\
+RUN echo $' \n\
 mosquitto -v -c ./mosquitto/conf/plain.conf 2>&1 | awk \'{ print "(mosquitto) ", $0 }\' & \n\
 MOSQUITTO=$! \n\
 echo "Mosquitto started with PID \${MOSQUITTO}" \n\
@@ -45,7 +46,7 @@ echo "" \n\
 echo "Entrypoint: Setup complete. Marking application as ready." \n\
 touch "/mqttmtd/server_ready" \n\
 ' >> /run.sh
-CMD chmod +x /run.sh
+RUN chmod +x /run.sh
 
 # set healthcheck
 HEALTHCHECK --interval=5s --timeout=3s --start-period=30s --retries=3 \
