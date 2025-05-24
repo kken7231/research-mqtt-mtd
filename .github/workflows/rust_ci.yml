@@ -112,7 +112,7 @@ jobs:
 
       - name: Build and run tester (client)
         run: |
-          docker build --f ${{ env.DOCKERFILE_DIR }}/Dockerfile.client_ghaction -t client-image .
+          docker build -f ${{ env.DOCKERFILE_DIR }}/Dockerfile.client_ghaction -t client-image .
           docker run --rm --name client1 --network inner-default client-image
 
       - name: Stop and remove Docker Compose services
