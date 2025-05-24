@@ -103,7 +103,7 @@ jobs:
           rm -f ./target/${{ env.CARGO_TARGET }}/release/deps/integration_tests*
           mkdir -p ./compiled
           cargo test --release --no-run --color always --target ${{ env.CARGO_TARGET }}
-          tree ./target/${{ env.CARGO_TARGET }}/release -L  2
+          tree ./target/ -L  2
           tokenmgr_file=$(find ./target/${{ env.CARGO_TARGET }}/release/deps -maxdepth 1 -type f -name "tokenmgr-*" ! -name "*.d" -print -quit)
           integration_tests_file=$(find ./target/${{ env.CARGO_TARGET }}/release/deps -maxdepth 1 -type f -name "integration_tests-*" ! -name "*.d" -print -quit)
           mv $tokenmgr_file ./compiled/tokenmgr-tests
