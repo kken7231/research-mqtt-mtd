@@ -44,6 +44,9 @@ echo "MQTT interface started with PID \${MQTT_INTERFACE_PID}" \n\
 echo "" \n\
 echo "Entrypoint: Setup complete. Marking application as ready." \n\
 touch "/mqttmtd/server_ready" \n\
+ \n\
+wait -n \n\
+ \n\
 ' >> /run.sh
 RUN chmod +x /run.sh
 
