@@ -102,6 +102,7 @@ jobs:
       - name: Build and run server
         run: |
           docker network create inner-default
+          ls -l ./
           docker build -f ${{ env.DOCKERFILE_DIR }}/Dockerfile.server_ghaction -t server-image .
           docker run --detach --rm --name server --network inner-default server-image
 
