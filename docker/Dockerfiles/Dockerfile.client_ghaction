@@ -10,11 +10,9 @@ RUN apk add --no-cache dumb-init
 # copy entrypoint shellscript
 COPY ./docker/entrypoints/entrypoint_server.sh /run.sh
 
-# copy authserver & mqttinterface binary
-COPY ./rust-mqttmtd/target/x86_64-unknown-linux-musl/deps/tokenmgr-* /mqttmtd/bin/
-RUN mv ./rust-mqttmtd/target/x86_64-unknown-linux-musl/deps/tokenmgr-* /mqttmtd/bin/tokenmgr
-COPY ./tests/debug/deps/integration_tests-* /mqttmtd/bin/
-RUN mv /mqttmtd/bin/integration_tests-* /mqttmtd/bin/integration_tests
+# copy tokenmgr & integration_tests binary
+COPY ./rust-mqttmtd/compiled/tokenmgr /mqttmtd/bin/
+COPY ./rust-mqttmtd/compiled/integration_tests /mqttmtd/bin/
 
 # copy certs
 COPY ./tests/certs/ca/ca.crt /certs/ca/ca.crt

@@ -8,9 +8,8 @@ RUN apk update && apk upgrade
 RUN apk add --no-cache mosquitto dumb-init
 
 # copy authserver & mqttinterface binary
-RUN ls -l ./rust-mqttmtd/target/x86_64-unknown-linux-musl/release;
-COPY ./rust-mqttmtd/target/x86_64-unknown-linux-musl/release/mqttmtd-authserver /mqttmtd/bin/
-COPY ./rust-mqttmtd/target/x86_64-unknown-linux-musl/release/mqttinterface /mqttmtd/bin/
+COPY ./rust-mqttmtd/compiled/mqttmtd-authserver /mqttmtd/bin/
+COPY ./rust-mqttmtd/compiled/mqttinterface /mqttmtd/bin/
 
 # copy certs
 COPY ./tests/certs/server /certs/server
