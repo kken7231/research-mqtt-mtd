@@ -1,11 +1,7 @@
 use crate::errors::TokenSetError;
 use base64::{engine::general_purpose, Engine};
 use bytes::{Bytes, BytesMut};
-use libmqttmtd::{
-    aead::{algo::SupportedAlgorithm, open, seal},
-    auth_serv::issuer,
-    consts::{RANDOM_LEN, TIMESTAMP_LEN, TOKEN_LEN},
-};
+use libmqttmtd::{aead::{algo::SupportedAlgorithm, open, seal}, auth_serv::issuer, consts::{RANDOM_LEN, TIMESTAMP_LEN, TOKEN_LEN}, utils};
 use std::{
     fs,
     io::{Read, Seek, Write},
@@ -136,29 +132,15 @@ impl TokenSet {
 
     /// Gets a nonce for the publish from client to broker.
     pub fn get_nonce_for_cli2serv_pub(&self) -> Bytes {
-        let nonce = self.nonce_base + self.token_idx as u128;
-        let mut nonce_bytes = BytesMut::zeroed(self.algo.nonce_len());
-        nonce
-            .to_be_bytes()
-            .iter()
-            .skip(128 / 8 - self.algo.nonce_len())
-            .enumerate()
-            .for_each(|(i, b)| nonce_bytes[i] = *b);
-        nonce_bytes.freeze()
+        let nonce = self.nonce_base + (self.token_idx as u128);
+        utils::nonce_from_u128_to_bytes(self.algo, nonce)
     }
 
     /// Gets a nonce for the publish from broker to client.
     pub fn get_nonce_for_serv2cli_pub(&self, packet_id: u16) -> Bytes {
         let nonce =
-            self.nonce_base + ((packet_id as u128).rotate_left(16) | self.token_idx as u128);
-        let mut nonce_bytes = BytesMut::zeroed(self.algo.nonce_len());
-        nonce
-            .to_be_bytes()
-            .iter()
-            .skip(128 / 8 - self.algo.nonce_len())
-            .enumerate()
-            .for_each(|(i, b)| nonce_bytes[i] = *b);
-        nonce_bytes.freeze()
+            self.nonce_base + ((packet_id as u128).rotate_left(16) | (self.token_idx as u128));
+        utils::nonce_from_u128_to_bytes(self.algo, nonce)
     }
 
     /// Constructs a token set from Issuer Request & Response. intentionally

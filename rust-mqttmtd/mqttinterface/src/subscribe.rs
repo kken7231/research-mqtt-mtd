@@ -1,12 +1,7 @@
 use crate::mqttinterface_println;
 use base64::{engine::general_purpose, Engine};
 use bytes::{BufMut, Bytes, BytesMut};
-use libmqttmtd::{
-    aead,
-    aead::algo::{SupportedAlgorithm, SupportedAlgorithm::Aes128Gcm},
-    auth_serv::verifier,
-    socket::plain::PlainClient,
-};
+use libmqttmtd::{aead, aead::algo::{SupportedAlgorithm, SupportedAlgorithm::Aes128Gcm}, auth_serv::verifier, socket::plain::PlainClient, utils};
 use mqttbytes::v5::{Publish, Subscribe};
 use std::{fmt::Display, sync::Arc};
 use tokio::sync::RwLock;
@@ -167,8 +162,8 @@ pub async fn freeze_subscribed_publish(
         // nonce
         let nonce =
             info.nonce_base + ((publish.pkid as u128).rotate_left(16) | (info.token_idx as u128));
-        let nonce = &nonce.to_be_bytes()[16 - info.algo.nonce_len()..];
-
+        let nonce = utils::nonce_from_u128_to_bytes(info.algo, nonce);
+        
         // seal
         in_out = BytesMut::with_capacity(2 + publish.topic.len() + publish.payload.len());
         in_out.put_u16(publish.topic.len() as u16);
