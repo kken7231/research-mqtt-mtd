@@ -25,7 +25,7 @@ COPY ./tests/mosquitto/conf /mosquitto/conf
 # set test.sh
 RUN echo $' \n\
 /mqttmtd/bin/tokenmgr-tests && /mqttmtd/bin/integration_tests \n\
-' >> /run.sh
+' >> /test.sh
 RUN chmod +x /test.sh
 
 ENTRYPOINT ["dumb-init", "--", "/bin/sh", "/test.sh"]
