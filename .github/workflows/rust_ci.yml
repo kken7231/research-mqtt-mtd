@@ -89,7 +89,7 @@ jobs:
       - name: Compile server binary
         working-directory: ${{ env.RUST_WORKSPACE_DIR }}/
         run: |
-          cargo build --package mqttmtd-authserver --package mqttinterface --target ${{ env.CARGO_TARGET }}
+          cargo build --release --package mqttmtd-authserver --package mqttinterface --target ${{ env.CARGO_TARGET }}
 
       - name: Compile test binary
         working-directory: ${{ env.RUST_WORKSPACE_DIR }}/tokenmgr/
