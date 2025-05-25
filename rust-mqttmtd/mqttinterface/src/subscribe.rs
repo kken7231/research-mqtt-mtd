@@ -57,8 +57,7 @@ pub async fn unfreeze_subscribe(
             .write_to(&mut stream)
             .await
             .map_err(|e| SubscribeUnfreezeError::VerifierRequestWriteError(e))?;
-        let mut buf = BytesMut::zeroed(verifier::REQ_RESP_MIN_BUF_LEN);
-        res = verifier::ResponseReader::read_from(&mut stream, &mut buf[..])
+        res = verifier::ResponseReader::read_from(&mut stream)
             .await
             .map_err(|e| SubscribeUnfreezeError::VerifierResponseReadError(e))?;
     } // stream

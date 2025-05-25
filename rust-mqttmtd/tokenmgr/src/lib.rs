@@ -17,18 +17,16 @@ pub async fn fetch_tokens<A: ToSocketAddrs + Send + 'static>(
         .connect("server")
         .await
         .map_err(|e| TokenFetchError::IssuerConnectError(e))?;
-    let mut buf = [0u8; issuer::REQ_RESP_MIN_BUF_LEN];
 
     // Write a request
     request
-        .write_to(&mut issuer_stream, &mut buf[..])
+        .write_to(&mut issuer_stream)
         .await
         .map_err(|e| TokenFetchError::SocketWriteError(e))?;
 
     // Read the response
     if let Some(success_response) = issuer::ResponseReader::read_from(
         &mut issuer_stream,
-        &mut buf[..],
         request.algo(),
         request.num_tokens_divided_by_4(),
     )

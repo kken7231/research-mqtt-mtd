@@ -1,26 +1,21 @@
 //! Issuer interface of auth server.
 
-use std::{net::SocketAddr, sync::Arc, time::Duration};
-
-use crate::{
-    acl::AccessControlList,
-    atl::{AccessTokenList, TokenSet},
-    issuer_eprintln, issuer_println,
-};
+use std::{net::SocketAddr, sync::Arc};
+use std::time::Duration;
+use crate::{acl::AccessControlList, atl::AccessTokenList, issuer_eprintln, issuer_println};
 use libmqttmtd::auth_serv::issuer;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_rustls::server::TlsStream;
 use x509_parser::{extensions::GeneralName, nom::AsBytes, parse_x509_certificate};
+use crate::atl::TokenSet;
 
 macro_rules! send_issuer_err_resp_if_err {
-    ($result:expr, $err_str:expr, $stream:expr, $addr:expr, $buf:expr) => {
+    ($result:expr, $err_str:expr, $stream:expr, $addr:expr) => {
         match $result {
             Ok(v) => v,
             Err(e) => {
                 issuer_eprintln!($addr, $err_str, e);
-                if let Err(send_err) =
-                    issuer::ResponseWriter::write_error_to(&mut $stream, &mut $buf[..]).await
-                {
+                if let Err(send_err) = issuer::ResponseWriter::write_error_to(&mut $stream).await {
                     issuer_eprintln!(
                         $addr,
                         "Error sending out issuer (error) response: {}",
@@ -41,15 +36,12 @@ pub(crate) async fn handler<IO: AsyncRead + AsyncWrite + Unpin>(
     mut stream: TlsStream<IO>,
     addr: SocketAddr,
 ) {
-    let mut buf = [0u8; issuer::REQ_RESP_MIN_BUF_LEN];
-
     // Parse request
     let req = send_issuer_err_resp_if_err!(
-        issuer::Request::read_from(&mut stream, &mut buf[..]).await,
+        issuer::Request::read_from(&mut stream).await,
         "error reading issuer request: {}",
         stream,
-        addr,
-        buf
+        addr
     );
 
     // Get the peer certificates
@@ -79,9 +71,7 @@ pub(crate) async fn handler<IO: AsyncRead + AsyncWrite + Unpin>(
             });
     if user_hostname == None {
         issuer_eprintln!(addr, "failed to extract DNS name from SAN extension");
-        if let Err(send_err) =
-            issuer::ResponseWriter::write_error_to(&mut stream, &mut buf[..]).await
-        {
+        if let Err(send_err) = issuer::ResponseWriter::write_error_to(&mut stream).await {
             issuer_eprintln!(
                 addr,
                 "Error sending out issuer (error) response: {}",
@@ -95,9 +85,7 @@ pub(crate) async fn handler<IO: AsyncRead + AsyncWrite + Unpin>(
     // Check with ACL if access can be granted
     if !acl.check_if_allowed(user_hostname, req.topic(), req.is_pub()) {
         issuer_eprintln!(addr, "failed ACL verification");
-        if let Err(send_err) =
-            issuer::ResponseWriter::write_error_to(&mut stream, &mut buf[..]).await
-        {
+        if let Err(send_err) = issuer::ResponseWriter::write_error_to(&mut stream).await {
             issuer_eprintln!(
                 addr,
                 "Error sending out issuer (error) response: {}",
@@ -118,8 +106,7 @@ pub(crate) async fn handler<IO: AsyncRead + AsyncWrite + Unpin>(
         ),
         "error acquiring atl write lock: {}",
         stream,
-        addr,
-        buf
+        addr
     );
 
     // File a token_set
@@ -127,12 +114,11 @@ pub(crate) async fn handler<IO: AsyncRead + AsyncWrite + Unpin>(
         atl.file(token_set).await,
         "error issuing a token set: {}",
         stream,
-        addr,
-        buf
+        addr
     );
 
     // Send success response
-    if let Err(e) = resp.write_success_to(&mut stream, &mut buf[..]).await {
+    if let Err(e) = resp.write_success_to(&mut stream).await {
         issuer_eprintln!(addr, "error sending out issuer response: {}", e);
     } else {
         issuer_println!(addr, "Issuer response sent out");

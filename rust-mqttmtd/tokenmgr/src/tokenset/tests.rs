@@ -109,19 +109,17 @@ async fn new_response_reader(
     num_tokens_divided_by_4: u8,
 ) -> Result<issuer::ResponseReader, Box<dyn std::error::Error>> {
     let writer = issuer::ResponseWriter::new(enc_key.clone(), nonce_base.clone(), timestamp, all_randoms.clone());
-    let mut buf = [0u8; issuer::REQ_RESP_MIN_BUF_LEN];
 
     let mut inner_vec: Vec<u8> = Vec::new();
 
     let _ = writer
-        .write_success_to(&mut inner_vec, &mut buf[..])
+        .write_success_to(&mut inner_vec)
         .await?;
 
     let mut async_reader = futures::io::Cursor::new(inner_vec).compat();
 
     Ok(issuer::ResponseReader::read_from(
         &mut async_reader,
-        &mut buf[..],
         algo,
         num_tokens_divided_by_4,
     )
