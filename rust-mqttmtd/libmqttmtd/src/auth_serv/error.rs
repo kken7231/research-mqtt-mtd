@@ -12,7 +12,7 @@
 #[derive(Debug)]
 pub enum AuthServerParserError {
     /// Indicates magic number in the packet is invalid.
-    InvalidMagicNumberError,
+    InvalidMagicNumberError(u32),
 
     /// Indicates a buffer byte array (slice) is shorter than expected.
     BufferTooSmallError,
@@ -41,8 +41,8 @@ impl std::error::Error for AuthServerParserError {}
 impl std::fmt::Display for AuthServerParserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AuthServerParserError::InvalidMagicNumberError => {
-                write!(f, "magic number invalid")
+            AuthServerParserError::InvalidMagicNumberError(u) => {
+                write!(f, "magic number invalid: {:x}", u)
             }
             AuthServerParserError::BufferTooSmallError => {
                 write!(f, "buffer too small, index out of bounds")

@@ -3,9 +3,9 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 use super::error::AuthServerParserError;
 use crate::{
-    aead::algo::SupportedAlgorithm, auth_serv_read, auth_serv_read_into_new_bytes,
-    auth_serv_read_u16, auth_serv_read_u8, auth_serv_write, auth_serv_write_u16,
-    auth_serv_write_u8, consts::TOKEN_LEN,
+    aead::algo::SupportedAlgorithm, auth_serv_read, auth_serv_read_check_magic_number,
+    auth_serv_read_into_new_bytes, auth_serv_read_u16, auth_serv_read_u8, auth_serv_write,
+    auth_serv_write_magic_number, auth_serv_write_u16, auth_serv_write_u8, consts::TOKEN_LEN,
 };
 
 /// # Request for Verifier interface
@@ -48,6 +48,9 @@ impl Request {
     pub async fn read_from<R: AsyncRead + Unpin>(
         stream: &mut R,
     ) -> Result<Self, AuthServerParserError> {
+        // magic number
+        auth_serv_read_check_magic_number!(stream);
+
         let mut token = [0u8; TOKEN_LEN];
         auth_serv_read!(stream, &mut token);
         Ok(Self { token })
@@ -60,8 +63,11 @@ impl Request {
         self,
         stream: &mut W,
     ) -> Result<usize, AuthServerParserError> {
-        auth_serv_write!(stream, &self.token);
-        Ok(self.token.len())
+        // magic number
+        let mut counter = auth_serv_write_magic_number!(stream);
+
+        counter += auth_serv_write!(stream, &self.token);
+        Ok(counter)
     }
 }
 
@@ -122,6 +128,9 @@ impl ResponseReader {
     pub async fn read_from<R: AsyncRead + Unpin>(
         stream: &mut R,
     ) -> Result<Option<Self>, AuthServerParserError> {
+        // magic number
+        auth_serv_read_check_magic_number!(stream);
+
         // status
         let status_raw = auth_serv_read_u8!(stream);
         let status = ResponseStatus::from(status_raw);
@@ -211,10 +220,13 @@ impl ResponseWriter {
             }
         }
 
+        // magic number
+        let mut counter = auth_serv_write_magic_number!(stream);
+
         // status
-        auth_serv_write_u8!(stream, status as u8);
+        counter += auth_serv_write_u8!(stream, status as u8);
         if status != ResponseStatus::Success || resp.is_none() {
-            return Ok(1);
+            return Ok(counter);
         }
 
         let resp = resp.unwrap();
@@ -224,12 +236,12 @@ impl ResponseWriter {
         if resp.allowed_access_is_pub {
             compound |= 0x80;
         }
-        auth_serv_write_u8!(stream, compound);
-        auth_serv_write_u16!(stream, resp.topic.len() as u16);
-        auth_serv_write!(stream, &resp.topic);
-        auth_serv_write!(stream, &resp.enc_key);
-        auth_serv_write!(stream, &resp.nonce);
-        Ok(1 + 3 + resp.topic.len() + resp.enc_key.len() + resp.nonce.len())
+        counter += auth_serv_write_u8!(stream, compound);
+        counter += auth_serv_write_u16!(stream, resp.topic.len() as u16);
+        counter += auth_serv_write!(stream, &resp.topic);
+        counter += auth_serv_write!(stream, &resp.enc_key);
+        counter += auth_serv_write!(stream, &resp.nonce);
+        Ok(counter)
     }
 }
 
@@ -273,8 +285,14 @@ mod tests {
             token: original_token,
         };
 
+        let expected_bytes = [
+            0x4D, 0x51, 0xED, 0x02, // Magic number
+            // Token
+            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF,
+        ];
+
         // Mock stream to write to
-        let mut mock_stream = Builder::new().write(&original_token).read(&[]).build();
+        let mut mock_stream = Builder::new().write(&expected_bytes).read(&[]).build();
 
         let written_len = original_req
             .write_to(&mut mock_stream)
@@ -282,14 +300,14 @@ mod tests {
             .expect("Failed to write request");
 
         // Now build a new mock stream with the expected bytes to read
-        let mut read_stream = Builder::new().read(&original_token).build();
+        let mut read_stream = Builder::new().read(&expected_bytes).build();
 
         let parsed_req = Request::read_from(&mut read_stream)
             .await
             .expect("Failed to read request");
 
         assert_eq!(parsed_req.token, original_token);
-        assert_eq!(written_len, original_token.len(), "Written length mismatch");
+        assert_eq!(written_len, expected_bytes.len(), "Written length mismatch");
     }
 
     #[tokio::test]
@@ -313,6 +331,45 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn request_response_read_from_invalid_magic_number() {
+        // starts with invalid magic number
+        let mut mock_stream = Builder::new().read(&[0x01, 0x02, 0x03, 0x04]).build();
+
+        let result = Request::read_from(&mut mock_stream).await;
+
+        assert!(result.is_err());
+        // Expect an IO error indicating unexpected EOF
+        match result.unwrap_err() {
+            AuthServerParserError::InvalidMagicNumberError(v) => {
+                assert_eq!(v, 0x01020304u32)
+            }
+            _ => panic!(),
+        };
+
+        // Write in all the remained bytes
+        let mut read_buf = [0u8; 4];
+        let _ = mock_stream.read(&mut read_buf).await;
+
+        // starts with invalid magic number
+        let mut mock_stream = Builder::new().read(&[0x01, 0x02, 0x03, 0x04]).build();
+
+        let result = ResponseReader::read_from(&mut mock_stream).await;
+
+        assert!(result.is_err());
+        // Expect an IO error indicating unexpected EOF
+        match result.unwrap_err() {
+            AuthServerParserError::InvalidMagicNumberError(v) => {
+                assert_eq!(v, 0x01020304u32)
+            }
+            _ => panic!(),
+        };
+
+        // Write in all the remained bytes
+        let mut read_buf = [0u8; 4];
+        let _ = mock_stream.read(&mut read_buf).await;
+    }
+
+    #[tokio::test]
     async fn response_write_read_success_roundtrip() {
         let original_resp_writer = ResponseWriter::new(
             true,                                 // allowed_access_is_pub
@@ -329,6 +386,7 @@ mod tests {
         );
 
         let expected_bytes = [
+            0x4D, 0x51, 0xED, 0x02, // Magic number
             0x00, // Status: Success (0)
             0x82, // Compound byte: allowed_access_is_pub (1) | algo (2) = 0x82
             0x00, 0x0E, // Topic len: 14 (u16 BE)
@@ -374,6 +432,10 @@ mod tests {
     async fn response_write_read_failure_roundtrip() {
         // Mock stream to write failure response
         let expected_bytes = [
+            0x4D,
+            0x51,
+            0xED,
+            0x02, // Magic number
             // Status: Failure (1)
             ResponseStatus::Failure as u8,
         ];
@@ -402,6 +464,10 @@ mod tests {
     async fn response_write_read_error_roundtrip() {
         // Mock stream to write error response
         let expected_bytes = [
+            0x4D,
+            0x51,
+            0xED,
+            0x02, // Magic number
             // Status: Error (0xFF)
             ResponseStatus::Error as u8,
         ];
