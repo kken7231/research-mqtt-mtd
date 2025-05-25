@@ -6,6 +6,7 @@ services:
     container_name: server
     environment:
       - PROTOCOL=plain
+      - HOST_TCPDUMP_LISTEN_PORT=9876
     networks:
       - inner-default
 
@@ -15,6 +16,7 @@ services:
       dockerfile: ./docker/Dockerfiles/Dockerfile.client_wrapper
     container_name: client1
     environment:
+      - PROTOCOL=plain
       - CLIENT_NAME="client1"
       - INTEGRATION_TESTS_CONF=/mqttmtd/conf/testing.toml
     networks:
@@ -25,7 +27,6 @@ services:
       - "../../../tests/certs/clients:/certs/clients"
       - "../../../tests/mqttmtd/conf:/mqttmtd/conf"
       - "../../../tests/mosquitto/conf:/mosquitto/conf"
-      - "../../../tests/scripts:/scripts"
     tty: true
     stdin_open: true
     init: true
