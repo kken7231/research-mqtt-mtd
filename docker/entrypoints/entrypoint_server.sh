@@ -52,7 +52,7 @@ echo "MQTT interface started with PID ${MQTT_INTERFACE_PID}"
 
 TCPDUMP_PID=""
 if [ "${HOST_TCPDUMP_LISTEN_PORT}" != "" ]; then
-  tcpdump -i eth0 -U -s0 -w - host client1 and not arp | nc host.docker.internal "${HOST_TCPDUMP_LISTEN_PORT}" &
+  tcpdump -i any -U -s0 -w - "(host client1 or host 127.0.0.1) and not arp" | nc host.docker.internal "${HOST_TCPDUMP_LISTEN_PORT}" &
   TCPDUMP_PID=$!
   echo "Sending out tcpdump tracking..."
 fi

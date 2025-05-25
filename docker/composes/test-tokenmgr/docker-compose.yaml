@@ -7,6 +7,9 @@ services:
     environment:
       - PROTOCOL=plain
       - HOST_TCPDUMP_LISTEN_PORT=9876
+      - SSLKEYLOGFILE=/logs/sslkey.log
+    volumes:
+      - ../../../tests/logs:/logs
     networks:
       - inner-default
 

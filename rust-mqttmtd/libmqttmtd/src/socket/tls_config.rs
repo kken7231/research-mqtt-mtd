@@ -68,7 +68,13 @@ impl TlsConfigLoader {
         } else {
             config.with_no_client_auth()
         };
-        let config = config.with_single_cert(vec![serv_cert], key)?;
+        let mut config = config.with_single_cert(vec![serv_cert], key)?;
+
+        #[cfg(feature = "key_log")]
+        {
+            config.key_log = Arc::new(rustls::KeyLogFile::new());
+            println!("Key log enabled, SSLKEYLOGFILE: {:?}", std::env::var("SSLKEYLOGFILE"));
+        }
 
         Ok(config.into())
     }

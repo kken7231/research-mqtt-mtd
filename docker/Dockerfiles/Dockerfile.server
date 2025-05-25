@@ -14,7 +14,7 @@ WORKDIR /rust-mqttmtd
 COPY ./rust-mqttmtd/ /rust-mqttmtd
 
 # build authserver & mqttinterface
-RUN CC=gcc RUSTFLAGS="-C target-feature=+crt-static" cargo build --package mqttmtd-authserver --package mqttinterface --target aarch64-unknown-linux-musl
+RUN CC=gcc RUSTFLAGS="-C target-feature=+crt-static" cargo build --features key_log --package mqttmtd-authserver --package mqttinterface --target aarch64-unknown-linux-musl
 
 ## -----------------------------------------------
 ## runner alpine

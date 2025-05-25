@@ -53,8 +53,8 @@ macro_rules! auth_serv_write_u8 {
         $stream
             .write_u8($value)
             .await
-            .map(|_| 1usize)
-            .map_err(|e| AuthServerParserError::SocketWriteError(e))?
+            .map_err(|e| AuthServerParserError::SocketWriteError(e))
+            .map(|_| 1usize)?
     };
 }
 
@@ -64,31 +64,40 @@ macro_rules! auth_serv_write_u16 {
         $stream
             .write_u16($value)
             .await
-            .map(|_| 2usize)
-            .map_err(|e| AuthServerParserError::SocketWriteError(e))?
+            .map_err(|e| AuthServerParserError::SocketWriteError(e))
+            .map(|_| 2usize)?
     };
 }
 
 #[macro_export]
-macro_rules! auth_serv_read_check_magic_number {
-    ($stream: expr) => {
-        let magic_number = $stream
+macro_rules! auth_serv_read_check_v2_header {
+    ($stream: expr,  $packet_type:expr) => {
+        match $stream
             .read_u32()
             .await
-            .map_err(|e| AuthServerParserError::SocketReadError(e))?;
-        if magic_number != crate::consts::MQTT_MTD_V2_PACKET_MAGIC_NUMBER {
-            return Err(AuthServerParserError::InvalidMagicNumberError(magic_number));
+            .map_err(|e| AuthServerParserError::SocketReadError(e))?
+        {
+            v if ((v & crate::consts::MAGIC_NUM_MASK) == crate::consts::MAGIC_NUM)
+                && ((v >> 4) & 0xF == 2)
+                && (((v & 0xF) as u8) == $packet_type) =>
+            {
+                (
+                    ((v >> 4) & 0xF) as u8,
+                    (v & 0xF) as u8,
+                )
+            }
+            other => return Err(AuthServerParserError::InvalidHeaderError(other)),
         }
     };
 }
 
 #[macro_export]
-macro_rules! auth_serv_write_magic_number {
-    ($stream: expr) => {
+macro_rules! auth_serv_write_v2_header {
+    ($stream: expr, $packet_type:expr) => {
         $stream
-            .write_u32(crate::consts::MQTT_MTD_V2_PACKET_MAGIC_NUMBER)
+            .write_u32(crate::consts::MAGIC_NUM | 0x20u32 | $packet_type as u32)
             .await
-            .map(|_| 4usize)
-            .map_err(|e| AuthServerParserError::SocketWriteError(e))?
+            .map_err(|e| AuthServerParserError::SocketWriteError(e))
+            .map(|_| 4usize)?
     };
 }

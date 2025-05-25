@@ -11,8 +11,8 @@
 /// - topic is too long
 #[derive(Debug)]
 pub enum AuthServerParserError {
-    /// Indicates magic number in the packet is invalid.
-    InvalidMagicNumberError(u32),
+    /// Indicates header in the packet is invalid.
+    InvalidHeaderError(u32),
 
     /// Indicates a buffer byte array (slice) is shorter than expected.
     BufferTooSmallError,
@@ -41,7 +41,7 @@ impl std::error::Error for AuthServerParserError {}
 impl std::fmt::Display for AuthServerParserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AuthServerParserError::InvalidMagicNumberError(u) => {
+            AuthServerParserError::InvalidHeaderError(u) => {
                 write!(f, "magic number invalid: {:x}", u)
             }
             AuthServerParserError::BufferTooSmallError => {

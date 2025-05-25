@@ -3,10 +3,11 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 use super::error::AuthServerParserError;
 use crate::{
-    aead::algo::SupportedAlgorithm, auth_serv_read, auth_serv_read_check_magic_number,
+    aead::algo::SupportedAlgorithm, auth_serv_read, auth_serv_read_check_v2_header,
     auth_serv_read_into_new_bytes, auth_serv_read_u16, auth_serv_read_u8, auth_serv_write,
-    auth_serv_write_magic_number, auth_serv_write_u16, auth_serv_write_u8, consts::TOKEN_LEN,
+    auth_serv_write_v2_header, auth_serv_write_u16, auth_serv_write_u8, consts::TOKEN_LEN,
 };
+use crate::consts::{PACKET_TYPE_VERIFIER_REQUEST, PACKET_TYPE_VERIFIER_RESPONSE};
 
 /// # Request for Verifier interface
 ///
@@ -17,7 +18,7 @@ use crate::{
 /// 2. `token`
 ///
 /// ## v2
-/// 0. Magic number
+/// 0. header
 /// 1. `token`
 #[derive(Debug)]
 pub struct Request {
@@ -48,8 +49,8 @@ impl Request {
     pub async fn read_from<R: AsyncRead + Unpin>(
         stream: &mut R,
     ) -> Result<Self, AuthServerParserError> {
-        // magic number
-        auth_serv_read_check_magic_number!(stream);
+        // header
+        auth_serv_read_check_v2_header!(stream, PACKET_TYPE_VERIFIER_REQUEST);
 
         let mut token = [0u8; TOKEN_LEN];
         auth_serv_read!(stream, &mut token);
@@ -63,8 +64,8 @@ impl Request {
         self,
         stream: &mut W,
     ) -> Result<usize, AuthServerParserError> {
-        // magic number
-        let mut counter = auth_serv_write_magic_number!(stream);
+        // header
+        let mut counter = auth_serv_write_v2_header!(stream, PACKET_TYPE_VERIFIER_REQUEST);
 
         counter += auth_serv_write!(stream, &self.token);
         Ok(counter)
@@ -92,7 +93,7 @@ impl Request {
 ///
 /// ## v2
 /// ```text
-/// 0. Magic number
+/// 0. header
 /// 1. status
 /// case success:
 ///     2. compound byte
@@ -128,8 +129,8 @@ impl ResponseReader {
     pub async fn read_from<R: AsyncRead + Unpin>(
         stream: &mut R,
     ) -> Result<Option<Self>, AuthServerParserError> {
-        // magic number
-        auth_serv_read_check_magic_number!(stream);
+        // header
+        auth_serv_read_check_v2_header!(stream, PACKET_TYPE_VERIFIER_RESPONSE);
 
         // status
         let status_raw = auth_serv_read_u8!(stream);
@@ -220,8 +221,8 @@ impl ResponseWriter {
             }
         }
 
-        // magic number
-        let mut counter = auth_serv_write_magic_number!(stream);
+        // header
+        let mut counter = auth_serv_write_v2_header!(stream, PACKET_TYPE_VERIFIER_RESPONSE);
 
         // status
         counter += auth_serv_write_u8!(stream, status as u8);
@@ -248,16 +249,16 @@ impl ResponseWriter {
 #[repr(u8)]
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum ResponseStatus {
-    Success = 0u8,
-    Failure = 1u8,
+    Success = 0x01u8,
+    Failure = 0x02u8,
     Error = 0xFFu8,
 }
 
 impl From<u8> for ResponseStatus {
     fn from(value: u8) -> Self {
         match value {
-            0 => ResponseStatus::Success,
-            1 => ResponseStatus::Failure,
+            1 => ResponseStatus::Success,
+            2 => ResponseStatus::Failure,
             _ => ResponseStatus::Error,
         }
     }
@@ -275,6 +276,7 @@ mod tests {
     use bytes::Bytes;
     use tokio::io::AsyncReadExt;
     use tokio_test::io::Builder;
+    use crate::consts::{PACKET_TYPE_VERIFIER_REQUEST, PACKET_TYPE_VERIFIER_RESPONSE};
 
     #[tokio::test]
     async fn request_write_read_roundtrip() {
@@ -286,7 +288,8 @@ mod tests {
         };
 
         let expected_bytes = [
-            0x4D, 0x51, 0xED, 0x02, // Magic number
+            0x4D, 0x51, 0xED, // Magic number
+            0x20u8 | PACKET_TYPE_VERIFIER_REQUEST,
             // Token
             0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF,
         ];
@@ -331,8 +334,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn request_response_read_from_invalid_magic_number() {
-        // starts with invalid magic number
+    async fn request_response_read_from_invalid_header() {
+        // starts with invalid header
         let mut mock_stream = Builder::new().read(&[0x01, 0x02, 0x03, 0x04]).build();
 
         let result = Request::read_from(&mut mock_stream).await;
@@ -340,7 +343,7 @@ mod tests {
         assert!(result.is_err());
         // Expect an IO error indicating unexpected EOF
         match result.unwrap_err() {
-            AuthServerParserError::InvalidMagicNumberError(v) => {
+            AuthServerParserError::InvalidHeaderError(v) => {
                 assert_eq!(v, 0x01020304u32)
             }
             _ => panic!(),
@@ -350,7 +353,7 @@ mod tests {
         let mut read_buf = [0u8; 4];
         let _ = mock_stream.read(&mut read_buf).await;
 
-        // starts with invalid magic number
+        // starts with invalid header
         let mut mock_stream = Builder::new().read(&[0x01, 0x02, 0x03, 0x04]).build();
 
         let result = ResponseReader::read_from(&mut mock_stream).await;
@@ -358,7 +361,7 @@ mod tests {
         assert!(result.is_err());
         // Expect an IO error indicating unexpected EOF
         match result.unwrap_err() {
-            AuthServerParserError::InvalidMagicNumberError(v) => {
+            AuthServerParserError::InvalidHeaderError(v) => {
                 assert_eq!(v, 0x01020304u32)
             }
             _ => panic!(),
@@ -386,8 +389,9 @@ mod tests {
         );
 
         let expected_bytes = [
-            0x4D, 0x51, 0xED, 0x02, // Magic number
-            0x00, // Status: Success (0)
+            0x4D, 0x51, 0xED, // Magic number
+            0x20u8 | PACKET_TYPE_VERIFIER_RESPONSE,
+            0x01, // Status: Success (1)
             0x82, // Compound byte: allowed_access_is_pub (1) | algo (2) = 0x82
             0x00, 0x0E, // Topic len: 14 (u16 BE)
             b'v', b'e', b'r', b'i', b'f', b'i', b'e', b'd', b'/', b't', b'o', b'p', b'i',
@@ -432,10 +436,11 @@ mod tests {
     async fn response_write_read_failure_roundtrip() {
         // Mock stream to write failure response
         let expected_bytes = [
+            // Magic number
             0x4D,
             0x51,
             0xED,
-            0x02, // Magic number
+            0x20u8 | PACKET_TYPE_VERIFIER_RESPONSE,
             // Status: Failure (1)
             ResponseStatus::Failure as u8,
         ];
@@ -464,10 +469,11 @@ mod tests {
     async fn response_write_read_error_roundtrip() {
         // Mock stream to write error response
         let expected_bytes = [
+            // magic number
             0x4D,
             0x51,
             0xED,
-            0x02, // Magic number
+            0x20u8 | PACKET_TYPE_VERIFIER_RESPONSE,
             // Status: Error (0xFF)
             ResponseStatus::Error as u8,
         ];
