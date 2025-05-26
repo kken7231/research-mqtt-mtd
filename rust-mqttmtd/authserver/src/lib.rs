@@ -44,7 +44,8 @@ pub async fn run_server() -> Result<(), Box<dyn Error>> {
         config.server_cert_pem,
         config.server_key_pem,
         config.ca_certs_dir,
-        config.client_auth_disabled,
+        config.enable_client_auth,
+        config.enable_server_key_log,
     )
         .inspect_err(|e| proc_eprintln!("found issue in loading Tls config: {}", e))?;
 
