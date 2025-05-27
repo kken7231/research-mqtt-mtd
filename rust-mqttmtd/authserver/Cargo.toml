@@ -19,6 +19,3 @@ serde_yaml = "0.9.34"
 
 [dev-dependencies]
 tempfile = { workspace = true }
-
-[features]
-key_log = ["libmqttmtd/key_log"]

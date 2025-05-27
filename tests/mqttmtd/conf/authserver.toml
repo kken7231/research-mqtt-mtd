@@ -4,5 +4,5 @@ ca_certs_dir = "/certs/ca"
 acl = "/mqttmtd/acl.yaml"
 enable_client_auth = true
 enable_server_key_log = true
-issuer_port = 3000
-verifier_port = 3001
+issuer_port = 18771 # ascii "IS" in hex = [0x49, 0x53], 0x4953 = 0d18771
+verifier_port = 22085 # ascii "VE" in hex = [0x56, 0x45], 0x5645 = 0d22085

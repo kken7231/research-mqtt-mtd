@@ -1,10 +1,10 @@
 --[[
-  Auth Server Packet Dissector for Wireshark
-  Version: 1.0
-  Author: Your Name/AI Assistant
+  MQTT MTD Auth Server Packet Dissector for Wireshark
+  Version: 2.0
+  Author: Kentaro Kusumi
 
-  This dissector identifies packets based on the magic number 0x4D51ED.
-  It supports dissection of Issuer and Verifier requests and responses,
+  This dissector identifies packets based on the TCP port 18771 (Issuer) and 22085 (Verifier).
+  It supports dissection of Auth Server Issuer and Verifier requests and responses,
   including conversation tracking to attempt full Issuer Response dissection.
 
   Known limitations:
@@ -16,108 +16,95 @@
 --]]
 
 -- 1. Protocol Definition
-local auth_server_proto = Proto("auth_server", "Auth Server Protocol")
+local mqttmtd_proto = Proto("mqttmtd", "MQTT-MTD Auth Server Protocol")
 
 -- 2. Protocol Fields
 
+-- AEAD Algorithm Enum
+local aead_algo_vals = {
+    [0x0] = "AES_128_GCM (16-byte key)",
+    [0x1] = "AES_256_GCM (32-byte key)",
+    [0x2] = "CHACHA20_POLY1305 (32-byte key)"
+}
+
 -- Common Header Fields
-local pf_header_compound = ProtoField.uint8("auth_server.header.compound", "Header Compound Byte", base.HEX)
-local pf_header_version = ProtoField.uint8("auth_server.header.version", "MQTT-MTD Version", base.DEC)
+local abbr_hdr = "mqttmtd.header."
+local pf_hdr_compound = ProtoField.uint8(abbr_hdr .. "compound"       , "Header compound byte", base.HEX)
+local pf_hdr_version  = ProtoField.uint8(abbr_hdr .. "mqttmtd_version", "MQTT-MTD version"    , base.DEC)
 local packet_type_vals = {
     [0x0] = "Issuer Request",
     [0x1] = "Issuer Response",
     [0x4] = "Verifier Request",
     [0x5] = "Verifier Response"
 }
-local pf_header_packet_type = ProtoField.uint8("auth_server.header.packet_type", "Packet Type", base.HEX,
-    packet_type_vals)
-
--- AEAD Algorithm Enum
-local aead_algs_vals = {
-    [0] = "AES_128_GCM (16-byte key)",
-    [1] = "AES_256_GCM (32-byte key)",
-    [2] = "CHACHA20_POLY1305 (32-byte key)"
-}
-local pf_aead_algorithm = ProtoField.uint8("auth_server.aead_algorithm", "AEAD Algorithm", base.DEC, aead_algs_vals)
-
--- Topic Fields
-local pf_topic_length = ProtoField.uint16("auth_server.topic.length", "Topic Length", base.DEC)
-local pf_topic_name = ProtoField.string("auth_server.topic.name", "Topic Name") -- UTF-8 encoded
+local pf_hdr_packet_type = ProtoField.uint8(abbr_hdr .. "packet_type", "Packet Type", base.HEX, packet_type_vals)
 
 -- Issuer Request Fields
-local pf_issuer_req_compound = ProtoField.uint8("auth_server.issuer.request.compound", "Issuer Request Compound Byte",
-    base.HEX)
-local pf_issuer_req_is_pub = ProtoField.bool("auth_server.issuer.request.is_pub", "Request for Pub Tokens", 8,
-    { "Requests for Sub Tokens", "Requests for Pub Tokens" }, 0x80)                                                                                                          -- Mask for bit 7
-local pf_issuer_req_num_tokens_div4 = ProtoField.uint8("auth_server.issuer.request.num_tokens_div4",
-    "Requested number of tokens / 4", base.DEC, nil, 0x7F)                                                                                                                   -- Mask for bits 6-0
+local abbr_is_req = "mqttmtd.issuer.request."
+local pf_is_req_compound        = ProtoField.uint8 (abbr_is_req .. "compound"       , "Issuer request compound byte"  , base.HEX)
+local pf_is_req_is_pub          = ProtoField.bool  (abbr_is_req .. "is_pub"         , "Request for Pub Tokens"        , 8, { "Request for Sub tokens", "Requests for Pub tokens" }, 0x80)                                                                                                          -- Mask for bit 7
+local pf_is_req_num_tokens_div4 = ProtoField.uint8 (abbr_is_req .. "num_tokens_div4", "Requested number of tokens / 4", base.DEC, nil, 0x7F)                                                                                                                   -- Mask for bits 6-0
+local pf_is_req_topic_len       = ProtoField.uint16(abbr_is_req .. "topic_len"      , "Topic length", base.DEC)
+local pf_is_req_topic           = ProtoField.string(abbr_is_req .. "topic"          , "Topic", base.UNICODE)
 
 -- Issuer Response Fields
-local pf_issuer_resp_status_vals = {
+local abbr_is_resp = "mqttmtd.issuer.response."
+local pf_is_resp_status_vals = {
     [0x01] = "Success",
     [0xFF] = "Error"
 }
-local pf_issuer_resp_status = ProtoField.uint8("auth_server.issuer.response.status", "Status", base.HEX,
-    pf_issuer_resp_status_vals)
-local pf_issuer_resp_key = ProtoField.bytes("auth_server.issuer.response.key", "Encryption Key")
-local pf_issuer_resp_nonce_base = ProtoField.bytes("auth_server.issuer.response.nonce_base", "Nonce Base (12 bytes)",
-    base.NONE)
-local pf_issuer_resp_timestamp = ProtoField.bytes("auth_server.issuer.response.timestamp", "Timestamp (6 bytes)",
-    base.NONE)
-local pf_issuer_resp_all_randoms = ProtoField.bytes("auth_server.issuer.response.all_randoms",
-    "All Randoms (concatenated)")
-local pf_issuer_resp_info_source = ProtoField.string("auth_server.issuer.response.info_source",
-    "Info Source for Key/Randoms dissection")
-local pf_issuer_resp_undissected_payload = ProtoField.bytes("auth_server.issuer.response.undissected_payload",
-    "Undissected Success Payload (req info missing)")
-
+local pf_is_resp_status      = ProtoField.uint8 (abbr_is_req .. "status"     , "Status", base.HEX, pf_is_resp_status_vals)
+local pf_is_resp_enc_key     = ProtoField.bytes (abbr_is_req .. "enc_key"    , "Encryption key")
+local pf_is_resp_nonce_base  = ProtoField.bytes (abbr_is_req .. "nonce_base" , "Nonce base")
+local pf_is_resp_timestamp   = ProtoField.bytes (abbr_is_req .. "timestamp"  , "Timestamp")
+local pf_is_resp_all_randoms = ProtoField.bytes (abbr_is_req .. "all_randoms", "All randoms (concatenated)")
 
 -- Verifier Request Fields
-local pf_verifier_req_token = ProtoField.bytes("auth_server.verifier.request.token", "Token (12 bytes)", base.NONE)
+local abbr_ve_req = "mqttmtd.verifier.request."
+local pf_ve_req_token = ProtoField.bytes(abbr_ve_req .. "token", "Token")
 
 -- Verifier Response Fields
-local pf_verifier_resp_status_vals = {
+local abbr_ve_resp = "mqttmtd.verifier.response."
+local pf_ve_resp_status_vals = {
     [0x01] = "Success",
     [0x02] = "Failure",
     [0xFF] = "Error"
 }
-local pf_verifier_resp_status = ProtoField.uint8("auth_server.verifier.response.status", "Status", base.HEX,
-    pf_verifier_resp_status_vals)
-local pf_verifier_resp_compound = ProtoField.uint8("auth_server.verifier.response.compound",
-    "Verifier Response Compound Byte", base.HEX)
-local pf_verifier_resp_is_pub = ProtoField.bool("auth_server.verifier.response.is_pub", "Allowed Access Type", 8,
-    { "Sub Verified", "Pub Verified" }, 0x80)                                                                                                             -- Mask for bit 7
-local pf_verifier_resp_aead_algo = ProtoField.uint8("auth_server.verifier.response.aead_algorithm", "AEAD Algorithm",
-    base.DEC, aead_algs_vals, 0x7F)                                                                                                                       -- Mask for bits 6-0
-local pf_verifier_resp_key = ProtoField.bytes("auth_server.verifier.response.key", "Encryption Key")
-local pf_verifier_resp_nonce = ProtoField.bytes("auth_server.verifier.response.nonce", "Nonce (12 bytes)", base.NONE)
-
+local pf_ve_resp_status    = ProtoField.uint8 (abbr_ve_resp .. "status"   , "Status", base.HEX, pf_ve_resp_status_vals)
+local pf_ve_resp_compound  = ProtoField.uint8 (abbr_ve_resp .. "compound" , "Verifier response compound byte", base.HEX)
+local pf_ve_resp_is_pub    = ProtoField.bool  (abbr_ve_resp .. "is_pub"   , "Allowed access type", 8, { "Sub verified", "Pub verified" }, 0x80)                                                                                                             -- Mask for bit 7
+local pf_ve_resp_aead_algo = ProtoField.uint8 (abbr_ve_resp .. "aead_algo", "AEAD algorithm", base.HEX, aead_algo_vals, 0x7F)
+local pf_ve_resp_topic_len = ProtoField.uint16(abbr_ve_resp .. "topic_len", "Topic length", base.DEC)
+local pf_ve_resp_topic     = ProtoField.string(abbr_ve_resp .. "topic"    , "Topic", base.UNICODE)
+local pf_ve_resp_enc_key   = ProtoField.bytes (abbr_ve_resp .. "enc_key"  , "Encryption key")
+local pf_ve_resp_nonce     = ProtoField.bytes (abbr_ve_resp .. "nonce"    , "Nonce")
 
 -- Register all fields with the protocol
 auth_server_proto.fields = {
-    pf_header_compound,
-    pf_header_version,
-    pf_header_packet_type,
-    pf_aead_algorithm,
-    pf_topic_length,
-    pf_topic_name,
-    pf_issuer_req_compound,
-    pf_issuer_req_is_pub,
-    pf_issuer_req_num_tokens_div4,
-    pf_issuer_resp_status,
-    pf_issuer_resp_key,
-    pf_issuer_resp_nonce_base,
-    pf_issuer_resp_timestamp,
-    pf_issuer_resp_all_randoms,
-    pf_issuer_resp_info_source,
-    pf_issuer_resp_undissected_payload,
-    pf_verifier_req_token,
-    pf_verifier_resp_status,
-    pf_verifier_resp_compound,
-    pf_verifier_resp_is_pub,
-    pf_verifier_resp_aead_algo,
-    pf_verifier_resp_key,
-    pf_verifier_resp_nonce
+    pf_hdr_compound,
+    pf_hdr_version,
+    pf_hdr_packet_type,
+    pf_is_req_compound,
+    pf_is_req_is_pub,
+    pf_is_req_num_tokens_div4,
+    pf_is_req_topic_len,
+    pf_is_req_topic,
+    pf_is_resp_status,
+    pf_is_resp_key,
+    pf_is_resp_nonce_base,
+    pf_is_resp_timestamp,
+    pf_is_resp_all_randoms,
+    pf_is_resp_info_source,
+    pf_is_resp_undissected_payload,
+    pf_ve_req_token,
+    pf_ve_resp_status,
+    pf_ve_resp_compound,
+    pf_ve_resp_is_pub,
+    pf_ve_resp_aead_algo,
+    pf_ve_resp_topic_len,
+    pf_ve_resp_topic,
+    pf_ve_resp_key,
+    pf_ve_resp_nonce
 }
 
 -- Helper function to determine AEAD key length
@@ -132,28 +119,6 @@ local function get_aead_key_length(aead_id)
     return nil                         -- Unknown or invalid AEAD ID
 end
 
-local debug_level = {
-    DISABLED = 0,
-    LEVEL_1  = 1,
-    LEVEL_2  = 2
-}
-
-local DEBUG = debug_level.LEVEL_1
-
-local dprint = function() end
-local dprint2 = function() end
-local function reset_debug_level()
-    if debug_level > debug_level.DISABLED then
-        dprint = function(...)
-            print(table.concat({"Lua:", ...}," "))
-        end
-
-        if debug_level > debug_level.LEVEL_1 then
-            dprint2 = dprint
-        end
-    end
-end
-
 local MQTTMTD_HDR_LEN = 1
 
 local ef_too_short = ProtoExpert.new("mqttmtd.too_short.expert", "MQTT-MTD packet too short",
@@ -161,8 +126,6 @@ local ef_too_short = ProtoExpert.new("mqttmtd.too_short.expert", "MQTT-MTD packe
 
 -- 3. Main Dissector Function
 function mqttmtd.dissector(tvbuf, pktinfo, root)
-    dprint2("mqttmtd.dissector called")
-
     -- set the protocol column
     pktinfo.cols.protocol:set("MQTT-MTD")
 

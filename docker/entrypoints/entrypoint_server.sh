@@ -22,7 +22,7 @@ case "$PROTOCOL" in
         ;;
 
     *)
-        echo "Error: Unrecognizable protocol PROTOCOL=\"$PROTOCOL\"" >&2 # Send error to standard error
+        echo "Error: Unrecognizable protocol PROTOCOL=\"$PROTOCOL\"" >&2
         exit 255
         ;;
 

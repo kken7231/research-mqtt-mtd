@@ -18,6 +18,3 @@ tempfile = { workspace = true }
 tokio = { workspace = true }
 
 tokio-test = "0.4.4"
-
-[features]
-key_log = []
