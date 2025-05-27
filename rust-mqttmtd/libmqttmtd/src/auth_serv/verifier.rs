@@ -288,7 +288,6 @@ mod tests {
         };
 
         let expected_bytes = [
-            0x4D, 0x51, 0xED, // Magic number
             0x20u8 | PACKET_TYPE_VERIFIER_REQUEST,
             // Token
             0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF,
@@ -315,7 +314,7 @@ mod tests {
 
     #[tokio::test]
     async fn request_read_from_not_enough_bytes() {
-        let mut mock_stream = Builder::new().read(&[0x01, 0x02, 0x03]).build(); // Less than TOKEN_LEN bytes
+        let mut mock_stream = Builder::new().read(&[0x20u8 | PACKET_TYPE_VERIFIER_REQUEST, 0x1, 0x2, 0x3]).build(); // Less than TOKEN_LEN bytes
 
         let result = Request::read_from(&mut mock_stream).await;
 
@@ -329,14 +328,14 @@ mod tests {
         };
 
         // Write in all the remained bytes
-        let mut read_buf = [0u8; 3];
+        let mut read_buf = [0u8; 4];
         let _ = mock_stream.read(&mut read_buf).await;
     }
 
     #[tokio::test]
     async fn request_response_read_from_invalid_header() {
         // starts with invalid header
-        let mut mock_stream = Builder::new().read(&[0x01, 0x02, 0x03, 0x04]).build();
+        let mut mock_stream = Builder::new().read(&[0x01]).build();
 
         let result = Request::read_from(&mut mock_stream).await;
 
@@ -344,7 +343,7 @@ mod tests {
         // Expect an IO error indicating unexpected EOF
         match result.unwrap_err() {
             AuthServerParserError::InvalidHeaderError(v) => {
-                assert_eq!(v, 0x01020304u32)
+                assert_eq!(v, 0x01u8)
             }
             _ => panic!(),
         };
@@ -354,7 +353,7 @@ mod tests {
         let _ = mock_stream.read(&mut read_buf).await;
 
         // starts with invalid header
-        let mut mock_stream = Builder::new().read(&[0x01, 0x02, 0x03, 0x04]).build();
+        let mut mock_stream = Builder::new().read(&[0x01]).build();
 
         let result = ResponseReader::read_from(&mut mock_stream).await;
 
@@ -362,7 +361,7 @@ mod tests {
         // Expect an IO error indicating unexpected EOF
         match result.unwrap_err() {
             AuthServerParserError::InvalidHeaderError(v) => {
-                assert_eq!(v, 0x01020304u32)
+                assert_eq!(v, 0x01)
             }
             _ => panic!(),
         };
@@ -389,7 +388,6 @@ mod tests {
         );
 
         let expected_bytes = [
-            0x4D, 0x51, 0xED, // Magic number
             0x20u8 | PACKET_TYPE_VERIFIER_RESPONSE,
             0x01, // Status: Success (1)
             0x82, // Compound byte: allowed_access_is_pub (1) | algo (2) = 0x82
@@ -436,10 +434,6 @@ mod tests {
     async fn response_write_read_failure_roundtrip() {
         // Mock stream to write failure response
         let expected_bytes = [
-            // Magic number
-            0x4D,
-            0x51,
-            0xED,
             0x20u8 | PACKET_TYPE_VERIFIER_RESPONSE,
             // Status: Failure (1)
             ResponseStatus::Failure as u8,
@@ -469,10 +463,6 @@ mod tests {
     async fn response_write_read_error_roundtrip() {
         // Mock stream to write error response
         let expected_bytes = [
-            // magic number
-            0x4D,
-            0x51,
-            0xED,
             0x20u8 | PACKET_TYPE_VERIFIER_RESPONSE,
             // Status: Error (0xFF)
             ResponseStatus::Error as u8,

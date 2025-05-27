@@ -301,7 +301,7 @@ mod tests {
     #[tokio::test]
     async fn request_response_read_from_invalid_header() {
         // starts with invalid header
-        let mut mock_stream = Builder::new().read(&[0x01, 0x02, 0x03, 0x04]).build();
+        let mut mock_stream = Builder::new().read(&[0x01]).build();
 
         let result = Request::read_from(&mut mock_stream).await;
 
@@ -309,7 +309,7 @@ mod tests {
         // Expect an IO error indicating unexpected EOF
         match result.unwrap_err() {
             AuthServerParserError::InvalidHeaderError(v) => {
-                assert_eq!(v, 0x01020304u32)
+                assert_eq!(v, 0x01u8)
             }
             _ => panic!(),
         };
@@ -319,7 +319,7 @@ mod tests {
         let _ = mock_stream.read(&mut read_buf).await;
 
         // starts with invalid header
-        let mut mock_stream = Builder::new().read(&[0x01, 0x02, 0x03, 0x04]).build();
+        let mut mock_stream = Builder::new().read(&[0x01]).build();
 
         let result = ResponseReader::read_from(
             &mut mock_stream,
@@ -332,7 +332,7 @@ mod tests {
         // Expect an IO error indicating unexpected EOF
         match result.unwrap_err() {
             AuthServerParserError::InvalidHeaderError(v) => {
-                assert_eq!(v, 0x01020304u32)
+                assert_eq!(v, 0x01)
             }
             _ => panic!(),
         };
@@ -355,7 +355,6 @@ mod tests {
         );
 
         let expected_bytes = [
-            0x4D, 0x51, 0xED, // Magic number
             0x20u8 | PACKET_TYPE_ISSUER_REQUEST,
             0x85, // Compound byte: is_pub (1) | num_tokens_divided_dy_4 (5) = 0x85
             0x01, // AEAD Algo: Aes256Gcm (1)
@@ -422,7 +421,6 @@ mod tests {
         ]); // Dummy randoms (e.g., 1 token * 8 bytes)
 
         let expected_bytes = [
-            0x4D, 0x51, 0xED, // Magic number
             0x20u8 | PACKET_TYPE_ISSUER_RESPONSE,
             0x01, // Status: Success (1)
             0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22,
@@ -484,7 +482,6 @@ mod tests {
     async fn response_write_read_error_roundtrip() {
         // Mock stream to write error response
         let expected_bytes = [
-            0x4D, 0x51, 0xED, // Magic number
             0x20u8 | PACKET_TYPE_ISSUER_RESPONSE,
             // Status: Error (0xFF)
             0xFF,

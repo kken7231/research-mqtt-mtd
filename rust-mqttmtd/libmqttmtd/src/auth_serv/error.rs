@@ -12,7 +12,7 @@
 #[derive(Debug)]
 pub enum AuthServerParserError {
     /// Indicates header in the packet is invalid.
-    InvalidHeaderError(u32),
+    InvalidHeaderError(u8),
 
     /// Indicates a buffer byte array (slice) is shorter than expected.
     BufferTooSmallError,

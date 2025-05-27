@@ -73,13 +73,15 @@ macro_rules! auth_serv_write_u16 {
 macro_rules! auth_serv_read_check_v2_header {
     ($stream: expr,  $packet_type:expr) => {
         match $stream
-            .read_u32()
+            // .read_u32()
+            .read_u8()
             .await
             .map_err(|e| AuthServerParserError::SocketReadError(e))?
         {
-            v if ((v & crate::consts::MAGIC_NUM_MASK) == crate::consts::MAGIC_NUM)
-                && ((v >> 4) & 0xF == 2)
-                && (((v & 0xF) as u8) == $packet_type) =>
+            // v if ((v & crate::consts::MAGIC_NUM_MASK) == crate::consts::MAGIC_NUM)
+            //     && ((v >> 4) & 0xF == 2)
+            //     && (((v & 0xF) as u8) == $packet_type) =>
+            v if ((v >> 4) & 0xF == 2) && (((v & 0xF) as u8) == $packet_type) =>
             {
                 (
                     ((v >> 4) & 0xF) as u8,
@@ -95,9 +97,11 @@ macro_rules! auth_serv_read_check_v2_header {
 macro_rules! auth_serv_write_v2_header {
     ($stream: expr, $packet_type:expr) => {
         $stream
-            .write_u32(crate::consts::MAGIC_NUM | 0x20u32 | $packet_type as u32)
+            // .write_u32(crate::consts::MAGIC_NUM | 0x20u32 | $packet_type as u32)
+            .write_u8(0x20u8 | $packet_type as u8)
             .await
             .map_err(|e| AuthServerParserError::SocketWriteError(e))
-            .map(|_| 4usize)?
+            // .map(|_| 4usize)?
+            .map(|_| 1usize)?
     };
 }

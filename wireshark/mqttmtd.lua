@@ -21,7 +21,6 @@ local auth_server_proto = Proto("auth_server", "Auth Server Protocol")
 -- 2. Protocol Fields
 
 -- Common Header Fields
-local pf_magic_number = ProtoField.bytes("auth_server.magic_number", "Magic Number", base.HEX)
 local pf_header_compound = ProtoField.uint8("auth_server.header.compound", "Header Compound Byte", base.HEX)
 local pf_header_version = ProtoField.uint8("auth_server.header.version", "MQTT-MTD Version", base.DEC)
 local packet_type_vals = {
@@ -96,7 +95,6 @@ local pf_verifier_resp_nonce = ProtoField.bytes("auth_server.verifier.response.n
 
 -- Register all fields with the protocol
 auth_server_proto.fields = {
-    pf_magic_number,
     pf_header_compound,
     pf_header_version,
     pf_header_packet_type,
@@ -134,30 +132,65 @@ local function get_aead_key_length(aead_id)
     return nil                         -- Unknown or invalid AEAD ID
 end
 
--- 3. Main Dissector Function
-function auth_server_proto.dissector(buffer, pinfo, tree)
-    local pkt_len = buffer:len()
-    local offset = 0
+local debug_level = {
+    DISABLED = 0,
+    LEVEL_1  = 1,
+    LEVEL_2  = 2
+}
 
-    -- This function assumes it's called for a packet that IS Auth Server Protocol
-    -- (e.g., after heuristic check or direct port registration)
-    -- For robustness, we can quickly verify magic number, though it might be redundant if heuristic already checked.
-    if pkt_len < 3 or buffer(0, 3):uint() ~= 0x4D51ED then
-        -- This case should ideally not be reached if called by a successful heuristic match.
-        -- If it is, it implies an issue or direct registration of a non-matching packet.
-        local err_info = tree:add_expert_info(PI_MALFORMED, PI_ERROR,
-            "Packet does not start with Auth Server magic number or is too short.")
-        err_info:append_text(" (Expected 0x4D51ED)")
-        pinfo.cols.info = "Not Auth Server: Magic Number Mismatch or too short"
-        return offset -- Return number of bytes consumed (or 0 if error)
+local DEBUG = debug_level.LEVEL_1
+
+local dprint = function() end
+local dprint2 = function() end
+local function reset_debug_level()
+    if debug_level > debug_level.DISABLED then
+        dprint = function(...)
+            print(table.concat({"Lua:", ...}," "))
+        end
+
+        if debug_level > debug_level.LEVEL_1 then
+            dprint2 = dprint
+        end
     end
+end
+
+local MQTTMTD_HDR_LEN = 1
+
+local ef_too_short = ProtoExpert.new("mqttmtd.too_short.expert", "MQTT-MTD packet too short",
+                                     expert.group.MALFORMED, expert.severity.ERROR)
+
+-- 3. Main Dissector Function
+function mqttmtd.dissector(tvbuf, pktinfo, root)
+    dprint2("mqttmtd.dissector called")
+
+    -- set the protocol column
+    pktinfo.cols.protocol:set("MQTT-MTD")
+
+    local pktlen = tvbuf:report_length_remaining()
+    local offset = 0
+    local tree = root:add(mqttmtd, tvbuf:range(0, pktlen))
+
+    if pktlen < MQTTMTD_HDR_LEN then
+        tree:add_proto_expert_info(ef_too_short)
+        dprint("packet length", pktlen, "too short")
+        return
+    end
+
+    local headerrange = tvbuf:range(offset, 1)
+    local header_tree = tree:add(pf_header_compound, headerrange)
+        header_compound_subtree:add(pf_header_version, headerrange, mqtt_mtd_version)
+        header_compound_subtree:add(pf_header_packet_type, headerrange, packet_type)
+    offset = offset + 1
+
+
+    tree:add(pf_)
+
+
+    local pkt_len = tvbuf:len()
+    local offset = 0
 
     pinfo.cols.protocol = auth_server_proto.name
     local subtree = tree:add(auth_server_proto, buffer(), "Auth Server Protocol Data (Magic: 0x4D51ED)")
-
-    -- Packet Header
-    subtree:add(pf_magic_number, buffer(offset, 3))
-    offset = offset + 3
 
     -- Compound Byte for Header
     if pkt_len < offset + 1 then
