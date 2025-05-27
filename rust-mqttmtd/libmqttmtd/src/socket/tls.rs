@@ -2,14 +2,14 @@
 
 use std::{net::SocketAddr, sync::Arc};
 
-use rustls::{pki_types::ServerName, ClientConfig, ServerConfig};
+use rustls::{ClientConfig, ServerConfig, pki_types::ServerName};
 
 use tokio::{
     net::{TcpStream, ToSocketAddrs},
     task::JoinHandle,
-    time::{timeout, Duration},
+    time::{Duration, timeout},
 };
-use tokio_rustls::{client, server, TlsAcceptor, TlsConnector};
+use tokio_rustls::{TlsAcceptor, TlsConnector, client, server};
 
 use super::{
     error::SocketError,
@@ -42,7 +42,7 @@ impl TlsServer {
     pub fn spawn<F, Fut>(self, handler: F) -> JoinHandle<Result<(), SocketError>>
     where
         F: Fn(server::TlsStream<TcpStream>, SocketAddr) -> Fut + Send + Sync + 'static,
-        Fut: std::future::Future<Output=()> + Send + 'static,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
     {
         let acceptor = self.acceptor.clone();
         let handler = Arc::new(handler);
@@ -132,7 +132,7 @@ mod tests {
     use crate::socket::{plain::ServerType::LOCAL, tls_config::TlsConfigLoader};
     use rcgen::CertifiedKey;
     use std::{
-        fs::{create_dir_all, File},
+        fs::{File, create_dir_all},
         io::{ErrorKind, Write},
         path::Path,
         sync::Once,
@@ -198,7 +198,8 @@ mod tests {
     }
 
     fn create_load_sample_configs(
-        no_client_auth: bool,
+        enable_client_auth: bool,
+        enable_key_log: bool,
         ca_domain: impl Into<String>,
         serv_domain: impl Into<String>,
         cli_domain: impl Into<String>,
@@ -227,7 +228,8 @@ mod tests {
             &server_dir.join("cert.crt"),
             &server_dir.join("key.pem"),
             &ca_dir,
-            no_client_auth,
+            enable_client_auth,
+            enable_key_log,
         );
         assert!(conf_serv.is_ok());
 
@@ -235,7 +237,7 @@ mod tests {
             &clients_dir.join("cert.crt"),
             &clients_dir.join("key.pem"),
             &ca_dir,
-            no_client_auth,
+            enable_client_auth,
         );
         assert!(conf_cli.is_ok());
 
@@ -248,7 +250,7 @@ mod tests {
         const TO_SERVER: Duration = Duration::from_secs(1);
         const TO_CLIENT: Duration = Duration::from_secs(1);
         let (conf_server, conf_client) =
-            create_load_sample_configs(true, DOMAIN_CA, DOMAIN_SERV, DOMAIN_CLI);
+            create_load_sample_configs(true, false, DOMAIN_CA, DOMAIN_SERV, DOMAIN_CLI);
 
         // Spawn server
         let _ = TlsServer::new(PORT, TO_SERVER, LOCAL, conf_server).spawn(|_, _| async {});
@@ -271,13 +273,14 @@ mod tests {
     async fn spawn_serv_zero_duration() {
         const PORT: u16 = 3001;
         const TO_SERVER: Duration = Duration::ZERO;
-        let (conf_server, _) = create_load_sample_configs(true, DOMAIN_CA, DOMAIN_SERV, DOMAIN_CLI);
+        let (conf_server, _) =
+            create_load_sample_configs(true, false, DOMAIN_CA, DOMAIN_SERV, DOMAIN_CLI);
 
         match timeout(
             Duration::from_secs(1),
             TlsServer::new(PORT, TO_SERVER, LOCAL, conf_server).spawn(|_, _| async {}),
         )
-            .await
+        .await
         {
             Ok(Ok(Err(SocketError::InvalidTimeoutError(d)))) => assert_eq!(d, TO_SERVER),
             _ => panic!(),
@@ -290,7 +293,7 @@ mod tests {
         const TO_SERVER: Duration = Duration::from_secs(1);
         const TO_CLIENT: Option<Duration> = None;
         let (conf_server, conf_client) =
-            create_load_sample_configs(true, DOMAIN_CA, DOMAIN_SERV, DOMAIN_CLI);
+            create_load_sample_configs(true, false, DOMAIN_CA, DOMAIN_SERV, DOMAIN_CLI);
 
         // Spawn server
         let _ = TlsServer::new(PORT, TO_SERVER, LOCAL, conf_server).spawn(|_, _| async {});
@@ -304,7 +307,7 @@ mod tests {
             TlsClient::new(format!("localhost:{}", PORT), TO_CLIENT, conf_client)
                 .connect(DOMAIN_SERV),
         )
-            .await
+        .await
         {
             Ok(Ok(_)) => {}
             _ => panic!(),
@@ -315,7 +318,8 @@ mod tests {
     async fn listen_conn_not_listening() {
         const PORT: u16 = 3003;
         const TO_CLIENT: Duration = Duration::from_secs(1);
-        let (_, conf_client) = create_load_sample_configs(true, DOMAIN_CA, DOMAIN_SERV, DOMAIN_CLI);
+        let (_, conf_client) =
+            create_load_sample_configs(true, false, DOMAIN_CA, DOMAIN_SERV, DOMAIN_CLI);
 
         // Try connecting
         assert!(match timeout(
@@ -323,7 +327,7 @@ mod tests {
             TlsClient::new(format!("localhost:{}", PORT), TO_CLIENT, conf_client)
                 .connect(DOMAIN_SERV),
         )
-            .await
+        .await
         {
             Ok(Err(SocketError::ConnectError(e))) => {
                 e.kind() == ErrorKind::ConnectionRefused
@@ -338,7 +342,7 @@ mod tests {
         const TO_SERVER: Duration = Duration::from_secs(1);
         const TO_CLIENT: Duration = Duration::from_secs(1);
         let (conf_server, conf_client) =
-            create_load_sample_configs(true, DOMAIN_CA, DOMAIN_SERV, DOMAIN_CLI);
+            create_load_sample_configs(true, false, DOMAIN_CA, DOMAIN_SERV, DOMAIN_CLI);
 
         // Spawn server
         let _ = TlsServer::new(PORT, TO_SERVER, LOCAL, conf_server).spawn(|_, _| async {});
