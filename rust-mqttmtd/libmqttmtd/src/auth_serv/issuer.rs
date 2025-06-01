@@ -2,8 +2,13 @@ use bytes::{Bytes, BytesMut};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 use super::error::{AuthServerParserError, IssuerRequestValidationError};
-use crate::{aead::algo::SupportedAlgorithm, auth_serv_read, auth_serv_read_check_v2_header, auth_serv_read_into_new_bytes, auth_serv_read_u16, auth_serv_read_u8, auth_serv_write, auth_serv_write_v2_header, auth_serv_write_u16, auth_serv_write_u8, consts::{RANDOM_LEN, TIMESTAMP_LEN}};
-use crate::consts::{PACKET_TYPE_ISSUER_REQUEST, PACKET_TYPE_ISSUER_RESPONSE};
+use crate::{
+    aead::algo::SupportedAlgorithm,
+    auth_serv_read, auth_serv_read_check_v2_header, auth_serv_read_into_new_bytes,
+    auth_serv_read_u16, auth_serv_read_u8, auth_serv_write, auth_serv_write_u16,
+    auth_serv_write_u8, auth_serv_write_v2_header,
+    consts::{PACKET_TYPE_ISSUER_REQUEST, PACKET_TYPE_ISSUER_RESPONSE, RANDOM_LEN, TIMESTAMP_LEN},
+};
 
 /// # Request for Issuer interface
 ///
@@ -292,11 +297,11 @@ mod tests {
         consts::RANDOM_LEN,
     };
 
+    use crate::consts::{PACKET_TYPE_ISSUER_REQUEST, PACKET_TYPE_ISSUER_RESPONSE};
     use bytes::Bytes;
     use std::sync::Arc;
     use tokio::io::AsyncReadExt;
     use tokio_test::io::Builder;
-    use crate::consts::{PACKET_TYPE_ISSUER_REQUEST, PACKET_TYPE_ISSUER_RESPONSE};
 
     #[tokio::test]
     async fn request_response_read_from_invalid_header() {
@@ -324,9 +329,9 @@ mod tests {
         let result = ResponseReader::read_from(
             &mut mock_stream,
             SupportedAlgorithm::Aes128Gcm, // Dummy algo (not used for error)
-            1,        // Dummy num_tokens_divided_dy_4 (not used for error)
+            1,                             // Dummy num_tokens_divided_dy_4 (not used for error)
         )
-            .await;
+        .await;
 
         assert!(result.is_err());
         // Expect an IO error indicating unexpected EOF
@@ -359,8 +364,22 @@ mod tests {
             0x85, // Compound byte: is_pub (1) | num_tokens_divided_dy_4 (5) = 0x85
             0x01, // AEAD Algo: Aes256Gcm (1)
             // Topic len: "test/topic/req" is 14 bytes (u16 BE)
-            0x00, 0x0E, // Topic: "test/topic/req"
-            b't', b'e', b's', b't', b'/', b't', b'o', b'p', b'i', b'c', b'/', b'r', b'e', b'q',
+            0x00,
+            0x0E, // Topic: "test/topic/req"
+            b't',
+            b'e',
+            b's',
+            b't',
+            b'/',
+            b't',
+            b'o',
+            b'p',
+            b'i',
+            b'c',
+            b'/',
+            b'r',
+            b'e',
+            b'q',
         ];
 
         // Mock stream to write to and then read from
@@ -404,7 +423,6 @@ mod tests {
         };
     }
 
-
     #[tokio::test]
     async fn response_write_read_success_roundtrip() {
         let enc_key = Bytes::from_static(&[
@@ -423,19 +441,68 @@ mod tests {
         let expected_bytes = [
             0x20u8 | PACKET_TYPE_ISSUER_RESPONSE,
             0x01, // Status: Success (1)
-            0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22,
+            0x11,
+            0x22,
+            0x33,
+            0x44,
+            0x11,
+            0x22,
+            0x33,
+            0x44,
+            0x11,
+            0x22,
+            0x33,
+            0x44,
+            0x11,
+            0x22,
             0x33,
             0x44, /* enc_key: [0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33,
                    * 0x44, 0x11, 0x22, 0x33, 0x44] */
-            0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE,
+            0xAA,
+            0xBB,
+            0xCC,
+            0xDD,
+            0xEE,
+            0xFF,
+            0xAA,
+            0xBB,
+            0xCC,
+            0xDD,
+            0xEE,
             0xFF, /* nonce_base: [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0xAA, 0xBB, 0xCC, 0xDD,
                    * 0xEE, 0xFF] */
-            0xAA, 0xBB, 0xCC, 0xDD, 0xEE,
+            0xAA,
+            0xBB,
+            0xCC,
+            0xDD,
+            0xEE,
             0xFF, // timestamp: [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]
             // all_randoms: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B,
             // 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18]
-            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E,
-            0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
+            0x01,
+            0x02,
+            0x03,
+            0x04,
+            0x05,
+            0x06,
+            0x07,
+            0x08,
+            0x09,
+            0x0A,
+            0x0B,
+            0x0C,
+            0x0D,
+            0x0E,
+            0x0F,
+            0x10,
+            0x11,
+            0x12,
+            0x13,
+            0x14,
+            0x15,
+            0x16,
+            0x17,
+            0x18,
         ];
 
         let original_resp_writer = ResponseWriter::new(enc_key, nonce_base, timestamp, all_randoms);

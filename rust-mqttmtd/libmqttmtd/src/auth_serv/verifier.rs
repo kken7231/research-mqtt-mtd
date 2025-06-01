@@ -3,11 +3,12 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 use super::error::AuthServerParserError;
 use crate::{
-    aead::algo::SupportedAlgorithm, auth_serv_read, auth_serv_read_check_v2_header,
-    auth_serv_read_into_new_bytes, auth_serv_read_u16, auth_serv_read_u8, auth_serv_write,
-    auth_serv_write_v2_header, auth_serv_write_u16, auth_serv_write_u8, consts::TOKEN_LEN,
+    aead::algo::SupportedAlgorithm,
+    auth_serv_read, auth_serv_read_check_v2_header, auth_serv_read_into_new_bytes,
+    auth_serv_read_u16, auth_serv_read_u8, auth_serv_write, auth_serv_write_u16,
+    auth_serv_write_u8, auth_serv_write_v2_header,
+    consts::{PACKET_TYPE_VERIFIER_REQUEST, PACKET_TYPE_VERIFIER_RESPONSE, TOKEN_LEN},
 };
-use crate::consts::{PACKET_TYPE_VERIFIER_REQUEST, PACKET_TYPE_VERIFIER_RESPONSE};
 
 /// # Request for Verifier interface
 ///
@@ -33,7 +34,8 @@ impl Request {
 
     /// Creates a new [Request].
     /// # Errors
-    /// - `token`.len() == [TOKEN_LEN] ([AuthServerParserError::BufferTooSmallError])
+    /// - `token`.len() == [TOKEN_LEN]
+    ///   ([AuthServerParserError::BufferTooSmallError])
     pub fn new(token: &[u8]) -> Result<Self, AuthServerParserError> {
         if token.len() != TOKEN_LEN {
             return Err(AuthServerParserError::BufferTooSmallError);
@@ -272,11 +274,11 @@ mod tests {
             error::AuthServerParserError,
             verifier::{Request, ResponseReader, ResponseStatus, ResponseWriter},
         },
+        consts::{PACKET_TYPE_VERIFIER_REQUEST, PACKET_TYPE_VERIFIER_RESPONSE},
     };
     use bytes::Bytes;
     use tokio::io::AsyncReadExt;
     use tokio_test::io::Builder;
-    use crate::consts::{PACKET_TYPE_VERIFIER_REQUEST, PACKET_TYPE_VERIFIER_RESPONSE};
 
     #[tokio::test]
     async fn request_write_read_roundtrip() {
@@ -290,7 +292,18 @@ mod tests {
         let expected_bytes = [
             0x20u8 | PACKET_TYPE_VERIFIER_REQUEST,
             // Token
-            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF,
+            0x01,
+            0x02,
+            0x03,
+            0x04,
+            0x05,
+            0x06,
+            0xAA,
+            0xBB,
+            0xCC,
+            0xDD,
+            0xEE,
+            0xFF,
         ];
 
         // Mock stream to write to
@@ -314,7 +327,9 @@ mod tests {
 
     #[tokio::test]
     async fn request_read_from_not_enough_bytes() {
-        let mut mock_stream = Builder::new().read(&[0x20u8 | PACKET_TYPE_VERIFIER_REQUEST, 0x1, 0x2, 0x3]).build(); // Less than TOKEN_LEN bytes
+        let mut mock_stream = Builder::new()
+            .read(&[0x20u8 | PACKET_TYPE_VERIFIER_REQUEST, 0x1, 0x2, 0x3])
+            .build(); // Less than TOKEN_LEN bytes
 
         let result = Request::read_from(&mut mock_stream).await;
 
@@ -391,13 +406,65 @@ mod tests {
             0x20u8 | PACKET_TYPE_VERIFIER_RESPONSE,
             0x01, // Status: Success (1)
             0x82, // Compound byte: allowed_access_is_pub (1) | algo (2) = 0x82
-            0x00, 0x0E, // Topic len: 14 (u16 BE)
-            b'v', b'e', b'r', b'i', b'f', b'i', b'e', b'd', b'/', b't', b'o', b'p', b'i',
+            0x00,
+            0x0E, // Topic len: 14 (u16 BE)
+            b'v',
+            b'e',
+            b'r',
+            b'i',
+            b'f',
+            b'i',
+            b'e',
+            b'd',
+            b'/',
+            b't',
+            b'o',
+            b'p',
+            b'i',
             b'c', // Topic: "verified/topic" (14 bytes)
-            0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
-            0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55,
-            0x66, 0x77, 0x88, 0x99, // Enc Key (32 bytes)
-            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B,
+            0xAA,
+            0xBB,
+            0xCC,
+            0xDD,
+            0xEE,
+            0xFF,
+            0x00,
+            0x11,
+            0x22,
+            0x33,
+            0x44,
+            0x55,
+            0x66,
+            0x77,
+            0x88,
+            0x99,
+            0xAA,
+            0xBB,
+            0xCC,
+            0xDD,
+            0xEE,
+            0xFF,
+            0x00,
+            0x11,
+            0x22,
+            0x33,
+            0x44,
+            0x55,
+            0x66,
+            0x77,
+            0x88,
+            0x99, // Enc Key (32 bytes)
+            0x01,
+            0x02,
+            0x03,
+            0x04,
+            0x05,
+            0x06,
+            0x07,
+            0x08,
+            0x09,
+            0x0A,
+            0x0B,
             0x0C, // Nonce (12 bytes)
         ];
 

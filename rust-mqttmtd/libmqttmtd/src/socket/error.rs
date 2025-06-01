@@ -22,7 +22,10 @@ pub enum SocketError {
     ConnectError(std::io::Error),
 
     /// Indicates a process was timed out.
-    ElapsedError(),
+    ElapsedError,
+
+    /// Indicates an address is invalid.
+    InvalidAddressError(String),
 
     /// Indicates a given timeout duration was invalid (e.g. negative).
     InvalidTimeoutError(std::time::Duration),
@@ -40,8 +43,11 @@ impl std::fmt::Display for SocketError {
             SocketError::ConnectError(e) => {
                 write!(f, "socket failed on client connect: {}", e)
             }
-            SocketError::ElapsedError() => {
+            SocketError::ElapsedError => {
                 write!(f, "operation timed out")
+            }
+            SocketError::InvalidAddressError(str) => {
+                write!(f, "address parse error: {}", str)
             }
             SocketError::InvalidTimeoutError(d) => {
                 write!(f, "invalid timeout of : {:?}", d)

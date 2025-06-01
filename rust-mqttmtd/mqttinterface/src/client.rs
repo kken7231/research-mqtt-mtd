@@ -3,16 +3,17 @@ use bytes::{Buf, BytesMut};
 use mqttbytes::v5::{self, Packet, Publish, Subscribe};
 
 use crate::{
-    publish::{unfreeze_publish, PublishUnfreezeError},
-    subscribe::{
-        freeze_subscribed_publish, unfreeze_subscribe, ClientSubscriptionInfo,
-        SubscribeUnfreezeError, SubscribedPublishFreezeError,
-    },
+    publish::unfreeze_publish,
+    subscribe::{freeze_subscribed_publish, unfreeze_subscribe, ClientSubscriptionInfo},
 };
-use std::{net::SocketAddr, sync::Arc};
+use libmqttmtd::consts::UNIX_SOCK_MQTT_BROKER;
+use libmqttmtd::socket::plain::client::PlainClient;
+use libmqttmtd::socket::plain::stream::PlainStream;
+use std::fmt::write;
+use std::sync::Arc;
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    net::TcpStream,
     sync::RwLock,
 };
 
@@ -21,318 +22,269 @@ const BUF_SIZE: usize = 4096;
 /// Intermediates an external client and an internal broker.
 pub async fn handler(
     broker_port: u16,
-    verifier_port: u16,
-    mut client_stream: TcpStream,
-    addr: SocketAddr,
+    verifier_addr_str: String,
+    enable_unix_sock: bool,
+    client_stream: PlainStream,
+    cli_addr_str: String,
 ) {
-    let broker_addr = format!("localhost:{}", broker_port);
-    let broker_addr = broker_addr.as_str();
+    let verifier_addr = verifier_addr_str.as_str();
+    let cli_addr = cli_addr_str.as_str();
 
-    let client_sub_info: Arc<RwLock<ClientSubscriptionInfo>> =
-        Arc::new(RwLock::new(ClientSubscriptionInfo::new()));
-    let client_sub_info2 = client_sub_info.clone();
+    // Make an address
+    let broker_addr_str: String;
+    let broker_addr = if enable_unix_sock {
+        UNIX_SOCK_MQTT_BROKER
+    } else {
+        broker_addr_str = format!("localhost:{}", broker_port);
+        broker_addr_str.as_str()
+    };
 
     // Connect to the actual MQTT broker
-    let mut broker_stream = match TcpStream::connect(broker_addr).await {
-        Err(e) => {
-            eprintln!(
-                "couldn't make a connection to a broker {}: {}",
-                broker_addr,
-                e
-            );
-            return;
+    let broker_stream = if enable_unix_sock {
+        #[cfg(unix)]
+        PlainClient::new_unix(broker_addr, None).connect().await
+    } else {
+        match PlainClient::new_tcp(broker_addr, None) {
+            Ok(client) => client.connect().await,
+            Err(e) => Err(e),
         }
-        Ok(s) => s,
     };
+    if let Err(e) = broker_stream {
+        eprintln!(
+            "couldn't make a connection to a broker {}: {}",
+            broker_addr, e
+        );
+        return;
+    }
+    let broker_stream = broker_stream.unwrap();
+
     println!("Connected to broker at {}", broker_addr);
 
     // Split the streams for concurrent reading and writing
-    let (mut client_reader, mut client_writer) = client_stream.split();
-    let (mut broker_reader, mut broker_writer) = broker_stream.split();
+    let (mut brk_r, mut brk_w) = broker_stream.split();
+    let (mut cli_r, mut cli_w) = client_stream.split();
 
-    // Buffers for incoming data
-    let mut client_buf = BytesMut::with_capacity(BUF_SIZE);
-    let mut broker_buf = BytesMut::with_capacity(BUF_SIZE);
+    let subinfo_cli2serv = Arc::new(RwLock::new(ClientSubscriptionInfo::new()));
+    let subinfo_serv2cli = subinfo_cli2serv.clone();
 
-    // Task to handle data flow from client to broker
-    let client_to_broker = async move {
-        loop {
-            // Read data from the client
-            if match client_reader.read_buf(&mut client_buf).await {
-                Err(e) => {
-                    eprintln!(
-                        "couldn't read a buffer in connection with a client {}: {}",
-                        addr,
-                        e
-                    );
-                    return;
-                }
-                Ok(s) => s,
-            } == 0
-            {
-                eprintln!("client {} disconnected", addr);
-                break;
-            }
-
-            // Attempt to decode packets from the buffer
-            // mqttbytes::mqtt_bytes returns Result<Option<Packet>, Error>
-            while client_buf.has_remaining() {
-                match v5::read(&mut client_buf, BUF_SIZE) {
-                    Ok(packet) => {
-                        println!("Received packet from {}: {:?}", addr, packet);
-
-                        let mut encoded_packet = BytesMut::new();
-                        if let Err(e) = match packet {
-                            Packet::Connect(connect) => connect.write(&mut encoded_packet),
-                            Packet::ConnAck(connack) => connack.write(&mut encoded_packet),
-                            Packet::Publish(publish) => {
-                                match intercept_cli2serv_publish(publish, addr, verifier_port).await
-                                {
-                                    Ok(Some(unfreezed)) => unfreezed.write(&mut encoded_packet),
-                                    Ok(None) => continue,
-                                    Err(_) => return,
-                                }
-                            }
-                            Packet::PubAck(puback) => puback.write(&mut encoded_packet),
-                            Packet::PubRec(pubrec) => pubrec.write(&mut encoded_packet),
-                            Packet::PubRel(pubrel) => pubrel.write(&mut encoded_packet),
-                            Packet::PubComp(pubcomp) => pubcomp.write(&mut encoded_packet),
-                            Packet::Subscribe(subscribe) => {
-                                match intercept_cli2serv_subscribe(
-                                    &client_sub_info,
-                                    subscribe,
-                                    addr,
-                                    verifier_port,
-                                )
-                                    .await
-                                {
-                                    Ok(Some(unfreezed)) => unfreezed.write(&mut encoded_packet),
-                                    Ok(None) => continue,
-                                    Err(_) => return,
-                                }
-                            }
-                            Packet::SubAck(suback) => suback.write(&mut encoded_packet),
-                            Packet::Unsubscribe(unsub) => unsub.write(&mut encoded_packet),
-                            Packet::UnsubAck(unsuback) => unsuback.write(&mut encoded_packet),
-                            Packet::PingReq => v5::PingReq {}.write(&mut encoded_packet),
-                            Packet::PingResp => v5::PingResp {}.write(&mut encoded_packet),
-                            Packet::Disconnect(disconnect) => disconnect.write(&mut encoded_packet),
-                        } {
-                            eprintln!(
-                                "couldn't write a packet to a buffer for Broker {}: {}",
-                                broker_addr,
-                                e
-                            );
-                            return;
-                        }
-
-                        // Write the encoded packet to the broker
-                        match broker_writer.write_all(&encoded_packet).await {
-                            Err(e) => {
-                                eprintln!(
-                                    "couldn't read a buffer in connection with a client {}: {}",
-                                    addr,
-                                    e
-                                );
-                                return;
-                            }
-                            Ok(s) => s,
-                        }
-                        println!("Forwarded packet to broker.");
+    let client_to_broker = new_mediator(
+        &mut cli_r,
+        cli_addr,
+        &mut brk_w,
+        "Broker",
+        move |publish| async move {
+            println!("Intercepted PUBLISH packet from {}.", cli_addr);
+            let unfrozen = unfreeze_publish(verifier_addr, enable_unix_sock, publish).await;
+            match &unfrozen {
+                Ok(Some(_)) => println!(
+                    "verification succeeded on PUBLISH packet from {}.",
+                    cli_addr
+                ),
+                Ok(_) => eprintln!("verification failed on PUBLISH packet from {}.", cli_addr),
+                Err(e) => eprintln!(
+                    "error on unfreezing PUBLISH packet from {}: {}",
+                    cli_addr, e
+                ),
+            };
+            unfrozen
+        },
+        move |subscribe| {
+            let info_cloned = subinfo_cli2serv.clone();
+            async move {
+                println!("Intercepted SUBSCRIBE packet from {}.", cli_addr);
+                let unfrozen =
+                    unfreeze_subscribe(&info_cloned, verifier_addr, enable_unix_sock, subscribe)
+                        .await;
+                match &unfrozen {
+                    Ok(Some(_)) => println!(
+                        "verification succeeded on SUBSCRIBE packet from {}.",
+                        cli_addr
+                    ),
+                    Ok(_) => {
+                        eprintln!("verification failed on SUBSCRIBE packet from {}.", cli_addr)
                     }
-                    Err(e) => {
-                        // Decoding error
-                        eprintln!("Decoding error from {}: {}", addr, e);
-                        return;
-                    }
-                }
+                    Err(e) => eprintln!(
+                        "error on unfreezing SUBSCRIBE packet from {}: {}",
+                        cli_addr, e
+                    ),
+                };
+                unfrozen
             }
-        }
-    };
+        },
+    );
 
-    // Task to handle data flow from broker to client (e.g., CONNACK, SUBACK, etc.)
-    let broker_to_client = async move {
-        loop {
-            // Read data from the client
-            if match broker_reader.read_buf(&mut broker_buf).await {
-                Err(e) => {
-                    eprintln!(
-                        "couldn't read a buffer in connection with Broker {}: {}",
-                        broker_addr,
-                        e
-                    );
-                    return;
-                }
-                Ok(s) => s,
-            } == 0
-            {
-                eprintln!("broker {} disconnected", addr);
-                break;
-            }
-
-            // Attempt to decode packets from the buffer
-            while broker_buf.has_remaining() {
-                match v5::read(&mut broker_buf, BUF_SIZE) {
-                    Ok(packet) => {
-                        println!(
-                            "Received packet from Broker {}: {:?}",
-                            broker_addr,
-                            packet
-                        );
-
-                        let mut encoded_packet = BytesMut::new();
-                        if let Err(e) = match packet {
-                            Packet::ConnAck(connack) => connack.write(&mut encoded_packet),
-                            Packet::Publish(publish) => {
-                                match intercept_serv2cli_publish(&client_sub_info2, publish, addr)
-                                    .await
-                                {
-                                    Ok(Some(freezed)) => freezed.write(&mut encoded_packet),
-                                    Ok(None) => continue,
-                                    Err(_) => return,
-                                }
-                            }
-                            Packet::PubAck(puback) => puback.write(&mut encoded_packet),
-                            Packet::PubRec(pubrec) => pubrec.write(&mut encoded_packet),
-                            Packet::PubRel(pubrel) => pubrel.write(&mut encoded_packet),
-                            Packet::PubComp(pubcomp) => pubcomp.write(&mut encoded_packet),
-                            Packet::SubAck(suback) => suback.write(&mut encoded_packet),
-                            Packet::UnsubAck(unsuback) => unsuback.write(&mut encoded_packet),
-                            Packet::PingReq => v5::PingReq {}.write(&mut encoded_packet),
-                            Packet::PingResp => v5::PingResp {}.write(&mut encoded_packet),
-                            Packet::Disconnect(disconnect) => disconnect.write(&mut encoded_packet),
-                            other => {
-                                println!(
-                                    "received outgoing {:?}, but it's blocked",
-                                    other
-                                );
-                                continue;
-                            }
-                        } {
-                            eprintln!(
-                                "couldn't write a packet to a buffer for Client {}: {}",
-                                broker_addr,
-                                e
-                            );
-                            return;
-                        }
-
-                        // Write the encoded packet to the broker
-                        match client_writer.write_all(&encoded_packet).await {
-                            Err(e) => {
-                                eprintln!(
-                                    "couldn't read a buffer in connection with Broker {}: {}",
-                                    broker_addr,
-                                    e
-                                );
-                                return;
-                            }
-                            Ok(s) => s,
-                        }
-                        println!("Forwarded packet to client.");
+    let broker_to_client = new_mediator(
+        &mut brk_r,
+        "Broker",
+        &mut cli_w,
+        cli_addr,
+        move |publish| {
+            let info_cloned = subinfo_serv2cli.clone();
+            async move {
+                println!("Intercepted SUBSCRIBE packet to {}", cli_addr);
+                let frozen = freeze_subscribed_publish(&info_cloned, publish).await;
+                match &frozen {
+                    Ok(Some(_)) => {
+                        println!("PUBLISH packet to client {} successfully encoded", cli_addr)
                     }
-                    Err(e) => {
-                        // Decoding error
-                        eprintln!("Decoding error from {}: {}", addr, e);
-                        return;
-                    }
-                }
+                    Ok(_) => eprintln!("PUBLISH packet to client {} failed to encode", cli_addr),
+                    Err(e) => eprintln!(
+                        "error on freezing subscription PUBLISH packet to {}: {}",
+                        cli_addr, e
+                    ),
+                };
+                frozen
             }
-        }
-    };
+        },
+        |_| async {
+            // Just ignore
+            eprintln!(
+                "broker subscription to client {} is not yet implemented",
+                cli_addr
+            );
+            let res: Result<Option<Subscribe>, std::io::Error> = Ok(None);
+            res
+        },
+    );
 
     // Run both tasks concurrently and wait for one to finish (which implies the
     // connection is closing)
     tokio::select! {
-        _ = client_to_broker => (),
-        _ = broker_to_client => (),
+        Err(e) = client_to_broker => eprintln!("[client->broker] Error observed: {}", e),
+        Err(e) = broker_to_client => eprintln!("[broker->client] Error observed: {}", e),
     }
 }
 
-async fn intercept_cli2serv_publish(
-    publish: Publish,
-    from_addr: SocketAddr,
-    verifier_port: u16,
-) -> Result<Option<Publish>, PublishUnfreezeError> {
-    println!("Intercepted PUBLISH packet from {}.", from_addr);
-    match unfreeze_publish(verifier_port, publish).await {
-        Ok(Some(modified)) => {
-            println!(
-                "verification succeeded on PUBLISH packet from {}.",
-                from_addr
-            );
-            Ok(Some(modified))
-        }
-        Ok(_) => {
-            eprintln!("verification failed on PUBLISH packet from {}.", from_addr);
-            Ok(None)
-        }
-        Err(e) => {
-            eprintln!(
-                "error on unfreezing PUBLISH packet from {}: {}",
-                from_addr,
-                e
-            );
-            Err(e)
+enum MediatorError {
+    /// Wraps a [std::io::Error] on socket -> buf.
+    BufferReadError(std::io::Error),
+
+    /// Wraps a [mqttbytes::Error] on buf -> packet.
+    PacketReadError(mqttbytes::Error),
+
+    /// Wraps a [mqttbytes::Error] on packet -> buf.
+    PacketWriteError(mqttbytes::Error),
+
+    /// Wraps a [std::io::Error] on buf -> socket.
+    BufferWriteError(std::io::Error),
+
+    OnPublishUnexpectedError(String),
+    OnSubscribeUnexpectedError(String),
+    DestinationDisconnectError,
+}
+
+impl std::fmt::Display for MediatorError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MediatorError::BufferReadError(e) => write!(f, "Error reading from socket: {}", e),
+            MediatorError::PacketReadError(e) => {
+                write!(f, "Error reading from buffer into a packet: {}", e)
+            }
+            MediatorError::PacketWriteError(e) => {
+                write!(f, "Error writing a packet into a buffer: {}", e)
+            }
+            MediatorError::BufferWriteError(e) => write!(f, "Error writing to socket: {}", e),
+            MediatorError::OnPublishUnexpectedError(e) => {
+                write!(f, "Unexpected error on on_publish: {}", e)
+            }
+            MediatorError::OnSubscribeUnexpectedError(e) => {
+                write!(f, "Unexpected error on on_subscribe: {}", e)
+            }
+            MediatorError::DestinationDisconnectError => {
+                write(f, format_args!("Destination disconnected"))
+            }
         }
     }
 }
+fn new_mediator<S, D, EP, FutP, FP, ES, FutS, FS>(
+    mut src: S,
+    src_name: &str,
+    mut dest: D,
+    dest_name: &str,
+    on_publish: FP,
+    on_subscribe: FS,
+) -> impl Future<Output = Result<(), MediatorError>>
+where
+    S: AsyncRead + Unpin,
+    D: AsyncWrite + Unpin,
+    EP: std::error::Error,
+    FutP: Future<Output = Result<Option<Publish>, EP>>,
+    FP: Fn(Publish) -> FutP,
+    ES: std::error::Error,
+    FutS: Future<Output = Result<Option<Subscribe>, ES>>,
+    FS: Fn(Subscribe) -> FutS,
+{
+    async move {
+        let mut buf = BytesMut::with_capacity(BUF_SIZE);
+        loop {
+            // Read data from the source
+            match src.read_buf(&mut buf).await {
+                Err(e) => return Err(MediatorError::BufferReadError(e)),
+                Ok(s) if s == 0 => return Err(MediatorError::DestinationDisconnectError),
+                _ => (),
+            };
 
-async fn intercept_cli2serv_subscribe(
-    subscription_info: &Arc<RwLock<ClientSubscriptionInfo>>,
-    subscribe: Subscribe,
-    from_addr: SocketAddr,
-    verifier_port: u16,
-) -> Result<Option<Subscribe>, SubscribeUnfreezeError> {
-    println!("Intercepted SUBSCRIBE packet from {}.", from_addr);
-    match unfreeze_subscribe(subscription_info, verifier_port, subscribe).await {
-        Ok(Some(unfreezed)) => {
-            println!(
-                "verification succeeded on SUBSCRIBE packet from {}.",
-                from_addr
-            );
-            Ok(Some(unfreezed))
-        }
-        Ok(_) => {
-            eprintln!(
-                "verification failed on SUBSCRIBE packet from {}.",
-                from_addr
-            );
-            Ok(None)
-        }
-        Err(e) => {
-            eprintln!(
-                "error on unfreezing SUBSCRIBE packet from {}: {}",
-                from_addr,
-                e
-            );
-            Err(e)
-        }
-    }
-}
+            // Attempt to decode packets from the buffer
+            while buf.has_remaining() {
+                // Read packet
+                let packet =
+                    v5::read(&mut buf, BUF_SIZE).map_err(|e| MediatorError::PacketReadError(e))?;
+                println!(
+                    "({}=>{}) Packet received: {:?}",
+                    src_name, dest_name, packet
+                );
 
-async fn intercept_serv2cli_publish(
-    subscription_info: &Arc<RwLock<ClientSubscriptionInfo>>,
-    publish: Publish,
-    cli_addr: SocketAddr,
-) -> Result<Option<Publish>, SubscribedPublishFreezeError> {
-    println!("Intercepted SUBSCRIBE packet to {}", cli_addr);
-    match freeze_subscribed_publish(subscription_info, publish).await {
-        Ok(Some(freezed)) => {
-            println!("PUBLISH packet to client {} successfully encoded", cli_addr);
-            Ok(Some(freezed))
-        }
-        Ok(_) => {
-            println!("PUBLISH packet to client {} failed to encode", cli_addr);
-            Ok(None)
-        }
-        Err(e) => {
-            println!(
-                "error on freezing subscription PUBLISH packet to {}: {}",
-                cli_addr,
-                e
-            );
-            Err(e)
+                // Buf that to be sent out
+                let mut encoded_packet = BytesMut::new();
+
+                match packet {
+                    Packet::Connect(connect) => connect.write(&mut encoded_packet),
+                    Packet::ConnAck(connack) => connack.write(&mut encoded_packet),
+                    Packet::Publish(publish) => match on_publish(publish).await {
+                        Ok(Some(processed)) => processed.write(&mut encoded_packet),
+                        Ok(None) => {
+                            println!(
+                                "({}=>{}) on_publish failed (expected cause).",
+                                src_name, dest_name
+                            );
+                            continue;
+                        }
+                        Err(e) => {
+                            return Err(MediatorError::OnPublishUnexpectedError(e.to_string()));
+                        }
+                    },
+                    Packet::PubAck(puback) => puback.write(&mut encoded_packet),
+                    Packet::PubRec(pubrec) => pubrec.write(&mut encoded_packet),
+                    Packet::PubRel(pubrel) => pubrel.write(&mut encoded_packet),
+                    Packet::PubComp(pubcomp) => pubcomp.write(&mut encoded_packet),
+                    Packet::Subscribe(subscribe) => match on_subscribe(subscribe).await {
+                        Ok(Some(processed)) => processed.write(&mut encoded_packet),
+                        Ok(None) => {
+                            println!(
+                                "({}=>{}) on_subscribe failed (expected cause).",
+                                src_name, dest_name
+                            );
+                            continue;
+                        }
+                        Err(e) => {
+                            return Err(MediatorError::OnSubscribeUnexpectedError(e.to_string()));
+                        }
+                    },
+                    Packet::SubAck(suback) => suback.write(&mut encoded_packet),
+                    Packet::Unsubscribe(unsub) => unsub.write(&mut encoded_packet),
+                    Packet::UnsubAck(unsuback) => unsuback.write(&mut encoded_packet),
+                    Packet::PingReq => v5::PingReq {}.write(&mut encoded_packet),
+                    Packet::PingResp => v5::PingResp {}.write(&mut encoded_packet),
+                    Packet::Disconnect(disconnect) => disconnect.write(&mut encoded_packet),
+                }
+                .map_err(|e| MediatorError::PacketWriteError(e))?;
+
+                // Write the encoded packet to the broker
+                dest.write_all(&encoded_packet)
+                    .await
+                    .map_err(|e| MediatorError::BufferWriteError(e))?;
+                println!("({}=>{}) Packet forwarded.", src_name, dest_name);
+            }
         }
     }
 }

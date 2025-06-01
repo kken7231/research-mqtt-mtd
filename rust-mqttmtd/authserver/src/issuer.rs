@@ -1,13 +1,15 @@
 //! Issuer interface of auth server.
 
-use std::{net::SocketAddr, sync::Arc};
-use std::time::Duration;
-use crate::{acl::AccessControlList, atl::AccessTokenList, issuer_eprintln, issuer_println};
+use crate::{
+    acl::AccessControlList,
+    atl::{AccessTokenList, TokenSet},
+    issuer_eprintln, issuer_println,
+};
 use libmqttmtd::auth_serv::issuer;
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_rustls::server::TlsStream;
 use x509_parser::{extensions::GeneralName, nom::AsBytes, parse_x509_certificate};
-use crate::atl::TokenSet;
 
 macro_rules! send_issuer_err_resp_if_err {
     ($result:expr, $err_str:expr, $stream:expr, $addr:expr) => {

@@ -3,5 +3,5 @@
 
 pub mod error;
 pub mod issuer;
-pub mod verifier;
 pub mod macros;
+pub mod verifier;

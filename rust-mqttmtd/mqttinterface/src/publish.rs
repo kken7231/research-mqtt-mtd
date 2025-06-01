@@ -2,17 +2,18 @@ use std::fmt::Display;
 
 use base64::{engine::general_purpose, Engine};
 use bytes::BytesMut;
+use libmqttmtd::socket::plain::client::PlainClient;
 use libmqttmtd::{
     aead::{self},
     auth_serv::verifier,
-    socket::plain::PlainClient,
 };
 use mqttbytes::v5::Publish;
 
 /// Decrypts publish packet from clients, replaces token and passes it down to
 /// Broker.
 pub async fn unfreeze_publish(
-    verifier_port: u16,
+    verifier_addr: &str,
+    enable_unix_sock: bool,
     mut publish: Publish,
 ) -> Result<Option<Publish>, PublishUnfreezeError> {
     // topic
@@ -26,10 +27,23 @@ pub async fn unfreeze_publish(
     {
         let req = verifier::Request::new(&decoded)
             .map_err(|e| PublishUnfreezeError::VerifierRequestCreateError(e))?;
-        let mut stream = PlainClient::new(format!("localhost:{}", verifier_port), None)
-            .connect()
-            .await
-            .map_err(|e| PublishUnfreezeError::VerifierConnectError(e))?;
+
+        // Establish socket
+        let mut stream = if enable_unix_sock {
+            #[cfg(unix)]
+            PlainClient::new_unix(verifier_addr, None)
+                .connect()
+                .await
+                .map_err(|e| PublishUnfreezeError::VerifierConnectError(e))?
+        } else {
+            PlainClient::new_tcp(verifier_addr, None)
+                .map_err(|e| PublishUnfreezeError::VerifierConnectError(e))?
+                .connect()
+                .await
+                .map_err(|e| PublishUnfreezeError::VerifierConnectError(e))?
+        };
+
+        // Send req and receive resp
         let _ = req
             .write_to(&mut stream)
             .await
@@ -54,7 +68,7 @@ pub async fn unfreeze_publish(
             &response.nonce,
             &mut in_out[..],
         )
-            .map_err(|e| PublishUnfreezeError::PayloadOpenError(e))?;
+        .map_err(|e| PublishUnfreezeError::PayloadOpenError(e))?;
         let tag_len = response.algo.tag_len();
         in_out.truncate(in_out.len() - tag_len);
         publish.payload = in_out.freeze();

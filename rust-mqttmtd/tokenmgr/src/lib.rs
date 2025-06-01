@@ -7,13 +7,14 @@ use tokio::net::ToSocketAddrs;
 pub mod errors;
 pub mod tokenset;
 
-pub async fn fetch_tokens<A: ToSocketAddrs + Send + 'static>(
-    issuer_addr: A,
+pub async fn fetch_tokens(
+    issuer_addr: &str,
     tls_config: Arc<rustls::ClientConfig>,
     request: &issuer::Request,
 ) -> Result<issuer::ResponseReader, TokenFetchError> {
     // Connect to the issuer
     let mut issuer_stream = TlsClient::new(issuer_addr, None, tls_config)
+        .map_err(|e| TokenFetchError::IssuerConnectError(e))?
         .connect("server")
         .await
         .map_err(|e| TokenFetchError::IssuerConnectError(e))?;
@@ -30,8 +31,8 @@ pub async fn fetch_tokens<A: ToSocketAddrs + Send + 'static>(
         request.algo(),
         request.num_tokens_divided_by_4(),
     )
-        .await
-        .map_err(|e| TokenFetchError::SocketReadError(e))?
+    .await
+    .map_err(|e| TokenFetchError::SocketReadError(e))?
     {
         Ok(success_response)
     } else {

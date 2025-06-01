@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, Data, DeriveInput, Fields};
+use syn::{parse_macro_input, Data, DeriveInput, Fields, TypePath};
 
 #[proc_macro_derive(ToStringLines)]
 pub fn to_string_lines_derive(input: TokenStream) -> TokenStream {
@@ -42,7 +42,8 @@ pub fn to_string_lines_derive(input: TokenStream) -> TokenStream {
             .expect("Named fields should have an identifier");
         let field_name_str = field_name_ident.to_string(); // "field_name"
 
-        // Generates: map.insert("field_name".to_string(), format!("{:?}", self.field_name));
+        // Generates: map.insert("field_name".to_string(), format!("{:?}",
+        // self.field_name));
         quote! {
             map.insert(#field_name_str.to_string(), format!("{:?}", self.#field_name_ident));
         }

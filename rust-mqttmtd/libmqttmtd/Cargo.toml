@@ -9,8 +9,9 @@ ring = { workspace = true }
 tokio = { workspace = true, features = ["io-std"] }
 tokio-rustls = { workspace = true }
 rustls = { workspace = true }
+libmqttmtd_macros = { path = "../libmqttmtd_macros" }
 
-rcgen = { version = "0.13.2", default-features = false, features = ["ring", "pem"] }
+rcgen = { version = "0.13.2", default-features = false, features = ["pem", "ring"] }
 
 
 [dev-dependencies]

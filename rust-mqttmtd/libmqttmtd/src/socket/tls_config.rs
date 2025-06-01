@@ -1,7 +1,11 @@
 //! Defines loader for TLS sockets.
 
 use super::error::LoadTLSConfigError;
-use rustls::{pki_types::{pem::PemObject, CertificateDer, PrivateKeyDer}, server::WebPkiClientVerifier, KeyLogFile, RootCertStore};
+use rustls::{
+    KeyLogFile, RootCertStore,
+    pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject},
+    server::WebPkiClientVerifier,
+};
 use std::{ffi::OsStr, fs, path::Path, sync::Arc};
 
 pub struct TlsConfigLoader {}
@@ -53,7 +57,7 @@ impl TlsConfigLoader {
         let config = rustls::ServerConfig::builder_with_provider(
             rustls::crypto::ring::default_provider().into(),
         )
-            .with_protocol_versions(&[&rustls::version::TLS13])?;
+        .with_protocol_versions(&[&rustls::version::TLS13])?;
 
         let config = if enable_client_auth {
             let cli_cert_verfier = WebPkiClientVerifier::builder(ca_roots).build()?;
@@ -68,7 +72,10 @@ impl TlsConfigLoader {
 
         if enable_key_log {
             config.key_log = Arc::new(KeyLogFile::new());
-            println!("Key log enabled: SSLKEYLOGFILE: {:?}", std::env::var("SSLKEYLOGFILE"));
+            println!(
+                "Key log enabled: SSLKEYLOGFILE: {:?}",
+                std::env::var("SSLKEYLOGFILE")
+            );
         }
 
         Ok(config.into())
@@ -94,8 +101,8 @@ impl TlsConfigLoader {
         let config = rustls::ClientConfig::builder_with_provider(
             rustls::crypto::ring::default_provider().into(),
         )
-            .with_protocol_versions(&[&rustls::version::TLS13])?
-            .with_root_certificates(ca_roots);
+        .with_protocol_versions(&[&rustls::version::TLS13])?
+        .with_root_certificates(ca_roots);
 
         let config = if !no_client_auth {
             config.with_client_auth_cert(vec![cli_cert], key)?
@@ -109,10 +116,10 @@ impl TlsConfigLoader {
 
 #[cfg(test)]
 mod tests {
-    use rcgen::{generate_simple_self_signed, CertifiedKey};
+    use rcgen::{CertifiedKey, generate_simple_self_signed};
     use rustls::crypto::CryptoProvider;
     use std::{
-        fs::{create_dir_all, File},
+        fs::{File, create_dir_all},
         io::Write,
     };
     use tempfile::tempdir;

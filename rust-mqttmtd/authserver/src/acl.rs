@@ -12,7 +12,8 @@ pub(crate) enum AccessType {
     PubSub,
 }
 
-/// Access Control List. Manages the scope of Publish/Subscribe access per topic per user.
+/// Access Control List. Manages the scope of Publish/Subscribe access per topic
+/// per user.
 #[derive(Debug)]
 pub(crate) struct AccessControlList {
     /// {Hostname: {Topic: AccessType}}

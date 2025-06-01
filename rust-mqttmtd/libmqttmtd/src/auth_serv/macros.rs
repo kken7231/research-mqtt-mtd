@@ -81,12 +81,8 @@ macro_rules! auth_serv_read_check_v2_header {
             // v if ((v & crate::consts::MAGIC_NUM_MASK) == crate::consts::MAGIC_NUM)
             //     && ((v >> 4) & 0xF == 2)
             //     && (((v & 0xF) as u8) == $packet_type) =>
-            v if ((v >> 4) & 0xF == 2) && (((v & 0xF) as u8) == $packet_type) =>
-            {
-                (
-                    ((v >> 4) & 0xF) as u8,
-                    (v & 0xF) as u8,
-                )
+            v if ((v >> 4) & 0xF == 2) && (((v & 0xF) as u8) == $packet_type) => {
+                (((v >> 4) & 0xF) as u8, (v & 0xF) as u8)
             }
             other => return Err(AuthServerParserError::InvalidHeaderError(other)),
         }

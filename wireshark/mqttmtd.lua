@@ -28,6 +28,7 @@ local aead_algo_vals = {
 }
 
 -- Common Header Fields
+local MQTTMTD_HDR_LEN = 1
 local abbr_hdr = "mqttmtd.header."
 local pf_hdr_compound = ProtoField.uint8(abbr_hdr .. "compound"       , "Header compound byte", base.HEX)
 local pf_hdr_version  = ProtoField.uint8(abbr_hdr .. "mqttmtd_version", "MQTT-MTD version"    , base.DEC)
@@ -41,9 +42,11 @@ local pf_hdr_packet_type = ProtoField.uint8(abbr_hdr .. "packet_type", "Packet T
 
 -- Issuer Request Fields
 local abbr_is_req = "mqttmtd.issuer.request."
-local pf_is_req_compound        = ProtoField.uint8 (abbr_is_req .. "compound"       , "Issuer request compound byte"  , base.HEX)
-local pf_is_req_is_pub          = ProtoField.bool  (abbr_is_req .. "is_pub"         , "Request for Pub Tokens"        , 8, { "Request for Sub tokens", "Requests for Pub tokens" }, 0x80)                                                                                                          -- Mask for bit 7
-local pf_is_req_num_tokens_div4 = ProtoField.uint8 (abbr_is_req .. "num_tokens_div4", "Requested number of tokens / 4", base.DEC, nil, 0x7F)                                                                                                                   -- Mask for bits 6-0
+local pf_is_req_compound        = ProtoField.uint8 (abbr_is_req .. "compound"       , "Issuer request compound byte", base.HEX)
+local pf_is_req_is_pub_vals     = {"Request for Sub tokens", "Requests for Pub tokens"}
+local pf_is_req_is_pub          = ProtoField.bool  (abbr_is_req .. "is_pub"         , "Request for Pub Tokens", 8, pf_is_req_is_pub_vals, 0x80)
+local pf_is_req_num_tokens_div4 = ProtoField.uint8 (abbr_is_req .. "num_tokens_div4", "Requested number of tokens / 4", base.DEC, nil, 0x7F)
+local pf_is_req_aead_algo       = ProtoField.uint8 (abbr_is_req .. "aead_algo"      , "AEAD algorithm", base.HEX, aead_algo_vals)
 local pf_is_req_topic_len       = ProtoField.uint16(abbr_is_req .. "topic_len"      , "Topic length", base.DEC)
 local pf_is_req_topic           = ProtoField.string(abbr_is_req .. "topic"          , "Topic", base.UNICODE)
 
@@ -72,7 +75,7 @@ local pf_ve_resp_status_vals = {
 }
 local pf_ve_resp_status    = ProtoField.uint8 (abbr_ve_resp .. "status"   , "Status", base.HEX, pf_ve_resp_status_vals)
 local pf_ve_resp_compound  = ProtoField.uint8 (abbr_ve_resp .. "compound" , "Verifier response compound byte", base.HEX)
-local pf_ve_resp_is_pub    = ProtoField.bool  (abbr_ve_resp .. "is_pub"   , "Allowed access type", 8, { "Sub verified", "Pub verified" }, 0x80)                                                                                                             -- Mask for bit 7
+local pf_ve_resp_is_pub    = ProtoField.bool  (abbr_ve_resp .. "is_pub"   , "Allowed access type", 8, { "Sub verified", "Pub verified" }, 0x80)
 local pf_ve_resp_aead_algo = ProtoField.uint8 (abbr_ve_resp .. "aead_algo", "AEAD algorithm", base.HEX, aead_algo_vals, 0x7F)
 local pf_ve_resp_topic_len = ProtoField.uint16(abbr_ve_resp .. "topic_len", "Topic length", base.DEC)
 local pf_ve_resp_topic     = ProtoField.string(abbr_ve_resp .. "topic"    , "Topic", base.UNICODE)
@@ -84,26 +87,29 @@ auth_server_proto.fields = {
     pf_hdr_compound,
     pf_hdr_version,
     pf_hdr_packet_type,
+
     pf_is_req_compound,
     pf_is_req_is_pub,
     pf_is_req_num_tokens_div4,
+    pf_is_req_aead_algo,
     pf_is_req_topic_len,
     pf_is_req_topic,
+
     pf_is_resp_status,
-    pf_is_resp_key,
+    pf_is_resp_enc_key,
     pf_is_resp_nonce_base,
     pf_is_resp_timestamp,
     pf_is_resp_all_randoms,
-    pf_is_resp_info_source,
-    pf_is_resp_undissected_payload,
+
     pf_ve_req_token,
+
     pf_ve_resp_status,
     pf_ve_resp_compound,
     pf_ve_resp_is_pub,
     pf_ve_resp_aead_algo,
     pf_ve_resp_topic_len,
     pf_ve_resp_topic,
-    pf_ve_resp_key,
+    pf_ve_resp_enc_key,
     pf_ve_resp_nonce
 }
 
@@ -119,7 +125,6 @@ local function get_aead_key_length(aead_id)
     return nil                         -- Unknown or invalid AEAD ID
 end
 
-local MQTTMTD_HDR_LEN = 1
 
 local ef_too_short = ProtoExpert.new("mqttmtd.too_short.expert", "MQTT-MTD packet too short",
                                      expert.group.MALFORMED, expert.severity.ERROR)
@@ -127,7 +132,7 @@ local ef_too_short = ProtoExpert.new("mqttmtd.too_short.expert", "MQTT-MTD packe
 -- 3. Main Dissector Function
 function mqttmtd.dissector(tvbuf, pktinfo, root)
     -- set the protocol column
-    pktinfo.cols.protocol:set("MQTT-MTD")
+    pktinfo.cols.protocol = mqttmtd_proto.name
 
     local pktlen = tvbuf:report_length_remaining()
     local offset = 0
