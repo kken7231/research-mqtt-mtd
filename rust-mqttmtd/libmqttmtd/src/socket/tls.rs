@@ -3,17 +3,14 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use super::error::SocketError;
-use crate::socket::plain::client::PlainClient;
-use crate::socket::plain::server::PlainServer;
-use crate::socket::plain::stream::{PlainStream, PlainStreamAddress};
-use crate::socket::plain::tcp::TcpServerType;
-use rustls::pki_types::ServerName;
-use rustls::{ClientConfig, ServerConfig};
-use tokio::{
-    net::{TcpStream, ToSocketAddrs},
-    task::JoinHandle,
-    time::{timeout, Duration},
+use crate::socket::plain::{
+    client::PlainClient,
+    server::PlainServer,
+    stream::{PlainStream, PlainStreamAddress},
+    tcp::TcpServerType,
 };
+use rustls::{pki_types::ServerName, ClientConfig, ServerConfig};
+use tokio::{net::TcpStream, task::JoinHandle, time::Duration};
 use tokio_rustls::{client, server, TlsAcceptor, TlsConnector};
 
 macro_rules! srv_println {
@@ -52,7 +49,7 @@ impl TlsServer {
     pub fn spawn<F, Fut>(self, handler: F) -> JoinHandle<Result<(), SocketError>>
     where
         F: Fn(server::TlsStream<TcpStream>, SocketAddr) -> Fut + Send + Sync + 'static,
-        Fut: std::future::Future<Output = ()> + Send + 'static,
+        Fut: std::future::Future<Output=()> + Send + 'static,
     {
         let acceptor = self.acceptor.clone();
         let handler = Arc::new(handler);
@@ -142,19 +139,17 @@ impl TlsClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::socket::plain::tcp::TcpServerType::LOCAL;
-    use crate::socket::tls_config::TlsConfigLoader;
+    use crate::socket::{plain::tcp::TcpServerType::LOCAL, tls_config::TlsConfigLoader};
     use rcgen::CertifiedKey;
-    use std::sync::LazyLock;
     use std::{
         fs::{create_dir_all, File},
         io::{ErrorKind, Write},
         path::Path,
-        sync::Once,
+        sync::{LazyLock, Once},
         time::Duration,
     };
     use tempfile::tempdir;
-    use tokio::sync::RwLock;
+    use tokio::{sync::RwLock, time::timeout};
 
     static UNUSED_PORT: LazyLock<RwLock<u16>> = LazyLock::new(|| RwLock::new(3100));
 
@@ -285,7 +280,11 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         // Spawn client and connect
-        let cli_sock = TlsClient::new(format!("localhost:{}", port).as_str(), TO_CLIENT, conf_client)
+        let cli_sock = TlsClient::new(
+            format!("localhost:{}", port).as_str(),
+            TO_CLIENT,
+            conf_client,
+        )
             .unwrap()
             .connect(DOMAIN_SERV)
             .await;
@@ -311,7 +310,7 @@ mod tests {
                 .unwrap()
                 .spawn(|_, _| async {}),
         )
-        .await
+            .await
         {
             Ok(Ok(Err(SocketError::InvalidTimeoutError(d)))) => assert_eq!(d, TO_SERVER),
             _ => panic!(),
@@ -339,11 +338,15 @@ mod tests {
         // Spawn client
         match timeout(
             Duration::from_secs(1),
-            TlsClient::new(format!("localhost:{}", port).as_str(), TO_CLIENT, conf_client)
+            TlsClient::new(
+                format!("localhost:{}", port).as_str(),
+                TO_CLIENT,
+                conf_client,
+            )
                 .unwrap()
                 .connect(DOMAIN_SERV),
         )
-        .await
+            .await
         {
             Ok(Ok(_)) => {}
             _ => panic!(),
@@ -362,11 +365,15 @@ mod tests {
         // Try connecting
         assert!(match timeout(
             Duration::from_secs(2),
-            TlsClient::new(format!("localhost:{}", port).as_str(), TO_CLIENT, conf_client)
+            TlsClient::new(
+                format!("localhost:{}", port).as_str(),
+                TO_CLIENT,
+                conf_client
+            )
                 .unwrap()
                 .connect(DOMAIN_SERV),
         )
-        .await
+            .await
         {
             Ok(Err(SocketError::ConnectError(e))) => {
                 e.kind() == ErrorKind::ConnectionRefused
@@ -393,15 +400,17 @@ mod tests {
         tokio::time::sleep(TO_SERVER + Duration::from_secs(1)).await;
 
         // Spawn client and connect
-        assert!(
-            match TlsClient::new(format!("localhost:{}", port).as_str(), TO_CLIENT, conf_client)
-                .unwrap()
-                .connect(DOMAIN_SERV)
-                .await
-            {
-                Err(SocketError::ConnectError(e)) => e.kind() == ErrorKind::ConnectionRefused,
-                _ => false,
-            }
-        );
+        assert!(match TlsClient::new(
+            format!("localhost:{}", port).as_str(),
+            TO_CLIENT,
+            conf_client
+        )
+            .unwrap()
+            .connect(DOMAIN_SERV)
+            .await
+        {
+            Err(SocketError::ConnectError(e)) => e.kind() == ErrorKind::ConnectionRefused,
+            _ => false,
+        });
     }
 }

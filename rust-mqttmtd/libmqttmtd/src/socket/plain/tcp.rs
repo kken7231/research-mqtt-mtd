@@ -5,7 +5,6 @@ use std::{
     net::{SocketAddr, ToSocketAddrs as StdToSocketAddrs},
     time::Duration,
 };
-use tokio::{net::ToSocketAddrs, time::timeout};
 
 pub enum TcpServerType {
     LOCAL,

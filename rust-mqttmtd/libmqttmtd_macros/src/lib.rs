@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, Data, DeriveInput, Fields, TypePath};
+use syn::{parse_macro_input, Data, DeriveInput, Fields};
 
 #[proc_macro_derive(ToStringLines)]
 pub fn to_string_lines_derive(input: TokenStream) -> TokenStream {
@@ -20,8 +20,8 @@ pub fn to_string_lines_derive(input: TokenStream) -> TokenStream {
                 ast.ident,
                 "ToHashMapString can only be derived for structs with named fields",
             )
-            .to_compile_error()
-            .into();
+                .to_compile_error()
+                .into();
         }
     } else {
         // Error out if it's not a struct
@@ -29,8 +29,8 @@ pub fn to_string_lines_derive(input: TokenStream) -> TokenStream {
             ast.ident,
             "ToHashMapString can only be derived for structs",
         )
-        .to_compile_error()
-        .into();
+            .to_compile_error()
+            .into();
     };
 
     // Generate the `.insert()` calls for each field.
