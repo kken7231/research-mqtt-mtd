@@ -148,7 +148,6 @@ impl ResponseReader {
 
         // topic_len
         let topic_len = auth_serv_read_u16!(stream) as usize;
-        println!("topic_len: {}", topic_len);
 
         // topic (vector to convert in from_utf8)
         auth_serv_read_into_new_bytes!(topic, stream, topic_len);

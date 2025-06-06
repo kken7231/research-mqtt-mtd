@@ -1,15 +1,16 @@
-use crate::socket::error::SocketError;
-use crate::socket::plain::stream::{PlainStream, PlainStreamAddress};
-use crate::socket::plain::tcp::{TcpServer, TcpServerType};
 #[cfg(unix)]
 use crate::socket::plain::unix::UnixServer;
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::net::TcpListener;
+use crate::socket::{
+    error::SocketError,
+    plain::{
+        stream::{PlainStream, PlainStreamAddress},
+        tcp::{TcpServer, TcpServerType},
+    },
+};
+use std::{fs, sync::Arc, time::Duration};
 #[cfg(unix)]
 use tokio::net::UnixListener;
-use tokio::task::JoinHandle;
-use tokio::time::timeout;
+use tokio::{net::TcpListener, task::JoinHandle, time::timeout};
 
 macro_rules! srv_println {
     ($type:ident, $($arg:tt)*) => {
@@ -74,10 +75,11 @@ impl PlainServer {
     }
 
     /// Spawns a server that can handle multiple connections.
+    /// Doesn't clean the used socket on drop.
     pub fn spawn<F, Fut>(self, handler: F) -> JoinHandle<Result<(), SocketError>>
     where
         F: Fn(PlainStream, PlainStreamAddress) -> Fut + Send + Sync + 'static,
-        Fut: Future<Output = ()> + Send + 'static,
+        Fut: Future<Output=()> + Send + 'static,
     {
         // Get the type_name and listen_timeout
         let (type_name, listen_timeout) = match &self {
@@ -96,10 +98,14 @@ impl PlainServer {
                         .map_err(|e| SocketError::BindError(e))?,
                 ),
                 #[cfg(unix)]
-                PlainServer::Unix(unix_srv) => PlainListener::Unix(
+                PlainServer::Unix(unix_srv) => PlainListener::Unix({
+                    if unix_srv.addr.exists() {
+                        fs::remove_file(unix_srv.addr.as_path())
+                            .map_err(|e| SocketError::BindError(e))?
+                    }
                     UnixListener::bind(unix_srv.addr.as_path())
-                        .map_err(|e| SocketError::BindError(e))?,
-                ),
+                        .map_err(|e| SocketError::BindError(e))?
+                }),
             };
 
             let handler = Arc::new(handler);

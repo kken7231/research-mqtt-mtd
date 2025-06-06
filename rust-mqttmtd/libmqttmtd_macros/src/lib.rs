@@ -34,7 +34,6 @@ pub fn to_string_lines_derive(input: TokenStream) -> TokenStream {
     };
 
     // Generate the `.insert()` calls for each field.
-    // Assumes each field's type implements Debug so we can use format!("{:?}")
     let insert_calls = fields.iter().map(|field| {
         let field_name_ident = field
             .ident
@@ -61,7 +60,7 @@ pub fn to_string_lines_derive(input: TokenStream) -> TokenStream {
                 lines.push(format!("--- {} configuration ---", title));
                 for entry in map.iter() {
                     lines.push(format!(
-                        "  {:width$}: {:?}",
+                        "  {:width$}: {}",
                         entry.0,
                         entry.1,
                         width = max_key_str_len

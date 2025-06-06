@@ -1,4 +1,5 @@
 use std::io;
+use std::path::Path;
 use tokio::io::{AsyncRead, AsyncWrite, ReadHalf, WriteHalf};
 use tokio::net::TcpStream;
 #[cfg(unix)]
@@ -165,7 +166,7 @@ impl PlainStreamAddress {
             #[cfg(unix)]
             PlainStreamAddress::Unix(unix_addr) => unix_addr
                 .as_pathname()
-                .unwrap()
+                .unwrap_or(Path::new("ADDRESS_NONE"))
                 .to_string_lossy()
                 .to_string(),
         }
