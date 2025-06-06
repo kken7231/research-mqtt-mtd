@@ -20,8 +20,8 @@ pub fn to_string_lines_derive(input: TokenStream) -> TokenStream {
                 ast.ident,
                 "ToHashMapString can only be derived for structs with named fields",
             )
-            .to_compile_error()
-            .into();
+                .to_compile_error()
+                .into();
         }
     } else {
         // Error out if it's not a struct
@@ -29,12 +29,11 @@ pub fn to_string_lines_derive(input: TokenStream) -> TokenStream {
             ast.ident,
             "ToHashMapString can only be derived for structs",
         )
-        .to_compile_error()
-        .into();
+            .to_compile_error()
+            .into();
     };
 
     // Generate the `.insert()` calls for each field.
-    // Assumes each field's type implements Debug so we can use format!("{:?}")
     let insert_calls = fields.iter().map(|field| {
         let field_name_ident = field
             .ident
@@ -42,7 +41,8 @@ pub fn to_string_lines_derive(input: TokenStream) -> TokenStream {
             .expect("Named fields should have an identifier");
         let field_name_str = field_name_ident.to_string(); // "field_name"
 
-        // Generates: map.insert("field_name".to_string(), format!("{:?}", self.field_name));
+        // Generates: map.insert("field_name".to_string(), format!("{:?}",
+        // self.field_name));
         quote! {
             map.insert(#field_name_str.to_string(), format!("{:?}", self.#field_name_ident));
         }
@@ -60,7 +60,7 @@ pub fn to_string_lines_derive(input: TokenStream) -> TokenStream {
                 lines.push(format!("--- {} configuration ---", title));
                 for entry in map.iter() {
                     lines.push(format!(
-                        "  {:width$}: {:?}",
+                        "  {:width$}: {}",
                         entry.0,
                         entry.1,
                         width = max_key_str_len

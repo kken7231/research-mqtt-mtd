@@ -1,13 +1,12 @@
 //! Defines loader for TLS sockets.
 
+use super::error::LoadTLSConfigError;
 use rustls::{
-    pki_types::{pem::PemObject, CertificateDer, PrivateKeyDer},
+    KeyLogFile, RootCertStore,
+    pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject},
     server::WebPkiClientVerifier,
-    RootCertStore,
 };
 use std::{ffi::OsStr, fs, path::Path, sync::Arc};
-
-use super::error::LoadTLSConfigError;
 
 pub struct TlsConfigLoader {}
 
@@ -37,7 +36,8 @@ impl TlsConfigLoader {
         serv_cert_pem: impl AsRef<Path>,
         serv_key_pem: impl AsRef<Path>,
         ca_certs_dir: impl AsRef<Path>,
-        no_client_auth: bool,
+        enable_client_auth: bool,
+        enable_key_log: bool,
     ) -> Result<Arc<rustls::ServerConfig>, LoadTLSConfigError> {
         // Load server certificate
         let serv_cert = CertificateDer::from_pem_file(&serv_cert_pem)?;
@@ -59,7 +59,7 @@ impl TlsConfigLoader {
         )
         .with_protocol_versions(&[&rustls::version::TLS13])?;
 
-        let config = if !no_client_auth {
+        let config = if enable_client_auth {
             let cli_cert_verfier = WebPkiClientVerifier::builder(ca_roots).build()?;
             /* (!important) Making one of these is cheap, though one of the inputs may be expensive:
             gathering trust roots from the operating system to add to the RootCertStore passed to a
@@ -68,7 +68,15 @@ impl TlsConfigLoader {
         } else {
             config.with_no_client_auth()
         };
-        let config = config.with_single_cert(vec![serv_cert], key)?;
+        let mut config = config.with_single_cert(vec![serv_cert], key)?;
+
+        if enable_key_log {
+            config.key_log = Arc::new(KeyLogFile::new());
+            println!(
+                "Key log enabled: SSLKEYLOGFILE: {:?}",
+                std::env::var("SSLKEYLOGFILE")
+            );
+        }
 
         Ok(config.into())
     }
@@ -108,10 +116,10 @@ impl TlsConfigLoader {
 
 #[cfg(test)]
 mod tests {
-    use rcgen::{generate_simple_self_signed, CertifiedKey};
+    use rcgen::{CertifiedKey, generate_simple_self_signed};
     use rustls::crypto::CryptoProvider;
     use std::{
-        fs::{create_dir_all, File},
+        fs::{File, create_dir_all},
         io::Write,
     };
     use tempfile::tempdir;
@@ -155,7 +163,8 @@ mod tests {
 
     #[test]
     fn serv_config_has_cli_auth_pass() {
-        const NO_CLIENT_AUTH: bool = false;
+        const ENABLE_CLI_AUTH: bool = true;
+        const DISABLE_KEY_LOG: bool = false;
         install_provider();
 
         let temp_dir = tempdir()
@@ -174,7 +183,8 @@ mod tests {
             temp_dir.join("cert.crt"),
             temp_dir.join("key.pem"),
             ca_certs_dir,
-            NO_CLIENT_AUTH,
+            ENABLE_CLI_AUTH,
+            DISABLE_KEY_LOG,
         );
 
         assert!(config.is_ok());
@@ -183,6 +193,7 @@ mod tests {
     #[test]
     fn serv_config_no_cli_auth_pass() {
         const NO_CLIENT_AUTH: bool = true;
+        const DISABLE_KEY_LOG: bool = false;
         install_provider();
 
         let temp_dir = tempdir()
@@ -202,6 +213,7 @@ mod tests {
             temp_dir.join("key.pem"),
             ca_certs_dir,
             NO_CLIENT_AUTH,
+            DISABLE_KEY_LOG,
         );
 
         assert!(config.is_ok());
@@ -209,7 +221,7 @@ mod tests {
 
     #[test]
     fn cli_config_has_cli_auth_pass() {
-        const NO_CLIENT_AUTH: bool = false;
+        const ENABLE_CLI_AUTH: bool = true;
         install_provider();
 
         let temp_dir = tempdir()
@@ -228,7 +240,7 @@ mod tests {
             temp_dir.join("cert.crt"),
             temp_dir.join("key.pem"),
             ca_certs_dir,
-            NO_CLIENT_AUTH,
+            ENABLE_CLI_AUTH,
         );
 
         assert!(config.is_ok());
@@ -236,7 +248,7 @@ mod tests {
 
     #[test]
     fn cli_config_no_cli_auth_pass() {
-        const NO_CLIENT_AUTH: bool = true;
+        const NO_CLIENT_AUTH: bool = false;
         install_provider();
 
         let temp_dir = tempdir()

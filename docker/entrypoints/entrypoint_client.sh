@@ -33,4 +33,4 @@ echo "Client:             $CLIENT_NAME"
 echo "Port:               $SERVER_PORT"
 echo "mosquitto tls args: \"$MOSQUITTO_TLS_ARGS_EMPTY_IF_BROKER_IS_PLAIN\""
 
-wait -n
+exec "$@"

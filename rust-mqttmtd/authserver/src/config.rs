@@ -1,8 +1,8 @@
 use clap::Parser;
 use config::{Config, File};
+use libmqttmtd_macros::ToStringLines;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use to_string_lines_macro::ToStringLines;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about)]
@@ -22,10 +22,15 @@ pub(super) struct CliArgs {
     #[arg(long)]
     ca_certs_dir: Option<String>,
 
-    /// Disable client certificate authentication. Default: false. Overrides
+    /// Enable client certificate authentication. Default: true. Overrides
     /// config file.
     #[arg(long)]
-    client_auth_disabled: Option<bool>,
+    enable_client_auth: Option<bool>,
+
+    /// Enable server key logging to SSLKEYLOGFILE. Default: true. Overrides
+    /// config file.
+    #[arg(long)]
+    enable_server_key_log: Option<bool>,
 
     /// Port for the issuer server. Default: 3000. Overrides config file.
     #[arg(long)]
@@ -34,6 +39,11 @@ pub(super) struct CliArgs {
     /// Port for the verifier server. Default: 3001. Overrides config file.
     #[arg(long)]
     verifier_port: Option<u16>,
+
+    /// Enable unix sockets on verifier interface. TCP sockets not supported when enabled.
+    /// Socket path is composed of `verifier_port`.
+    #[arg(long)]
+    enable_unix_sock: Option<bool>,
 
     /// Path to the Access Control List (ACL) yaml file. Default: "./acl.yaml".
     /// Overrides config file.
@@ -51,9 +61,11 @@ pub(super) struct AppConfig {
     pub server_cert_pem: PathBuf,
     pub server_key_pem: PathBuf,
     pub ca_certs_dir: PathBuf,
-    pub client_auth_disabled: bool,
+    pub enable_client_auth: bool,
+    pub enable_server_key_log: bool,
     pub issuer_port: u16,
     pub verifier_port: u16,
+    pub enable_unix_sock: bool,
     pub acl: PathBuf,
 }
 
@@ -65,9 +77,11 @@ pub(super) fn load_config() -> Result<AppConfig, config::ConfigError> {
         .set_default("server_cert_pem", "./certs/server/cert.crt")?
         .set_default("server_key_pem", "./certs/server/key.pem")?
         .set_default("ca_certs_dir", "./certs/ca")?
-        .set_default("client_auth_disabled", false)?
+        .set_default("enable_client_auth", true)?
+        .set_default("enable_server_key_log", false)?
         .set_default("issuer_port", 3000)?
         .set_default("verifier_port", 3001)?
+        .set_default("enable_unix_sock", true)?
         .set_default("acl", "./acl.yaml")?
         .add_source(File::with_name(&args.conf).required(false));
 
@@ -80,14 +94,20 @@ pub(super) fn load_config() -> Result<AppConfig, config::ConfigError> {
     if let Some(value) = args.ca_certs_dir {
         builder = builder.set_override("ca_certs_dir", value)?;
     }
-    if let Some(value) = args.client_auth_disabled {
-        builder = builder.set_override("client_auth_disabled", value)?;
+    if let Some(value) = args.enable_client_auth {
+        builder = builder.set_override("enable_client_auth", value)?;
+    }
+    if let Some(value) = args.enable_server_key_log {
+        builder = builder.set_override("enable_server_key_log", value)?;
     }
     if let Some(value) = args.issuer_port {
         builder = builder.set_override("issuer_port", value)?;
     }
     if let Some(value) = args.verifier_port {
         builder = builder.set_override("verifier_port", value)?;
+    }
+    if let Some(value) = args.enable_unix_sock {
+        builder = builder.set_override("enable_unix_sock", value)?;
     }
     if let Some(value) = args.acl {
         builder = builder.set_override("acl", value)?;

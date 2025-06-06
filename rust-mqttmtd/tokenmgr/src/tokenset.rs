@@ -1,7 +1,12 @@
 use crate::errors::TokenSetError;
 use base64::{engine::general_purpose, Engine};
 use bytes::{Bytes, BytesMut};
-use libmqttmtd::{aead::{algo::SupportedAlgorithm, open, seal}, auth_serv::issuer, consts::{RANDOM_LEN, TIMESTAMP_LEN, TOKEN_LEN}, utils};
+use libmqttmtd::{
+    aead::{algo::SupportedAlgorithm, open, seal},
+    auth_serv::issuer,
+    consts::{RANDOM_LEN, TIMESTAMP_LEN, TOKEN_LEN},
+    utils,
+};
 use std::{
     fs,
     io::{Read, Seek, Write},

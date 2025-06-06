@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 libmqttmtd = { path = "../libmqttmtd" }
-to_string_lines_macro = { path = "../to_string_lines_macro" }
+libmqttmtd_macros = { path = "../libmqttmtd_macros" }
 bytes = { workspace = true }
 ring = { workspace = true }
 tokio = { workspace = true }

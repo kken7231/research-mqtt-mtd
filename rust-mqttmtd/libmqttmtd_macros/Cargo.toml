@@ -1,5 +1,5 @@
 [package]
-name = "to_string_lines_macro"
+name = "libmqttmtd_macros"
 version = "0.1.0"
 edition = "2024"
 

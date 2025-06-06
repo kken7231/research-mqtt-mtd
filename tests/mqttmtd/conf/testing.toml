@@ -1,5 +1,5 @@
 issuer_host = "server"
-issuer_port = 3000
+issuer_port = 18771
 mqtt_interface_host = "server"
 mqtt_interface_port = 11883
 cli_cert = "/certs/clients/client1.crt"

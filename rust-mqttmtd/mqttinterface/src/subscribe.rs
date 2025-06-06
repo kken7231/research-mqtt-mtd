@@ -1,6 +1,12 @@
 use base64::{engine::general_purpose, Engine};
 use bytes::{BufMut, Bytes, BytesMut};
-use libmqttmtd::{aead, aead::algo::{SupportedAlgorithm, SupportedAlgorithm::Aes128Gcm}, auth_serv::verifier, socket::plain::PlainClient, utils};
+use libmqttmtd::socket::plain::client::PlainClient;
+use libmqttmtd::{
+    aead,
+    aead::algo::{SupportedAlgorithm, SupportedAlgorithm::Aes128Gcm},
+    auth_serv::verifier,
+    utils,
+};
 use mqttbytes::v5::{Publish, Subscribe};
 use std::{fmt::Display, sync::Arc};
 use tokio::sync::RwLock;
@@ -30,7 +36,8 @@ impl ClientSubscriptionInfo {
 /// Replaces token and passes it down to Broker.
 pub async fn unfreeze_subscribe(
     subscription_info: &Arc<RwLock<ClientSubscriptionInfo>>,
-    verifier_port: u16,
+    verifier_addr: &str,
+    enable_unix_sock: bool,
     mut subscribe: Subscribe,
 ) -> Result<Option<Subscribe>, SubscribeUnfreezeError> {
     if subscribe.filters.len() > 1 {
@@ -49,16 +56,28 @@ pub async fn unfreeze_subscribe(
     {
         let req = verifier::Request::new(&decoded)
             .map_err(|e| SubscribeUnfreezeError::VerifierRequestCreateError(e))?;
-        let mut stream = PlainClient::new(format!("localhost:{}", verifier_port), None)
-            .connect()
-            .await
-            .map_err(|e| SubscribeUnfreezeError::VerifierConnectError(e))?;
+
+        // Establish socket
+        let mut stream = if enable_unix_sock {
+            #[cfg(unix)]
+            PlainClient::new_unix(verifier_addr, None)
+                .connect()
+                .await
+                .map_err(|e| SubscribeUnfreezeError::VerifierConnectError(e))?
+        } else {
+            PlainClient::new_tcp(verifier_addr, None)
+                .map_err(|e| SubscribeUnfreezeError::VerifierConnectError(e))?
+                .connect()
+                .await
+                .map_err(|e| SubscribeUnfreezeError::VerifierConnectError(e))?
+        };
+
+        // Send req and receive resp
         let _ = req
             .write_to(&mut stream)
             .await
             .map_err(|e| SubscribeUnfreezeError::VerifierRequestWriteError(e))?;
-        let mut buf = BytesMut::zeroed(verifier::REQ_RESP_MIN_BUF_LEN);
-        res = verifier::ResponseReader::read_from(&mut stream, &mut buf[..])
+        res = verifier::ResponseReader::read_from(&mut stream)
             .await
             .map_err(|e| SubscribeUnfreezeError::VerifierResponseReadError(e))?;
     } // stream
@@ -161,7 +180,7 @@ pub async fn freeze_subscribed_publish(
         let nonce =
             info.nonce_base + ((publish.pkid as u128).rotate_left(16) | (info.token_idx as u128));
         let nonce = utils::nonce_from_u128_to_bytes(info.algo, nonce);
-        
+
         // seal
         in_out = BytesMut::with_capacity(2 + publish.topic.len() + publish.payload.len());
         in_out.put_u16(publish.topic.len() as u16);

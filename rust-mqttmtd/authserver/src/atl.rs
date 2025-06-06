@@ -2,9 +2,9 @@
 
 use crate::error::ATLError;
 use bytes::{Bytes, BytesMut};
-use libmqttmtd::auth_serv::{issuer, verifier};
 use libmqttmtd::{
     aead::algo::SupportedAlgorithm,
+    auth_serv::{issuer, verifier},
     consts::{RANDOM_LEN, TIMESTAMP_LEN, TOKEN_LEN},
     utils,
 };
@@ -17,7 +17,8 @@ use std::{
 use tokio::sync::Mutex;
 
 /// # Set of tokens
-/// Owns various parameters for a set of token. To be added in [AccessTokenList] after wrapped with [tokio::sync::Mutex] and [std::sync::Arc].
+/// Owns various parameters for a set of token. To be added in [AccessTokenList]
+/// after wrapped with [tokio::sync::Mutex] and [std::sync::Arc].
 #[derive(Debug)]
 pub(crate) struct TokenSet {
     masked_timestamp: u64,
@@ -36,9 +37,9 @@ pub(crate) struct TokenSet {
 }
 
 impl TokenSet {
-    /// Initializes a new [TokenSet]. Random values such as `enc_key` and `nonce_base` are not initialized here.
-    /// Initialization of those values is what [AccessTokenList] is responsible for.
-    /// # Parameters:
+    /// Initializes a new [TokenSet]. Random values such as `enc_key` and
+    /// `nonce_base` are not initialized here. Initialization of those
+    /// values is what [AccessTokenList] is responsible for. # Parameters:
     /// - `valid_dur`: must be less than one year, otherwise error thrown
     pub(crate) fn new(
         num_tokens_divided_by_4: u8,
@@ -80,7 +81,6 @@ impl TokenSet {
             Err(ATLError::TokenIdxOutOfBoundError(self.token_idx))
         }
     }
-
 
     #[cfg(test)]
     pub(crate) fn current_token(&self) -> Result<[u8; TOKEN_LEN], ATLError> {
@@ -419,7 +419,7 @@ mod tests {
             valid_dur,
             SupportedAlgorithm::Aes128Gcm,
         )
-            .expect("Failed to create test TokenSet")
+        .expect("Failed to create test TokenSet")
     }
 
     #[tokio::test]

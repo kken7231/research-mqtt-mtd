@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-to_string_lines_macro = { path = "../to_string_lines_macro" }
+libmqttmtd_macros = { path = "../libmqttmtd_macros" }
 clap = { workspace = true }
 serde = { workspace = true }
 config = { workspace = true }
 dirs = { workspace = true }
 
-rcgen = { version = "0.13.2", default-features = false, features = ["aws_lc_rs", "pem"] }
+rcgen = { version = "0.13.2", default-features = false, features = ["crypto", "pem", "aws_lc_rs"] }
 time = { version = "0.3.41", default-features = false, features = ["formatting", "parsing"] }

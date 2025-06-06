@@ -21,9 +21,9 @@ RUN CC=gcc RUSTFLAGS="-C target-feature=+crt-static" cargo build --package mqttm
 ## -----------------------------------------------
 FROM alpine:3.21 AS runner
 
-# install mosquitto and dumb-init
+# install tcpdump, mosquitto and dumb-init
 RUN apk update && apk upgrade
-RUN apk add --no-cache mosquitto dumb-init
+RUN apk add --no-cache tcpdump mosquitto dumb-init
 
 # copy entrypoint shellscript
 COPY ./docker/entrypoints/entrypoint_server.sh /run.sh
@@ -43,8 +43,6 @@ COPY ./tests/mosquitto/conf /mosquitto/conf
 
 # copy acl
 COPY ./tests/mqttmtd/acl.yaml /mqttmtd/acl.yaml
-
-WORKDIR /scripts
 
 HEALTHCHECK --interval=5s --timeout=3s --start-period=30s --retries=3 \
   CMD test -f /mqttmtd/server_ready || exit 1

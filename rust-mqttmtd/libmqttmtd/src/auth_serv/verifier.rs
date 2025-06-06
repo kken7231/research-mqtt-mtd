@@ -3,16 +3,11 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 use super::error::AuthServerParserError;
 use crate::{
-    aead::algo::SupportedAlgorithm, auth_serv_read, auth_serv_read_into_new_bytes, auth_serv_write,
-    consts::TOKEN_LEN, get_buf_checked,
-};
-
-/// Minimum required buffer length for the buf for both request parsing and
-/// response parsing.
-pub const REQ_RESP_MIN_BUF_LEN: usize = if REQUEST_MIN_BUF_LEN > RESPONSE_MIN_BUF_LEN {
-    REQUEST_MIN_BUF_LEN
-} else {
-    RESPONSE_MIN_BUF_LEN
+    aead::algo::SupportedAlgorithm,
+    auth_serv_read, auth_serv_read_check_v2_header, auth_serv_read_into_new_bytes,
+    auth_serv_read_u16, auth_serv_read_u8, auth_serv_write, auth_serv_write_u16,
+    auth_serv_write_u8, auth_serv_write_v2_header,
+    consts::{PACKET_TYPE_VERIFIER_REQUEST, PACKET_TYPE_VERIFIER_RESPONSE, TOKEN_LEN},
 };
 
 /// # Request for Verifier interface
@@ -24,14 +19,12 @@ pub const REQ_RESP_MIN_BUF_LEN: usize = if REQUEST_MIN_BUF_LEN > RESPONSE_MIN_BU
 /// 2. `token`
 ///
 /// ## v2
+/// 0. header
 /// 1. `token`
 #[derive(Debug)]
 pub struct Request {
     token: [u8; TOKEN_LEN],
 }
-
-/// buffer not required
-pub const REQUEST_MIN_BUF_LEN: usize = 0;
 
 impl Request {
     /// Gets the token.
@@ -41,10 +34,11 @@ impl Request {
 
     /// Creates a new [Request].
     /// # Errors
-    /// - `token`.len() == [TOKEN_LEN] ([AuthServerParserError::BufferTooSmallError])
+    /// - `token`.len() == [TOKEN_LEN]
+    ///   ([AuthServerParserError::BufferTooSmallError])
     pub fn new(token: &[u8]) -> Result<Self, AuthServerParserError> {
         if token.len() != TOKEN_LEN {
-            return Err(AuthServerParserError::BufferTooSmallError());
+            return Err(AuthServerParserError::BufferTooSmallError);
         }
         let mut new_token = [0u8; TOKEN_LEN];
         new_token.copy_from_slice(&token[..TOKEN_LEN]);
@@ -57,6 +51,9 @@ impl Request {
     pub async fn read_from<R: AsyncRead + Unpin>(
         stream: &mut R,
     ) -> Result<Self, AuthServerParserError> {
+        // header
+        auth_serv_read_check_v2_header!(stream, PACKET_TYPE_VERIFIER_REQUEST);
+
         let mut token = [0u8; TOKEN_LEN];
         auth_serv_read!(stream, &mut token);
         Ok(Self { token })
@@ -69,8 +66,11 @@ impl Request {
         self,
         stream: &mut W,
     ) -> Result<usize, AuthServerParserError> {
-        auth_serv_write!(stream, &self.token);
-        Ok(self.token.len())
+        // header
+        let mut counter = auth_serv_write_v2_header!(stream, PACKET_TYPE_VERIFIER_REQUEST);
+
+        counter += auth_serv_write!(stream, &self.token);
+        Ok(counter)
     }
 }
 
@@ -95,6 +95,7 @@ impl Request {
 ///
 /// ## v2
 /// ```text
+/// 0. header
 /// 1. status
 /// case success:
 ///     2. compound byte
@@ -122,9 +123,6 @@ pub struct ResponseReader {
     pub enc_key: Bytes,
 }
 
-/// buffer for allowed_access, algo, topic_len
-pub const RESPONSE_MIN_BUF_LEN: usize = 3;
-
 impl ResponseReader {
     /// Reads a stream and returns a new [Request].
     /// # Errors
@@ -132,28 +130,28 @@ impl ResponseReader {
     /// - [AuthServerParserError::SocketReadError]: failed to read the stream
     pub async fn read_from<R: AsyncRead + Unpin>(
         stream: &mut R,
-        buf: impl Into<Option<&mut [u8]>>,
     ) -> Result<Option<Self>, AuthServerParserError> {
-        // Buf len check
-        let buf = get_buf_checked!(buf.into(), RESPONSE_MIN_BUF_LEN);
+        // header
+        auth_serv_read_check_v2_header!(stream, PACKET_TYPE_VERIFIER_RESPONSE);
 
         // status
-        auth_serv_read!(stream, &mut buf[..1]);
-        let status = ResponseStatus::from(buf[0]);
+        let status_raw = auth_serv_read_u8!(stream);
+        let status = ResponseStatus::from(status_raw);
         if status != ResponseStatus::Success {
             return Ok(None);
         }
 
-        // allowed_access, algo, topic_len
-        auth_serv_read!(stream, &mut buf[..3]);
-        let allowed_access_is_pub = buf[0] & 0x80 != 0;
-        let algo = SupportedAlgorithm::try_from(buf[0] & 0xF)?;
-        let topic_len = u16::from_be_bytes([buf[1], buf[2]]) as usize;
+        // allowed_access, algo
+        let compound = auth_serv_read_u8!(stream);
+        let allowed_access_is_pub = compound & 0x80 != 0;
+        let algo = SupportedAlgorithm::try_from(compound & 0xF)?;
+
+        // topic_len
+        let topic_len = auth_serv_read_u16!(stream) as usize;
 
         // topic (vector to convert in from_utf8)
-        let mut topic = vec![0u8; topic_len];
-        auth_serv_read!(stream, &mut topic);
-        let topic = String::from_utf8(topic).map_err(|e| AuthServerParserError::Utf8Error(e))?;
+        auth_serv_read_into_new_bytes!(topic, stream, topic_len);
+        let topic = String::from_utf8(topic.to_vec())?;
 
         auth_serv_read_into_new_bytes!(enc_key, stream, algo.key_len());
         auth_serv_read_into_new_bytes!(nonce, stream, algo.nonce_len());
@@ -196,77 +194,72 @@ impl ResponseWriter {
 
     pub async fn write_error_to<W: AsyncWrite + Unpin>(
         stream: &mut W,
-        buf: impl Into<Option<&mut [u8]>>,
     ) -> Result<usize, AuthServerParserError> {
-        Self::write_to(None, stream, buf, ResponseStatus::Error).await
+        Self::write_to(None, stream, ResponseStatus::Error).await
     }
 
     pub async fn write_failure_to<W: AsyncWrite + Unpin>(
         stream: &mut W,
-        buf: impl Into<Option<&mut [u8]>>,
     ) -> Result<usize, AuthServerParserError> {
-        Self::write_to(None, stream, buf, ResponseStatus::Failure).await
+        Self::write_to(None, stream, ResponseStatus::Failure).await
     }
 
     pub async fn write_success_to<W: AsyncWrite + Unpin>(
         &self,
         stream: &mut W,
-        buf: impl Into<Option<&mut [u8]>>,
     ) -> Result<usize, AuthServerParserError> {
-        Self::write_to(Some(&self), stream, buf, ResponseStatus::Success).await
+        Self::write_to(Some(&self), stream, ResponseStatus::Success).await
     }
 
     async fn write_to<W: AsyncWrite + Unpin>(
         resp: Option<&Self>,
         stream: &mut W,
-        buf: impl Into<Option<&mut [u8]>>,
         status: ResponseStatus,
     ) -> Result<usize, AuthServerParserError> {
         if let Some(r) = resp {
             if r.topic.len() > 0xFFFF {
-                return Err(AuthServerParserError::TopicTooLongError());
+                return Err(AuthServerParserError::TopicTooLongError);
             }
         }
 
-        // Buf len check
-        let buf = get_buf_checked!(buf.into(), RESPONSE_MIN_BUF_LEN);
+        // header
+        let mut counter = auth_serv_write_v2_header!(stream, PACKET_TYPE_VERIFIER_RESPONSE);
 
         // status
-        buf[0] = status as u8;
-        auth_serv_write!(stream, &buf[..1]);
+        counter += auth_serv_write_u8!(stream, status as u8);
         if status != ResponseStatus::Success || resp.is_none() {
-            return Ok(1);
+            return Ok(counter);
         }
 
         let resp = resp.unwrap();
 
         // other attributes if status is success
-        buf[0] = resp.algo as u8;
+        let mut compound = resp.algo as u8;
         if resp.allowed_access_is_pub {
-            buf[0] |= 0x80;
+            compound |= 0x80;
         }
-        buf[1..3].copy_from_slice(&(resp.topic.len() as u16).to_be_bytes()[..]);
-        auth_serv_write!(stream, &buf[..3]);
-        auth_serv_write!(stream, &resp.topic);
-        auth_serv_write!(stream, &resp.enc_key);
-        auth_serv_write!(stream, &resp.nonce);
-        Ok(1 + 3 + resp.topic.len() + resp.enc_key.len() + resp.nonce.len())
+        counter += auth_serv_write_u8!(stream, compound);
+        counter += auth_serv_write_u16!(stream, resp.topic.len() as u16);
+        counter += auth_serv_write!(stream, &resp.topic);
+        counter += auth_serv_write!(stream, &resp.enc_key);
+        counter += auth_serv_write!(stream, &resp.nonce);
+        Ok(counter)
     }
 }
 
 #[repr(u8)]
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum ResponseStatus {
-    Success = 0u8,
-    Failure = 1u8,
+    Success = 0x01u8,
+    Failure = 0x02u8,
     Error = 0xFFu8,
 }
 
 impl From<u8> for ResponseStatus {
     fn from(value: u8) -> Self {
         match value {
-            0 => ResponseStatus::Success,
-            1 => ResponseStatus::Failure,
+            1 => ResponseStatus::Success,
+            2 => ResponseStatus::Failure,
             _ => ResponseStatus::Error,
         }
     }
@@ -280,6 +273,7 @@ mod tests {
             error::AuthServerParserError,
             verifier::{Request, ResponseReader, ResponseStatus, ResponseWriter},
         },
+        consts::{PACKET_TYPE_VERIFIER_REQUEST, PACKET_TYPE_VERIFIER_RESPONSE},
     };
     use bytes::Bytes;
     use tokio::io::AsyncReadExt;
@@ -294,8 +288,25 @@ mod tests {
             token: original_token,
         };
 
+        let expected_bytes = [
+            0x20u8 | PACKET_TYPE_VERIFIER_REQUEST,
+            // Token
+            0x01,
+            0x02,
+            0x03,
+            0x04,
+            0x05,
+            0x06,
+            0xAA,
+            0xBB,
+            0xCC,
+            0xDD,
+            0xEE,
+            0xFF,
+        ];
+
         // Mock stream to write to
-        let mut mock_stream = Builder::new().write(&original_token).read(&[]).build();
+        let mut mock_stream = Builder::new().write(&expected_bytes).read(&[]).build();
 
         let written_len = original_req
             .write_to(&mut mock_stream)
@@ -303,19 +314,21 @@ mod tests {
             .expect("Failed to write request");
 
         // Now build a new mock stream with the expected bytes to read
-        let mut read_stream = Builder::new().read(&original_token).build();
+        let mut read_stream = Builder::new().read(&expected_bytes).build();
 
         let parsed_req = Request::read_from(&mut read_stream)
             .await
             .expect("Failed to read request");
 
         assert_eq!(parsed_req.token, original_token);
-        assert_eq!(written_len, original_token.len(), "Written length mismatch");
+        assert_eq!(written_len, expected_bytes.len(), "Written length mismatch");
     }
 
     #[tokio::test]
     async fn request_read_from_not_enough_bytes() {
-        let mut mock_stream = Builder::new().read(&[0x01, 0x02, 0x03]).build(); // Less than TOKEN_LEN bytes
+        let mut mock_stream = Builder::new()
+            .read(&[0x20u8 | PACKET_TYPE_VERIFIER_REQUEST, 0x1, 0x2, 0x3])
+            .build(); // Less than TOKEN_LEN bytes
 
         let result = Request::read_from(&mut mock_stream).await;
 
@@ -329,7 +342,46 @@ mod tests {
         };
 
         // Write in all the remained bytes
-        let mut read_buf = [0u8; 3];
+        let mut read_buf = [0u8; 4];
+        let _ = mock_stream.read(&mut read_buf).await;
+    }
+
+    #[tokio::test]
+    async fn request_response_read_from_invalid_header() {
+        // starts with invalid header
+        let mut mock_stream = Builder::new().read(&[0x01]).build();
+
+        let result = Request::read_from(&mut mock_stream).await;
+
+        assert!(result.is_err());
+        // Expect an IO error indicating unexpected EOF
+        match result.unwrap_err() {
+            AuthServerParserError::InvalidHeaderError(v) => {
+                assert_eq!(v, 0x01u8)
+            }
+            _ => panic!(),
+        };
+
+        // Write in all the remained bytes
+        let mut read_buf = [0u8; 4];
+        let _ = mock_stream.read(&mut read_buf).await;
+
+        // starts with invalid header
+        let mut mock_stream = Builder::new().read(&[0x01]).build();
+
+        let result = ResponseReader::read_from(&mut mock_stream).await;
+
+        assert!(result.is_err());
+        // Expect an IO error indicating unexpected EOF
+        match result.unwrap_err() {
+            AuthServerParserError::InvalidHeaderError(v) => {
+                assert_eq!(v, 0x01)
+            }
+            _ => panic!(),
+        };
+
+        // Write in all the remained bytes
+        let mut read_buf = [0u8; 4];
         let _ = mock_stream.read(&mut read_buf).await;
     }
 
@@ -350,32 +402,83 @@ mod tests {
         );
 
         let expected_bytes = [
-            0x00, // Status: Success (0)
+            0x20u8 | PACKET_TYPE_VERIFIER_RESPONSE,
+            0x01, // Status: Success (1)
             0x82, // Compound byte: allowed_access_is_pub (1) | algo (2) = 0x82
-            0x00, 0x0E, // Topic len: 14 (u16 BE)
-            b'v', b'e', b'r', b'i', b'f', b'i', b'e', b'd', b'/', b't', b'o', b'p', b'i',
+            0x00,
+            0x0E, // Topic len: 14 (u16 BE)
+            b'v',
+            b'e',
+            b'r',
+            b'i',
+            b'f',
+            b'i',
+            b'e',
+            b'd',
+            b'/',
+            b't',
+            b'o',
+            b'p',
+            b'i',
             b'c', // Topic: "verified/topic" (14 bytes)
-            0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
-            0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55,
-            0x66, 0x77, 0x88, 0x99, // Enc Key (32 bytes)
-            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B,
+            0xAA,
+            0xBB,
+            0xCC,
+            0xDD,
+            0xEE,
+            0xFF,
+            0x00,
+            0x11,
+            0x22,
+            0x33,
+            0x44,
+            0x55,
+            0x66,
+            0x77,
+            0x88,
+            0x99,
+            0xAA,
+            0xBB,
+            0xCC,
+            0xDD,
+            0xEE,
+            0xFF,
+            0x00,
+            0x11,
+            0x22,
+            0x33,
+            0x44,
+            0x55,
+            0x66,
+            0x77,
+            0x88,
+            0x99, // Enc Key (32 bytes)
+            0x01,
+            0x02,
+            0x03,
+            0x04,
+            0x05,
+            0x06,
+            0x07,
+            0x08,
+            0x09,
+            0x0A,
+            0x0B,
             0x0C, // Nonce (12 bytes)
         ];
 
         // Mock stream to write to
         let mut mock_stream = Builder::new().write(&expected_bytes).read(&[]).build();
 
-        let mut write_buf = [0u8; 256]; // Provide buffer
         let written_len = original_resp_writer
-            .write_success_to(&mut mock_stream, &mut write_buf[..])
+            .write_success_to(&mut mock_stream)
             .await
             .expect("Failed to write success response");
 
         // Now build a new mock stream with the expected bytes to read
         let mut read_stream = Builder::new().read(&expected_bytes).build();
 
-        let mut read_buf = [0u8; 256]; // Provide buffer
-        let parsed_resp_option = ResponseReader::read_from(&mut read_stream, &mut read_buf[..])
+        let parsed_resp_option = ResponseReader::read_from(&mut read_stream)
             .await
             .expect("Failed to read response");
 
@@ -397,22 +500,21 @@ mod tests {
     async fn response_write_read_failure_roundtrip() {
         // Mock stream to write failure response
         let expected_bytes = [
+            0x20u8 | PACKET_TYPE_VERIFIER_RESPONSE,
             // Status: Failure (1)
             ResponseStatus::Failure as u8,
         ];
 
         let mut mock_stream = Builder::new().write(&expected_bytes).read(&[]).build();
 
-        let mut write_buf = [0u8; 256]; // Provide buffer
-        let written_len = ResponseWriter::write_failure_to(&mut mock_stream, &mut write_buf[..])
+        let written_len = ResponseWriter::write_failure_to(&mut mock_stream)
             .await
             .expect("Failed to write failure response");
 
         // Now build a new mock stream with the expected bytes to read
         let mut read_stream = Builder::new().read(&expected_bytes).build();
 
-        let mut read_buf = [0u8; 256]; // Provide buffer
-        let parsed_resp_option = ResponseReader::read_from(&mut read_stream, &mut read_buf[..])
+        let parsed_resp_option = ResponseReader::read_from(&mut read_stream)
             .await
             .expect("Failed to read response");
 
@@ -427,22 +529,21 @@ mod tests {
     async fn response_write_read_error_roundtrip() {
         // Mock stream to write error response
         let expected_bytes = [
+            0x20u8 | PACKET_TYPE_VERIFIER_RESPONSE,
             // Status: Error (0xFF)
             ResponseStatus::Error as u8,
         ];
 
         let mut mock_stream = Builder::new().write(&expected_bytes).read(&[]).build();
 
-        let mut write_buf = [0u8; 256]; // Provide buffer
-        let written_len = ResponseWriter::write_error_to(&mut mock_stream, &mut write_buf[..])
+        let written_len = ResponseWriter::write_error_to(&mut mock_stream)
             .await
             .expect("Failed to write error response");
 
         // Now build a new mock stream with the expected bytes to read
         let mut read_stream = Builder::new().read(&expected_bytes).build();
 
-        let mut read_buf = [0u8; 256]; // Provide buffer
-        let parsed_resp_option = ResponseReader::read_from(&mut read_stream, &mut read_buf[..])
+        let parsed_resp_option = ResponseReader::read_from(&mut read_stream)
             .await
             .expect("Failed to read response");
 
@@ -451,22 +552,5 @@ mod tests {
             "Error response should result in None"
         );
         assert_eq!(written_len, expected_bytes.len(), "Written length mismatch");
-    }
-
-    #[tokio::test]
-    async fn response_read_from_buffer_too_small() {
-        let mut mock_stream = Builder::new().read(&[0x00, 0x82, 0x01, 0x02]).build(); // Success + some data
-        let mut small_buf = [0u8; 1]; // Buffer too small
-        let result = ResponseReader::read_from(&mut mock_stream, &mut small_buf[..]).await;
-
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            AuthServerParserError::BufferTooSmallError() => {}
-            _ => panic!(),
-        };
-
-        // Write in all the remained bytes
-        let mut read_buf = [0u8; 8];
-        let _ = mock_stream.read(&mut read_buf).await;
     }
 }

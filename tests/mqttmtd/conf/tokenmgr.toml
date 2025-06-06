@@ -1,5 +1,5 @@
 issuer_host = "server"
-issuer_port = 3000
+issuer_port = 18771
 token_sets_dir = "/token_sets/"
 cli_cert = "/certs/clients/client1.crt"
 cli_key = "/certs/clients/client1.pem"

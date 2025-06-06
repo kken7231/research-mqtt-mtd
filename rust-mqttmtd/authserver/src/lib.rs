@@ -2,14 +2,10 @@ use crate::garbage_collector::spawn_garbage_collector;
 use acl::AccessControlList;
 use atl::AccessTokenList;
 use config::load_config;
-use libmqttmtd::socket::{
-    plain::{
-        PlainServer,
-        ServerType::{GLOBAL, LOCAL},
-    },
-    tls::TlsServer,
-    tls_config::TlsConfigLoader,
-};
+use libmqttmtd::consts::UNIX_SOCK_VERIFIER;
+use libmqttmtd::socket::plain::server::PlainServer;
+use libmqttmtd::socket::plain::tcp::TcpServerType::{GLOBAL, LOCAL};
+use libmqttmtd::socket::{tls::TlsServer, tls_config::TlsConfigLoader};
 use std::{error::Error, sync::Arc, time::Duration};
 
 mod acl;
@@ -31,6 +27,14 @@ pub async fn run_server() -> Result<(), Box<dyn Error>> {
         .iter()
         .for_each(|line| proc_println!("{}", line));
 
+    #[cfg(not(unix))]
+    if config.enable_unix_sock {
+        return Box::new(Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "Unix domain sockets are not supported on this operating system",
+        )));
+    }
+
     // Initialize ATL
     let atl = Arc::new(AccessTokenList::new());
     // run garbage collector
@@ -44,25 +48,40 @@ pub async fn run_server() -> Result<(), Box<dyn Error>> {
         config.server_cert_pem,
         config.server_key_pem,
         config.ca_certs_dir,
-        config.client_auth_disabled,
+        config.enable_client_auth,
+        config.enable_server_key_log,
     )
-        .inspect_err(|e| proc_eprintln!("found issue in loading Tls config: {}", e))?;
+    .inspect_err(|e| proc_eprintln!("found issue in loading Tls config: {}", e))?;
 
     // open verifier
     let atl_for_verifier = atl.clone();
-    let verifier = PlainServer::new(config.verifier_port, None, LOCAL).spawn(move |s, addr| {
-        let atl_for_this_connection = atl_for_verifier.clone();
-        verifier::handler(atl_for_this_connection, s, addr)
-    });
-    proc_println!(
-        "launched verifier interface at port {}",
-        config.verifier_port
-    );
+    let verifier = if config.enable_unix_sock {
+        #[cfg(unix)]
+        PlainServer::new_unix(UNIX_SOCK_VERIFIER, None).spawn(move |s, addr| {
+            let atl_for_this_connection = atl_for_verifier.clone();
+            verifier::handler(atl_for_this_connection, s, addr.to_string())
+        })
+    } else {
+        PlainServer::new_tcp(config.verifier_port, None, LOCAL)?.spawn(move |s, addr| {
+            let atl_for_this_connection = atl_for_verifier.clone();
+            verifier::handler(atl_for_this_connection, s, addr.to_string())
+        })
+    };
+
+    if config.enable_unix_sock {
+        #[cfg(unix)]
+        proc_println!("launched verifier interface at {}", UNIX_SOCK_VERIFIER);
+    } else {
+        proc_println!(
+            "launched verifier interface at port {}",
+            config.verifier_port
+        );
+    }
 
     // open issuer
     let atl_for_issuer = atl.clone();
     let issuer =
-        TlsServer::new(config.issuer_port, None, GLOBAL, issuer_config).spawn(move |s, addr| {
+        TlsServer::new(config.issuer_port, None, GLOBAL, issuer_config)?.spawn(move |s, addr| {
             let atl_for_this_connection = atl_for_issuer.clone();
             let acl_for_this_connection = acl.clone();
             issuer::handler(acl_for_this_connection, atl_for_this_connection, s, addr)
@@ -80,6 +99,6 @@ pub async fn run_server() -> Result<(), Box<dyn Error>> {
             result
         },
     }
-        .unwrap()
-        .map_err(|e| Box::new(e) as Box<dyn Error>)
+    .unwrap()
+    .map_err(|e| Box::new(e) as Box<dyn Error>)
 }

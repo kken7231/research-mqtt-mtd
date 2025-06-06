@@ -1,5 +1,6 @@
 use clap::Args;
 use config::{Config, ConfigError, File};
+use libmqttmtd_macros::ToStringLines;
 use rcgen::{
     BasicConstraints, Certificate, CertificateParams, DistinguishedName, DnType,
     ExtendedKeyUsagePurpose, IsCa, KeyPair, KeyUsagePurpose, PKCS_ECDSA_P256_SHA256,
@@ -12,7 +13,6 @@ use std::{
     path::{Path, PathBuf},
 };
 use time::{Duration, OffsetDateTime};
-use to_string_lines_macro::ToStringLines;
 
 #[derive(Args)]
 pub struct CertgenArgs {
@@ -255,7 +255,7 @@ pub fn certgen(args: CertgenArgs) -> Result<(), CertgenError> {
         &server_key_path,
         &server_cert_path,
     )
-        .map_err(|e| CertgenError::SaveKeyCertFailedError(e))?;
+    .map_err(|e| CertgenError::SaveKeyCertFailedError(e))?;
     println!(
         "Server certificate and key saved to {:?} and {:?}",
         server_cert_path, server_key_path
@@ -291,7 +291,7 @@ pub fn certgen(args: CertgenArgs) -> Result<(), CertgenError> {
             &client_key_path,
             &client_cert_path,
         )
-            .map_err(|e| CertgenError::SaveKeyCertFailedError(e))?;
+        .map_err(|e| CertgenError::SaveKeyCertFailedError(e))?;
         println!(
             "  Client certificate and key saved to {:?} and {:?}",
             client_cert_path, client_key_path

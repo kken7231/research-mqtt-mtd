@@ -11,11 +11,14 @@
 /// - topic is too long
 #[derive(Debug)]
 pub enum AuthServerParserError {
+    /// Indicates header in the packet is invalid.
+    InvalidHeaderError(u8),
+
     /// Indicates a buffer byte array (slice) is shorter than expected.
-    BufferTooSmallError(),
+    BufferTooSmallError,
 
     /// Indicates topic is longer than expected.
-    TopicTooLongError(),
+    TopicTooLongError,
 
     /// Wraps [std::io::Error] error in reading a socket
     SocketReadError(std::io::Error),
@@ -38,10 +41,13 @@ impl std::error::Error for AuthServerParserError {}
 impl std::fmt::Display for AuthServerParserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AuthServerParserError::BufferTooSmallError() => {
+            AuthServerParserError::InvalidHeaderError(u) => {
+                write!(f, "magic number invalid: {:x}", u)
+            }
+            AuthServerParserError::BufferTooSmallError => {
                 write!(f, "buffer too small, index out of bounds")
             }
-            AuthServerParserError::TopicTooLongError() => {
+            AuthServerParserError::TopicTooLongError => {
                 write!(f, "token is too long")
             }
             AuthServerParserError::SocketReadError(e) => {

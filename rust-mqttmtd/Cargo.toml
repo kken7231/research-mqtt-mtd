@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "authserver", "libmqttmtd", "mqttinterface", "to_string_lines_macro", "testing", "tokenmgr",
+    "authserver", "libmqttmtd", "mqttinterface", "libmqttmtd_macros", "testing", "tokenmgr",
 ]
 resolver = "3"
 
