@@ -66,6 +66,9 @@ impl Request {
         if self.topic.len() == 0 {
             return Err(IssuerRequestValidationError::EmptyTopicError);
         }
+        if self.topic.len() > 0xFFFF {
+            return Err(IssuerRequestValidationError::TopicTooLongError);
+        }
         Ok(())
     }
 
@@ -331,7 +334,7 @@ mod tests {
             SupportedAlgorithm::Aes128Gcm, // Dummy algo (not used for error)
             1,                             // Dummy num_tokens_divided_dy_4 (not used for error)
         )
-        .await;
+            .await;
 
         assert!(result.is_err());
         // Expect an IO error indicating unexpected EOF
@@ -356,7 +359,7 @@ mod tests {
                 SupportedAlgorithm::Aes256Gcm, // algo
                 "test/topic/req".to_string(),  // topic
             )
-            .expect("failed to create a request"),
+                .expect("failed to create a request"),
         );
 
         let expected_bytes = [
@@ -527,8 +530,8 @@ mod tests {
             SupportedAlgorithm::Aes128Gcm,
             (original_resp_writer.all_randoms.len() / RANDOM_LEN).rotate_right(2) as u8, // num_tokens_divided_dy_4
         )
-        .await
-        .expect("Failed to read response");
+            .await
+            .expect("Failed to read response");
 
         assert!(parsed_resp_option.is_some());
         let parsed_resp = parsed_resp_option.unwrap();
@@ -567,8 +570,8 @@ mod tests {
             SupportedAlgorithm::Aes128Gcm, // Dummy algo (not used for error)
             1,                             // Dummy num_tokens_divided_dy_4 (not used for error)
         )
-        .await
-        .expect("Failed to read response");
+            .await
+            .expect("Failed to read response");
 
         assert!(
             parsed_resp_option.is_none(),

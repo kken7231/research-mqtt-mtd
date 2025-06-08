@@ -91,6 +91,7 @@ impl From<IssuerRequestValidationError> for AuthServerParserError {
 pub enum IssuerRequestValidationError {
     NumTokensDiv4OutOfRangeError(u8),
     EmptyTopicError,
+    TopicTooLongError,
 }
 
 impl std::error::Error for IssuerRequestValidationError {}
@@ -103,6 +104,9 @@ impl std::fmt::Display for IssuerRequestValidationError {
             }
             IssuerRequestValidationError::EmptyTopicError => {
                 write!(f, "empty topic")
+            }
+            IssuerRequestValidationError::TopicTooLongError => {
+                write!(f, "topic too long")
             }
         }
     }
