@@ -1,10 +1,11 @@
 use super::*;
-use base64::engine::general_purpose;
-use base64::Engine;
+use base64::{Engine, engine::general_purpose};
 use bytes::Bytes;
-use libmqttmtd::aead::algo::SupportedAlgorithm::{Aes128Gcm, Aes256Gcm};
-use libmqttmtd::consts::{RANDOM_LEN, TIMESTAMP_LEN};
-use rand::{seq::IndexedRandom, RngCore};
+use libmqttmtd::{
+    aead::algo::SupportedAlgorithm::{Aes128Gcm, Aes256Gcm},
+    consts::{RANDOM_LEN, TIMESTAMP_LEN},
+};
+use rand::{RngCore, seq::IndexedRandom};
 use std::{
     path::PathBuf,
     time::{SystemTime, UNIX_EPOCH},

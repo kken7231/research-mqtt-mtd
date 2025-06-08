@@ -18,8 +18,8 @@ pub(super) struct CliArgs {
     #[arg(long)]
     verifier_port: Option<u16>,
 
-    /// Enable unix sockets in both with Auth Server verifier interface and with broker.
-    /// TCP sockets not supported when enabled.
+    /// Enable unix sockets in both with Auth Server verifier interface and with
+    /// broker. TCP sockets not supported when enabled.
     /// Socket path for Auth Server verifier is composed of `verifier_port`.
     /// Socket path for MQTT broker is `/tmp/mosquitto_plain`
     #[arg(long)]

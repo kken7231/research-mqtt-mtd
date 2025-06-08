@@ -1,4 +1,4 @@
-use crate::certgen::{certgen, CertgenArgs};
+use crate::certgen::{CertgenArgs, certgen};
 use clap::{Parser, Subcommand};
 
 mod certgen;

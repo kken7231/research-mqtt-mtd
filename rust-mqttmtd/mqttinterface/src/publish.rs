@@ -1,11 +1,11 @@
 use std::fmt::Display;
 
-use base64::{engine::general_purpose, Engine};
+use base64::{Engine, engine::general_purpose};
 use bytes::BytesMut;
-use libmqttmtd::socket::plain::client::PlainClient;
 use libmqttmtd::{
     aead::{self},
     auth_serv::verifier,
+    socket::plain::client::PlainClient,
 };
 use mqttbytes::v5::Publish;
 

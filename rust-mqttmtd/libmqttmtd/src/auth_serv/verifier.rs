@@ -5,8 +5,8 @@ use super::error::AuthServerParserError;
 use crate::{
     aead::algo::SupportedAlgorithm,
     auth_serv_read, auth_serv_read_check_v2_header, auth_serv_read_into_new_bytes,
-    auth_serv_read_u16, auth_serv_read_u8, auth_serv_write, auth_serv_write_u16,
-    auth_serv_write_u8, auth_serv_write_v2_header,
+    auth_serv_read_u8, auth_serv_read_u16, auth_serv_write, auth_serv_write_u8,
+    auth_serv_write_u16, auth_serv_write_v2_header,
     consts::{PACKET_TYPE_VERIFIER_REQUEST, PACKET_TYPE_VERIFIER_RESPONSE, TOKEN_LEN},
 };
 

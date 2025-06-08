@@ -1,4 +1,4 @@
-use base64::{engine::general_purpose, Engine};
+use base64::{Engine, engine::general_purpose};
 use bytes::{Bytes, BytesMut};
 use config::{Config, ConfigError, File};
 use libmqttmtd::{

@@ -1,6 +1,6 @@
 //! Defines TCP plain socket operations.
 
-use crate::socket::error::SocketError;
+use crate::{localhost_v4, socket::error::SocketError};
 use std::{
     net::{SocketAddr, ToSocketAddrs as StdToSocketAddrs},
     time::Duration,
@@ -28,7 +28,7 @@ impl TcpServer {
         server_type: TcpServerType,
     ) -> Result<Self, SocketError> {
         let addr_str = match server_type {
-            TcpServerType::LOCAL => format!("localhost:{}", port),
+            TcpServerType::LOCAL => localhost_v4!(port),
             TcpServerType::GLOBAL => format!("0.0.0.0:{}", port),
         };
         let mut socket_addrs = addr_str

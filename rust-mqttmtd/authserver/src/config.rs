@@ -40,8 +40,8 @@ pub(super) struct CliArgs {
     #[arg(long)]
     verifier_port: Option<u16>,
 
-    /// Enable unix sockets on verifier interface. TCP sockets not supported when enabled.
-    /// Socket path is composed of `verifier_port`.
+    /// Enable unix sockets on verifier interface. TCP sockets not supported
+    /// when enabled. Socket path is composed of `verifier_port`.
     #[arg(long)]
     enable_unix_sock: Option<bool>,
 

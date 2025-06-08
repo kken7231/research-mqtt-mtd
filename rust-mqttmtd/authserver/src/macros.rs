@@ -8,14 +8,14 @@ macro_rules! proc_println {
 #[macro_export]
 macro_rules! issuer_println {
     ($addr:expr, $($arg:tt)*) => {
-        println!("(issuer)| [{}] {}", $addr, format!($($arg)*))
+        println!("[issuer]({}) {}", $addr, format!($($arg)*))
     };
 }
 
 #[macro_export]
 macro_rules! verifier_println {
     ($addr:expr, $($arg:tt)*) => {
-        println!("(verifier)| [{}] {}", $addr, format!($($arg)*))
+        println!("[verifier]({}) {}", $addr, format!($($arg)*))
     };
 }
 
@@ -29,13 +29,13 @@ macro_rules! proc_eprintln {
 #[macro_export]
 macro_rules! issuer_eprintln {
     ($addr:expr, $($arg:tt)*) => {
-        eprintln!("(issuer)| [{}] {}", $addr, format!($($arg)*))
+        eprintln!("[issuer]({}) {}", $addr, format!($($arg)*))
     };
 }
 
 #[macro_export]
 macro_rules! verifier_eprintln {
     ($addr:expr, $($arg:tt)*) => {
-        eprintln!("(verifier)| [{}] {}", $addr, format!($($arg)*))
+        eprintln!("[verifier]({}) {}", $addr, format!($($arg)*))
     };
 }

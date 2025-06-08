@@ -1,10 +1,10 @@
-use base64::{engine::general_purpose, Engine};
+use base64::{Engine, engine::general_purpose};
 use bytes::{BufMut, Bytes, BytesMut};
-use libmqttmtd::socket::plain::client::PlainClient;
 use libmqttmtd::{
     aead,
     aead::algo::{SupportedAlgorithm, SupportedAlgorithm::Aes128Gcm},
     auth_serv::verifier,
+    socket::plain::client::PlainClient,
     utils,
 };
 use mqttbytes::v5::{Publish, Subscribe};

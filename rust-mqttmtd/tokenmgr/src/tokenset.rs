@@ -1,5 +1,5 @@
 use crate::errors::TokenSetError;
-use base64::{engine::general_purpose, Engine};
+use base64::{Engine, engine::general_purpose};
 use bytes::{Bytes, BytesMut};
 use libmqttmtd::{
     aead::{algo::SupportedAlgorithm, open, seal},

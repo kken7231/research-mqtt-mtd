@@ -79,7 +79,7 @@ impl PlainServer {
     pub fn spawn<F, Fut>(self, handler: F) -> JoinHandle<Result<(), SocketError>>
     where
         F: Fn(PlainStream, PlainStreamAddress) -> Fut + Send + Sync + 'static,
-        Fut: Future<Output=()> + Send + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
     {
         // Get the type_name and listen_timeout
         let (type_name, listen_timeout) = match &self {

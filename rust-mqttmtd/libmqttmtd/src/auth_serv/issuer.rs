@@ -5,8 +5,8 @@ use super::error::{AuthServerParserError, IssuerRequestValidationError};
 use crate::{
     aead::algo::SupportedAlgorithm,
     auth_serv_read, auth_serv_read_check_v2_header, auth_serv_read_into_new_bytes,
-    auth_serv_read_u16, auth_serv_read_u8, auth_serv_write, auth_serv_write_u16,
-    auth_serv_write_u8, auth_serv_write_v2_header,
+    auth_serv_read_u8, auth_serv_read_u16, auth_serv_write, auth_serv_write_u8,
+    auth_serv_write_u16, auth_serv_write_v2_header,
     consts::{PACKET_TYPE_ISSUER_REQUEST, PACKET_TYPE_ISSUER_RESPONSE, RANDOM_LEN, TIMESTAMP_LEN},
 };
 
@@ -334,7 +334,7 @@ mod tests {
             SupportedAlgorithm::Aes128Gcm, // Dummy algo (not used for error)
             1,                             // Dummy num_tokens_divided_dy_4 (not used for error)
         )
-            .await;
+        .await;
 
         assert!(result.is_err());
         // Expect an IO error indicating unexpected EOF
@@ -359,7 +359,7 @@ mod tests {
                 SupportedAlgorithm::Aes256Gcm, // algo
                 "test/topic/req".to_string(),  // topic
             )
-                .expect("failed to create a request"),
+            .expect("failed to create a request"),
         );
 
         let expected_bytes = [
@@ -554,8 +554,8 @@ mod tests {
             SupportedAlgorithm::Aes128Gcm, // Dummy algo (not used for error)
             1,                             // Dummy num_tokens_divided_dy_4 (not used for error)
         )
-            .await
-            .expect("Failed to read response");
+        .await
+        .expect("Failed to read response");
 
         assert!(
             parsed_resp_option.is_none(),

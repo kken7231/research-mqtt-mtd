@@ -1,13 +1,13 @@
-use crate::socket::error::SocketError;
-use crate::socket::plain::stream::PlainStream;
-use crate::socket::plain::tcp::TcpClient;
 #[cfg(unix)]
 use crate::socket::plain::unix::UnixClient;
+use crate::socket::{
+    error::SocketError,
+    plain::{stream::PlainStream, tcp::TcpClient},
+};
 use std::time::Duration;
-use tokio::net::TcpStream;
 #[cfg(unix)]
 use tokio::net::UnixStream;
-use tokio::time::timeout;
+use tokio::{net::TcpStream, time::timeout};
 
 macro_rules! cli_println {
     ($type:ident, $($arg:tt)*) => {

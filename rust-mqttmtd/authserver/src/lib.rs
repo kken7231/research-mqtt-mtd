@@ -2,10 +2,17 @@ use crate::garbage_collector::spawn_garbage_collector;
 use acl::AccessControlList;
 use atl::AccessTokenList;
 use config::load_config;
-use libmqttmtd::consts::UNIX_SOCK_VERIFIER;
-use libmqttmtd::socket::plain::server::PlainServer;
-use libmqttmtd::socket::plain::tcp::TcpServerType::{GLOBAL, LOCAL};
-use libmqttmtd::socket::{tls::TlsServer, tls_config::TlsConfigLoader};
+use libmqttmtd::{
+    consts::UNIX_SOCK_VERIFIER,
+    socket::{
+        plain::{
+            server::PlainServer,
+            tcp::TcpServerType::{GLOBAL, LOCAL},
+        },
+        tls::TlsServer,
+        tls_config::TlsConfigLoader,
+    },
+};
 use std::{error::Error, sync::Arc, time::Duration};
 
 mod acl;

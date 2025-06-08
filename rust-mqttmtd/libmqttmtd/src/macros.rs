@@ -18,3 +18,10 @@ macro_rules! log_end_func {
         );
     };
 }
+
+#[macro_export]
+macro_rules! localhost_v4 {
+    ($port:expr) => {
+        format!("127.0.0.1:{}", $port)
+    };
+}

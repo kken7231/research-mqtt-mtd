@@ -4,16 +4,16 @@ use mqttbytes::v5::{self, Packet, Publish, Subscribe};
 
 use crate::{
     publish::unfreeze_publish,
-    subscribe::{freeze_subscribed_publish, unfreeze_subscribe, ClientSubscriptionInfo},
+    subscribe::{ClientSubscriptionInfo, freeze_subscribed_publish, unfreeze_subscribe},
 };
-use libmqttmtd::consts::UNIX_SOCK_MQTT_BROKER;
-use libmqttmtd::socket::plain::client::PlainClient;
-use libmqttmtd::socket::plain::stream::PlainStream;
-use std::fmt::write;
-use std::sync::Arc;
-use tokio::io::{AsyncRead, AsyncWrite};
+use libmqttmtd::{
+    consts::UNIX_SOCK_MQTT_BROKER,
+    localhost_v4,
+    socket::plain::{client::PlainClient, stream::PlainStream},
+};
+use std::{fmt::write, sync::Arc};
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
     sync::RwLock,
 };
 
@@ -35,7 +35,7 @@ pub async fn handler(
     let broker_addr = if enable_unix_sock {
         UNIX_SOCK_MQTT_BROKER
     } else {
-        broker_addr_str = format!("localhost:{}", broker_port);
+        broker_addr_str = localhost_v4!(broker_port);
         broker_addr_str.as_str()
     };
 

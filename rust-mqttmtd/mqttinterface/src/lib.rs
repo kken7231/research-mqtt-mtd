@@ -4,9 +4,11 @@ mod publish;
 mod subscribe;
 
 use crate::config::load_config;
-use libmqttmtd::consts::UNIX_SOCK_VERIFIER;
-use libmqttmtd::socket::plain::server::PlainServer;
-use libmqttmtd::socket::plain::tcp::TcpServerType::GLOBAL;
+use libmqttmtd::{
+    consts::UNIX_SOCK_VERIFIER,
+    localhost_v4,
+    socket::plain::{server::PlainServer, tcp::TcpServerType::GLOBAL},
+};
 use std::error::Error;
 
 pub async fn run_server() -> Result<(), Box<dyn Error>> {
@@ -38,8 +40,9 @@ pub async fn run_server() -> Result<(), Box<dyn Error>> {
         let verifier_addr = if config.enable_unix_sock {
             UNIX_SOCK_VERIFIER.to_string()
         } else {
-            format!("localhost:{}", config.verifier_port)
+            localhost_v4!(config.verifier_port)
         };
+        println!("verifier_addr: {}", verifier_addr);
         client::handler(
             config.broker_port,
             verifier_addr,

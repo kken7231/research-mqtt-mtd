@@ -7,14 +7,15 @@ pub mod unix;
 
 #[cfg(test)]
 mod tests {
-    use crate::socket::plain::client::PlainClient;
-    use crate::socket::plain::server::PlainServer;
-    use crate::socket::plain::tcp::TcpServerType::LOCAL;
-    use std::sync::LazyLock;
-    use std::{io::ErrorKind, time::Duration};
-    use tokio::sync::RwLock;
-    use tokio::time::timeout;
-    use crate::socket::error::SocketError;
+    use crate::{
+        localhost_v4,
+        socket::{
+            error::SocketError,
+            plain::{client::PlainClient, server::PlainServer, tcp::TcpServerType::LOCAL},
+        },
+    };
+    use std::{io::ErrorKind, sync::LazyLock, time::Duration};
+    use tokio::{sync::RwLock, time::timeout};
 
     static UNUSED_PORT: LazyLock<RwLock<u16>> = LazyLock::new(|| RwLock::new(3000));
 
@@ -41,7 +42,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         // Spawn client and connect
-        let cli_sock = PlainClient::new_tcp(format!("localhost:{}", port).as_str(), TO_CLIENT)
+        let cli_sock = PlainClient::new_tcp(localhost_v4!(port).as_str(), TO_CLIENT)
             .unwrap()
             .connect()
             .await;
@@ -85,7 +86,7 @@ mod tests {
         // Spawn client
         match timeout(
             Duration::from_secs(1),
-            PlainClient::new_tcp(format!("localhost:{}", port).as_str(), TO_CLIENT)
+            PlainClient::new_tcp(localhost_v4!(port).as_str(), TO_CLIENT)
                 .unwrap()
                 .connect(),
         )
@@ -105,7 +106,7 @@ mod tests {
         // Try connecting
         match timeout(
             Duration::from_secs(2),
-            PlainClient::new_tcp(format!("localhost:{}", port).as_str(), TO_CLIENT)
+            PlainClient::new_tcp(localhost_v4!(port).as_str(), TO_CLIENT)
                 .unwrap()
                 .connect(),
         )
@@ -135,7 +136,7 @@ mod tests {
 
         // Spawn client and connect
         assert!(
-            match PlainClient::new_tcp(format!("localhost:{}", port).as_str(), TO_CLIENT)
+            match PlainClient::new_tcp(localhost_v4!(port).as_str(), TO_CLIENT)
                 .unwrap()
                 .connect()
                 .await

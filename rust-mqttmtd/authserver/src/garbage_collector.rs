@@ -2,7 +2,7 @@ use crate::atl::AccessTokenList;
 use std::sync::Arc;
 use tokio::{
     task::JoinHandle,
-    time::{interval, Duration},
+    time::{Duration, interval},
 };
 
 pub async fn spawn_garbage_collector(

@@ -1,9 +1,10 @@
-use std::io;
-use std::path::Path;
-use tokio::io::{AsyncRead, AsyncWrite, ReadHalf, WriteHalf};
-use tokio::net::TcpStream;
+use std::{io, path::Path};
 #[cfg(unix)]
 use tokio::net::UnixStream;
+use tokio::{
+    io::{AsyncRead, AsyncWrite, ReadHalf, WriteHalf},
+    net::TcpStream,
+};
 
 /// Enum that can hold either [TcpStream] or [UnixStream]
 /// Implements [AsyncRead] and [AsyncWrite]
@@ -20,12 +21,18 @@ impl PlainStream {
         match self {
             PlainStream::Tcp(stream) => {
                 let (read_half, write_half) = tokio::io::split(stream);
-                (PlainReadHalf::Tcp(read_half), PlainWriteHalf::Tcp(write_half))
+                (
+                    PlainReadHalf::Tcp(read_half),
+                    PlainWriteHalf::Tcp(write_half),
+                )
             }
             #[cfg(unix)]
             PlainStream::Unix(stream) => {
                 let (read_half, write_half) = tokio::io::split(stream);
-                (PlainReadHalf::Unix(read_half), PlainWriteHalf::Unix(write_half))
+                (
+                    PlainReadHalf::Unix(read_half),
+                    PlainWriteHalf::Unix(write_half),
+                )
             }
         }
     }
@@ -81,7 +88,6 @@ impl AsyncWrite for PlainStream {
     }
 }
 
-
 /// A read half of a [PlainStream].
 /// Implements [AsyncRead].
 pub enum PlainReadHalf {
@@ -89,7 +95,6 @@ pub enum PlainReadHalf {
     #[cfg(unix)]
     Unix(ReadHalf<UnixStream>),
 }
-
 
 /// A write half of a [PlainStream].
 /// Implements [AsyncWrite].
@@ -148,7 +153,6 @@ impl AsyncWrite for PlainWriteHalf {
         }
     }
 }
-
 
 /// Enum that can hold either [std::net::SocketAddr] (tcp) or [PathBuf] (unix)
 /// Implements to_string().
