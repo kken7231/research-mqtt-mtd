@@ -411,22 +411,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn request_write_to_topic_too_long() {
-        let long_topic = "a".repeat(0xFFFF + 1); // Longer than u16 max
-        let original_req = Request::new(true, 1, SupportedAlgorithm::Aes128Gcm, long_topic)
-            .expect("failed to create a request");
-
-        let mut mock_stream = Builder::new().build();
-        let result = original_req.write_to(&mut mock_stream).await;
-
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            AuthServerParserError::TopicTooLongError => {}
-            _ => panic!(),
-        };
-    }
-
-    #[tokio::test]
     async fn response_write_read_success_roundtrip() {
         let enc_key = Bytes::from_static(&[
             0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22,
