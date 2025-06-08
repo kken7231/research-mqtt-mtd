@@ -5,9 +5,9 @@ use super::error::{AuthServerParserError, IssuerRequestValidationError};
 use crate::{
     aead::algo::SupportedAlgorithm,
     auth_serv_read, auth_serv_read_check_v2_header, auth_serv_read_into_new_bytes,
-    auth_serv_read_u8, auth_serv_read_u16, auth_serv_write, auth_serv_write_u8,
-    auth_serv_write_u16, auth_serv_write_v2_header,
-    consts::{PACKET_TYPE_ISSUER_REQUEST, PACKET_TYPE_ISSUER_RESPONSE, RANDOM_LEN, TIMESTAMP_LEN},
+    auth_serv_read_u16, auth_serv_read_u8, auth_serv_write, auth_serv_write_u16,
+    auth_serv_write_u8, auth_serv_write_v2_header,
+    consts::{PACKET_TYPE_ISSUER_REQUEST, PACKET_TYPE_ISSUER_RESPONSE, TIMESTAMP_LEN},
 };
 
 /// # Request for Issuer interface
@@ -142,36 +142,28 @@ impl Request {
 /// # Structure:
 ///
 /// ## v1
-/// 1. `enc_key` (optional)
+/// 1. `secret_key` (optional)
 /// 2. `timestamp`
 /// 3. `all_random_bytes`
 ///
 /// ## v2
 /// 0. header
 /// 1. `status` (u8, refer to [ResponseStatus])
-/// 2. `enc_key`
+/// 2. `secret_key`
 /// 3. `nonce_base`
 /// 4. `timestamp`
-/// 5. `all_randoms` (length = num_tokens_divided_by_4*4*RANDOM_LEN)
 pub struct ResponseWriter {
-    enc_key: Bytes,
+    secret_key: Bytes,
     nonce_base: Bytes,
     timestamp: [u8; TIMESTAMP_LEN],
-    all_randoms: Bytes,
 }
 
 impl ResponseWriter {
-    pub fn new(
-        enc_key: Bytes,
-        nonce_base: Bytes,
-        timestamp: [u8; TIMESTAMP_LEN],
-        all_randoms: Bytes,
-    ) -> Self {
+    pub fn new(secret_key: Bytes, nonce_base: Bytes, timestamp: [u8; TIMESTAMP_LEN]) -> Self {
         Self {
-            enc_key,
+            secret_key,
             nonce_base,
             timestamp,
-            all_randoms,
         }
     }
 
@@ -206,25 +198,23 @@ impl ResponseWriter {
         let resp = resp.unwrap();
 
         // other attributes if success
-        counter += auth_serv_write!(stream, &resp.enc_key);
+        counter += auth_serv_write!(stream, &resp.secret_key);
         counter += auth_serv_write!(stream, &resp.nonce_base);
         counter += auth_serv_write!(stream, &resp.timestamp);
-        counter += auth_serv_write!(stream, &resp.all_randoms);
         Ok(counter)
     }
 }
 
 #[derive(Debug)]
 pub struct ResponseReader {
-    enc_key: Bytes,
+    secret_key: Bytes,
     nonce_base: Bytes,
     timestamp: [u8; TIMESTAMP_LEN],
-    all_randoms: Bytes,
 }
 
 impl ResponseReader {
-    pub fn enc_key(&self) -> &[u8] {
-        &self.enc_key
+    pub fn secret_key(&self) -> &[u8] {
+        &self.secret_key
     }
 
     pub fn nonce_base(&self) -> &[u8] {
@@ -235,14 +225,9 @@ impl ResponseReader {
         &self.timestamp
     }
 
-    pub fn all_randoms(&self) -> &[u8] {
-        &self.all_randoms
-    }
-
     pub async fn read_from<R: AsyncRead + Unpin>(
         stream: &mut R,
         algo: SupportedAlgorithm,
-        num_tokens_divided_by_4: u8,
     ) -> Result<Option<Self>, AuthServerParserError> {
         // header
         auth_serv_read_check_v2_header!(stream, PACKET_TYPE_ISSUER_RESPONSE);
@@ -254,20 +239,14 @@ impl ResponseReader {
         }
 
         // other attributes if success
-        auth_serv_read_into_new_bytes!(enc_key, stream, algo.key_len());
+        auth_serv_read_into_new_bytes!(secret_key, stream, algo.key_len());
         auth_serv_read_into_new_bytes!(nonce_base, stream, algo.nonce_len());
         auth_serv_read_into_new_bytes!(timestamp, stream, TIMESTAMP_LEN);
-        auth_serv_read_into_new_bytes!(
-            all_randoms,
-            stream,
-            ((num_tokens_divided_by_4 as usize) << 2) * RANDOM_LEN
-        );
 
         Ok(Some(Self {
-            enc_key,
+            secret_key,
             nonce_base,
             timestamp: timestamp.as_ref().try_into().unwrap(),
-            all_randoms,
         }))
     }
 }
@@ -296,8 +275,8 @@ mod tests {
         auth_serv::{
             error::AuthServerParserError,
             issuer::{Request, ResponseReader, ResponseWriter},
-        },
-        consts::RANDOM_LEN,
+        }
+        ,
     };
 
     use crate::consts::{PACKET_TYPE_ISSUER_REQUEST, PACKET_TYPE_ISSUER_RESPONSE};
@@ -332,7 +311,6 @@ mod tests {
         let result = ResponseReader::read_from(
             &mut mock_stream,
             SupportedAlgorithm::Aes128Gcm, // Dummy algo (not used for error)
-            1,                             // Dummy num_tokens_divided_dy_4 (not used for error)
         )
         .await;
 
@@ -412,7 +390,7 @@ mod tests {
 
     #[tokio::test]
     async fn response_write_read_success_roundtrip() {
-        let enc_key = Bytes::from_static(&[
+        let secret_key = Bytes::from_static(&[
             0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22,
             0x33, 0x44,
         ]); // Dummy key
@@ -420,10 +398,6 @@ mod tests {
         let nonce_base = Bytes::from_static(&[
             0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF,
         ]); // Dummy nonce_base
-        let all_randoms = Bytes::from_static(&[
-            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E,
-            0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
-        ]); // Dummy randoms (e.g., 1 token * 8 bytes)
 
         let expected_bytes = [
             0x20u8 | PACKET_TYPE_ISSUER_RESPONSE,
@@ -443,7 +417,7 @@ mod tests {
             0x11,
             0x22,
             0x33,
-            0x44, /* enc_key: [0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33,
+            0x44, /* secret_key: [0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33,
                    * 0x44, 0x11, 0x22, 0x33, 0x44] */
             0xAA,
             0xBB,
@@ -464,35 +438,9 @@ mod tests {
             0xDD,
             0xEE,
             0xFF, // timestamp: [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]
-            // all_randoms: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B,
-            // 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18]
-            0x01,
-            0x02,
-            0x03,
-            0x04,
-            0x05,
-            0x06,
-            0x07,
-            0x08,
-            0x09,
-            0x0A,
-            0x0B,
-            0x0C,
-            0x0D,
-            0x0E,
-            0x0F,
-            0x10,
-            0x11,
-            0x12,
-            0x13,
-            0x14,
-            0x15,
-            0x16,
-            0x17,
-            0x18,
         ];
 
-        let original_resp_writer = ResponseWriter::new(enc_key, nonce_base, timestamp, all_randoms);
+        let original_resp_writer = ResponseWriter::new(secret_key, nonce_base, timestamp);
 
         // Mock stream to write to
         let mut mock_stream = Builder::new().write(&expected_bytes).read(&[]).build();
@@ -505,30 +453,19 @@ mod tests {
         // Now build a new mock stream with the expected bytes to read
         let mut read_stream = Builder::new().read(&expected_bytes).build();
 
-        println!(
-            "{}",
-            (original_resp_writer.all_randoms.len() / RANDOM_LEN).rotate_right(2)
-        );
-        let parsed_resp_option = ResponseReader::read_from(
-            &mut read_stream,
-            SupportedAlgorithm::Aes128Gcm,
-            (original_resp_writer.all_randoms.len() / RANDOM_LEN).rotate_right(2) as u8, // num_tokens_divided_dy_4
-        )
-            .await
-            .expect("Failed to read response");
+        let parsed_resp_option =
+            ResponseReader::read_from(&mut read_stream, SupportedAlgorithm::Aes128Gcm)
+                .await
+                .expect("Failed to read response");
 
         assert!(parsed_resp_option.is_some());
         let parsed_resp = parsed_resp_option.unwrap();
 
         assert_eq!(
-            parsed_resp.enc_key.as_ref(),
-            original_resp_writer.enc_key.as_ref()
+            parsed_resp.secret_key.as_ref(),
+            original_resp_writer.secret_key.as_ref()
         );
         assert_eq!(parsed_resp.timestamp, timestamp);
-        assert_eq!(
-            parsed_resp.all_randoms.as_ref(),
-            original_resp_writer.all_randoms.as_ref()
-        );
         assert_eq!(written_len, expected_bytes.len(), "Written length mismatch");
     }
 
@@ -552,7 +489,6 @@ mod tests {
         let parsed_resp_option = ResponseReader::read_from(
             &mut read_stream,
             SupportedAlgorithm::Aes128Gcm, // Dummy algo (not used for error)
-            1,                             // Dummy num_tokens_divided_dy_4 (not used for error)
         )
         .await
         .expect("Failed to read response");

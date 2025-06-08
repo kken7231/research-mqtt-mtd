@@ -7,7 +7,6 @@ use libmqttmtd::{
         SupportedAlgorithm::{Aes128Gcm, Aes256Gcm, Chacha20Poly1305},
     },
     auth_serv::issuer,
-    consts::RANDOM_LEN,
     socket::tls_config::TlsConfigLoader,
 };
 use libmqttmtd_macros::ToStringLines;
@@ -334,12 +333,7 @@ async fn test_fetch_tokens_success_pub_4() -> Result<(), Box<dyn std::error::Err
 
     // Fetch tokens
     let issuer_addr = get_issuer_addr(&config);
-    let resp = fetch_tokens(issuer_addr.as_str(), get_tls_config(&config), &request).await?;
-
-    assert_eq!(
-        resp.all_randoms().len(),
-        RANDOM_LEN * (request.num_tokens_divided_by_4() as usize).rotate_left(2)
-    );
+    let _resp = fetch_tokens(issuer_addr.as_str(), get_tls_config(&config), &request).await?;
 
     Ok(())
 }
@@ -359,12 +353,8 @@ async fn test_fetch_tokens_success_pub_7f() -> Result<(), Box<dyn std::error::Er
 
     // Fetch tokens
     let issuer_addr = get_issuer_addr(&config);
-    let resp = fetch_tokens(issuer_addr.as_str(), get_tls_config(&config), &request).await?;
+    let _resp = fetch_tokens(issuer_addr.as_str(), get_tls_config(&config), &request).await?;
 
-    assert_eq!(
-        resp.all_randoms().len(),
-        RANDOM_LEN * (request.num_tokens_divided_by_4() as usize).rotate_left(2)
-    );
     Ok(())
 }
 
@@ -383,12 +373,7 @@ async fn test_fetch_tokens_success_sub_4() -> Result<(), Box<dyn std::error::Err
 
     // Fetch tokens
     let issuer_addr = get_issuer_addr(&config);
-    let resp = fetch_tokens(issuer_addr.as_str(), get_tls_config(&config), &request).await?;
-
-    assert_eq!(
-        resp.all_randoms().len(),
-        RANDOM_LEN * (request.num_tokens_divided_by_4() as usize).rotate_left(2)
-    );
+    let _resp = fetch_tokens(issuer_addr.as_str(), get_tls_config(&config), &request).await?;
 
     Ok(())
 }
@@ -408,12 +393,7 @@ async fn test_fetch_tokens_success_sub_7f() -> Result<(), Box<dyn std::error::Er
 
     // Fetch tokens
     let issuer_addr = get_issuer_addr(&config);
-    let resp = fetch_tokens(issuer_addr.as_str(), get_tls_config(&config), &request).await?;
-
-    assert_eq!(
-        resp.all_randoms().len(),
-        RANDOM_LEN * (request.num_tokens_divided_by_4() as usize).rotate_left(2)
-    );
+    let _resp = fetch_tokens(issuer_addr.as_str(), get_tls_config(&config), &request).await?;
 
     Ok(())
 }
@@ -433,12 +413,7 @@ async fn test_fetch_tokens_success_pubsub_4() -> Result<(), Box<dyn std::error::
 
     // Fetch tokens
     let issuer_addr = get_issuer_addr(&config);
-    let resp = fetch_tokens(issuer_addr.as_str(), get_tls_config(&config), &request).await?;
-
-    assert_eq!(
-        resp.all_randoms().len(),
-        RANDOM_LEN * (request.num_tokens_divided_by_4() as usize).rotate_left(2)
-    );
+    let _resp = fetch_tokens(issuer_addr.as_str(), get_tls_config(&config), &request).await?;
 
     // issuer::Request
     let request = issuer::Request::new(
@@ -450,12 +425,7 @@ async fn test_fetch_tokens_success_pubsub_4() -> Result<(), Box<dyn std::error::
 
     // Fetch tokens
     let issuer_addr = get_issuer_addr(&config);
-    let resp = fetch_tokens(issuer_addr.as_str(), get_tls_config(&config), &request).await?;
-
-    assert_eq!(
-        resp.all_randoms().len(),
-        RANDOM_LEN * (request.num_tokens_divided_by_4() as usize).rotate_left(2)
-    );
+    let _resp = fetch_tokens(issuer_addr.as_str(), get_tls_config(&config), &request).await?;
 
     Ok(())
 }
@@ -477,8 +447,8 @@ async fn test_fetch_tokens_success_aes128gcm() -> Result<(), Box<dyn std::error:
     let issuer_addr = get_issuer_addr(&config);
     let resp = fetch_tokens(issuer_addr.as_str(), get_tls_config(&config), &request).await?;
 
-    // Check both enc_key and nonce_base length
-    assert_eq!(resp.enc_key().len(), algo.key_len());
+    // Check both secret_key and nonce_base length
+    assert_eq!(resp.secret_key().len(), algo.key_len());
     assert_eq!(resp.nonce_base().len(), algo.nonce_len());
 
     Ok(())
@@ -501,8 +471,8 @@ async fn test_fetch_tokens_success_aes256gcm() -> Result<(), Box<dyn std::error:
     let issuer_addr = get_issuer_addr(&config);
     let resp = fetch_tokens(issuer_addr.as_str(), get_tls_config(&config), &request).await?;
 
-    // Check both enc_key and nonce_base length
-    assert_eq!(resp.enc_key().len(), algo.key_len());
+    // Check both secret_key and nonce_base length
+    assert_eq!(resp.secret_key().len(), algo.key_len());
     assert_eq!(resp.nonce_base().len(), algo.nonce_len());
 
     Ok(())
@@ -525,8 +495,8 @@ async fn test_fetch_tokens_success_chacha20poly1305() -> Result<(), Box<dyn std:
     let issuer_addr = get_issuer_addr(&config);
     let resp = fetch_tokens(issuer_addr.as_str(), get_tls_config(&config), &request).await?;
 
-    // Check both enc_key and nonce_base length
-    assert_eq!(resp.enc_key().len(), algo.key_len());
+    // Check both secret_key and nonce_base length
+    assert_eq!(resp.secret_key().len(), algo.key_len());
     assert_eq!(resp.nonce_base().len(), algo.nonce_len());
 
     Ok(())

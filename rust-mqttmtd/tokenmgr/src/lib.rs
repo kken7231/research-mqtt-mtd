@@ -28,7 +28,6 @@ pub async fn fetch_tokens(
     if let Some(success_response) = issuer::ResponseReader::read_from(
         &mut issuer_stream,
         request.algo(),
-        request.num_tokens_divided_by_4(),
     )
     .await
     .map_err(|e| TokenFetchError::SocketReadError(e))?
