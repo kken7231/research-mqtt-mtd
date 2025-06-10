@@ -83,7 +83,7 @@ impl Request {
 /// case success+enc:
 ///     [0:2]: token_idx, big endian
 ///     [2]: aead_type
-///     [3:3+len_key]: enc_key
+///     [3:3+len_key]: secret_key
 ///     [3+len_key:3+len_key+2]: len_topic, big endian
 ///     [3+len_key+2:3+len_key+2+len_topic]: topic
 /// case success+noenc:
@@ -106,7 +106,7 @@ impl Request {
 ///             - 2: CHACHA20_POLY1305
 ///     3. len_topic, big endian (len=2 bytes)
 ///     4. topic (len=len_topic bytes)
-///     5. enc_key
+///     5. secret_key
 ///     6. nonce
 /// case fail:
 ///     (none)
@@ -120,7 +120,7 @@ pub struct ResponseReader {
     pub algo: SupportedAlgorithm,
     pub nonce: Bytes,
     pub topic: String,
-    pub enc_key: Bytes,
+    pub secret_key: Bytes,
 }
 
 impl ResponseReader {
@@ -153,7 +153,7 @@ impl ResponseReader {
         auth_serv_read_into_new_bytes!(topic, stream, topic_len);
         let topic = String::from_utf8(topic.to_vec())?;
 
-        auth_serv_read_into_new_bytes!(enc_key, stream, algo.key_len());
+        auth_serv_read_into_new_bytes!(secret_key, stream, algo.key_len());
         auth_serv_read_into_new_bytes!(nonce, stream, algo.nonce_len());
 
         Ok(Some(Self {
@@ -161,7 +161,7 @@ impl ResponseReader {
             algo,
             nonce,
             topic,
-            enc_key,
+            secret_key,
         }))
     }
 }
@@ -172,7 +172,7 @@ pub struct ResponseWriter {
     algo: SupportedAlgorithm,
     nonce: Bytes,
     topic: Bytes,
-    enc_key: Bytes,
+    secret_key: Bytes,
 }
 
 impl ResponseWriter {
@@ -181,14 +181,14 @@ impl ResponseWriter {
         algo: SupportedAlgorithm,
         nonce: Bytes,
         topic: Bytes,
-        enc_key: Bytes,
+        secret_key: Bytes,
     ) -> Self {
         Self {
             allowed_access_is_pub,
             algo,
             nonce,
             topic,
-            enc_key,
+            secret_key,
         }
     }
 
@@ -241,7 +241,7 @@ impl ResponseWriter {
         counter += auth_serv_write_u8!(stream, compound);
         counter += auth_serv_write_u16!(stream, resp.topic.len() as u16);
         counter += auth_serv_write!(stream, &resp.topic);
-        counter += auth_serv_write!(stream, &resp.enc_key);
+        counter += auth_serv_write!(stream, &resp.secret_key);
         counter += auth_serv_write!(stream, &resp.nonce);
         Ok(counter)
     }
@@ -398,7 +398,7 @@ mod tests {
                 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
                 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55,
                 0x66, 0x77, 0x88, 0x99,
-            ]), // enc_key (32 bytes for CHACHA20)
+            ]), // secret_key (32 bytes for CHACHA20)
         );
 
         let expected_bytes = [
@@ -492,7 +492,7 @@ mod tests {
         assert_eq!(parsed_resp.algo, original_resp_writer.algo);
         assert_eq!(parsed_resp.nonce.as_ref(), original_resp_writer.nonce);
         assert_eq!(parsed_resp.topic, original_resp_writer.topic);
-        assert_eq!(parsed_resp.enc_key.as_ref(), original_resp_writer.enc_key);
+        assert_eq!(parsed_resp.secret_key.as_ref(), original_resp_writer.secret_key);
         assert_eq!(written_len, expected_bytes.len(), "Written length mismatch");
     }
 

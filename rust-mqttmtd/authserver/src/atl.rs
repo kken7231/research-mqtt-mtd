@@ -2,12 +2,15 @@
 
 use crate::error::ATLError;
 use bytes::{Bytes, BytesMut};
+use libmqttmtd::consts::TOKEN_LEN;
+use libmqttmtd::utils::calculate_random;
 use libmqttmtd::{
     aead::algo::SupportedAlgorithm,
     auth_serv::{issuer, verifier},
-    consts::{RANDOM_LEN, TIMESTAMP_LEN, TOKEN_LEN},
+    consts::TIMESTAMP_LEN,
     utils,
 };
+use ring::hmac::{Key, HMAC_SHA256};
 use ring::rand::{SecureRandom, SystemRandom};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
@@ -24,7 +27,6 @@ pub(crate) struct TokenSet {
     masked_timestamp: u64,
     expiration_timestamp: u64,
 
-    all_randoms: Bytes,
     num_tokens: u16,
     token_idx: u16,
     topic: String,
@@ -32,12 +34,13 @@ pub(crate) struct TokenSet {
     valid_dur: Duration,
 
     algo: SupportedAlgorithm,
-    enc_key: Bytes,
+    secret_key: Bytes,
+    secret_key_for_hmac: Key,
     nonce_base: u128,
 }
 
 impl TokenSet {
-    /// Initializes a new [TokenSet]. Random values such as `enc_key` and
+    /// Initializes a new [TokenSet]. Random values such as `secret_key` and
     /// `nonce_base` are not initialized here. Initialization of those
     /// values is what [AccessTokenList] is responsible for. # Parameters:
     /// - `valid_dur`: must be less than one year, otherwise error thrown
@@ -61,36 +64,39 @@ impl TokenSet {
         Ok(Self {
             masked_timestamp: 0,
             expiration_timestamp: 0,
-            all_randoms: Bytes::new(),
             num_tokens: (num_tokens_divided_by_4 as u16).rotate_left(2),
             token_idx: 0u16,
             topic,
             is_pub,
             valid_dur,
             algo,
-            enc_key: Bytes::new(),
+            secret_key: Bytes::new(),
+            secret_key_for_hmac: Key::new(HMAC_SHA256, &[]),
             nonce_base: 0u128,
         })
     }
 
-    pub(crate) fn current_random(&self) -> Result<&[u8], ATLError> {
-        let token_idx_usize = self.token_idx as usize;
-        if (token_idx_usize + 1) * RANDOM_LEN <= self.all_randoms.len() {
-            Ok(&self.all_randoms[token_idx_usize * RANDOM_LEN..(token_idx_usize + 1) * RANDOM_LEN])
+    pub(crate) fn current_random(&self) -> Result<Bytes, ATLError> {
+        if self.token_idx <= self.num_tokens {
+            Ok(calculate_random(
+                &self.secret_key_for_hmac,
+                &self.topic.as_str(),
+                self.token_idx,
+            ))
         } else {
             Err(ATLError::TokenIdxOutOfBoundError(self.token_idx))
         }
     }
 
     #[cfg(test)]
-    pub(crate) fn current_token(&self) -> Result<[u8; TOKEN_LEN], ATLError> {
+    pub(crate) fn current_token(&self) -> [u8; TOKEN_LEN] {
         let timestamp = AccessTokenList::sparse_masked_u64_to_part(self.masked_timestamp);
-        let random = self.current_random()?;
-        let mut token = [0u8; TOKEN_LEN];
-        token[..TIMESTAMP_LEN].copy_from_slice(&timestamp);
-        token[TIMESTAMP_LEN..].copy_from_slice(random);
-
-        Ok(token)
+        libmqttmtd::utils::calculate_token(
+            &timestamp,
+            &self.secret_key_for_hmac,
+            self.topic.as_str(),
+            self.token_idx,
+        )
     }
 
     pub(crate) fn current_nonce(&self) -> Bytes {
@@ -166,29 +172,34 @@ impl AccessTokenList {
         &self,
         mut token_set: TokenSet,
     ) -> Result<(issuer::ResponseWriter, u64), ATLError> {
-        // Fill all_randoms
-        let mut all_randoms = BytesMut::zeroed(token_set.num_tokens as usize * RANDOM_LEN);
-        let mut generated_tokens: HashSet<[u8; RANDOM_LEN]> = HashSet::new();
-        let mut cur_idx = 0usize;
-        // To ensure uniqueness of all_randoms, we use hashset
-        while generated_tokens.len() < token_set.num_tokens as usize {
-            let mut current_token_bytes = [0u8; RANDOM_LEN];
+        // Fill secret_key
+        loop {
+            let mut secret_key = BytesMut::zeroed(token_set.algo.key_len());
             self.rng
-                .fill(&mut current_token_bytes)
+                .fill(&mut secret_key)
                 .map_err(|e| ATLError::RandGenError(e))?;
-            if generated_tokens.insert(current_token_bytes.clone()) {
-                all_randoms[cur_idx..(cur_idx + RANDOM_LEN)].copy_from_slice(&current_token_bytes);
-                cur_idx += RANDOM_LEN;
-            }
-        }
-        token_set.all_randoms = all_randoms.freeze();
+            let secret_key_for_hmac = Key::new(HMAC_SHA256, &secret_key);
 
-        // Fill enc_key
-        let mut enc_key = BytesMut::zeroed(token_set.algo.key_len());
-        self.rng
-            .fill(&mut enc_key)
-            .map_err(|e| ATLError::RandGenError(e))?;
-        token_set.enc_key = enc_key.freeze();
+            // Check all randoms are unique
+            // randoms are calculated by hashing and truncating the first 6 bytes
+            let mut generated_tokens: HashSet<Bytes> = HashSet::new();
+            let mut duplicate_found = false;
+            for i in 0..token_set.num_tokens {
+                duplicate_found |= !generated_tokens.insert(calculate_random(
+                    &secret_key_for_hmac,
+                    token_set.topic.as_str(),
+                    i,
+                ));
+            }
+            if duplicate_found {
+                continue;
+            }
+
+            // assign secret_key
+            token_set.secret_key = secret_key.freeze();
+            token_set.secret_key_for_hmac = Key::new(HMAC_SHA256, &token_set.secret_key);
+            break;
+        }
 
         // Fill nonce_base
         let mut nonce_base = [0u8; 16];
@@ -228,10 +239,9 @@ impl AccessTokenList {
 
         // Copy to issuer::ResponseWriter
         let resp = issuer::ResponseWriter::new(
-            token_set.enc_key.clone(),
+            token_set.secret_key.clone(),
             utils::nonce_from_u128_to_bytes(token_set.algo, token_set.nonce_base),
             Self::sparse_masked_u64_to_part(token_set.masked_timestamp),
-            token_set.all_randoms.clone(),
         );
 
         // Add the new entry. Because we issue timestamps sequentially,
@@ -332,11 +342,10 @@ impl AccessTokenList {
         token: &[u8; TOKEN_LEN],
     ) -> Result<Option<verifier::ResponseWriter>, ATLError> {
         // Prepare masked timestamp and random bytes
-        let mut timestamp = [0u8; TIMESTAMP_LEN];
-        let mut random = [0u8; RANDOM_LEN];
-        timestamp.copy_from_slice(&token[..TIMESTAMP_LEN]);
-        random.copy_from_slice(&token[TIMESTAMP_LEN..TOKEN_LEN]);
-        let masked_timestamp = Self::assemble_masked_u64_from_part(&timestamp);
+        let (timestamp, random) = token.split_at(TIMESTAMP_LEN);
+        let mut timestamp_bytes = [0u8; TIMESTAMP_LEN];
+        timestamp_bytes.copy_from_slice(&timestamp);
+        let masked_timestamp = Self::assemble_masked_u64_from_part(&timestamp_bytes);
 
         // Acquire a lock
         let revocation_needed;
@@ -358,7 +367,7 @@ impl AccessTokenList {
             let is_expired = current_timestamp >= token_set.expiration_timestamp;
             let is_idx_out_of_bounds = token_set.token_idx >= token_set.num_tokens;
 
-            if !is_expired && !is_idx_out_of_bounds && token_set.current_random()?.eq(&random) {
+            if !is_expired && !is_idx_out_of_bounds && token_set.current_random()?.eq(random) {
                 // Verification success
                 // Construct a new ResponseWriter
                 let resp = verifier::ResponseWriter::new(
@@ -366,7 +375,7 @@ impl AccessTokenList {
                     token_set.algo,
                     token_set.current_nonce().clone(),
                     Bytes::from(token_set.topic.clone()),
-                    token_set.enc_key.to_owned(),
+                    token_set.secret_key.to_owned(),
                 );
 
                 // Increment and revocation check
@@ -398,11 +407,12 @@ mod tests {
         atl::{AccessTokenList, TokenSet},
         error::ATLError,
     };
-    use bytes::Bytes;
+    use libmqttmtd::utils::calculate_token;
     use libmqttmtd::{
         aead::algo::SupportedAlgorithm,
         consts::{RANDOM_LEN, TIMESTAMP_LEN, TOKEN_LEN},
     };
+    use ring::hmac::Key;
     use std::time::Duration;
 
     // Helper to create a basic ATL instance
@@ -464,7 +474,8 @@ mod tests {
         // Look up the token_set
         let masked_timestamp = AccessTokenList::get_masked_timestamp(full_timestamp);
         let timestamp = AccessTokenList::sparse_masked_u64_to_part(masked_timestamp);
-        let all_randoms: Bytes;
+        let secure_key_for_hmac: Key;
+        let topic: String;
         {
             let lookup_map = atl.inner_lookup.lock().await;
             let token_set = lookup_map
@@ -472,15 +483,13 @@ mod tests {
                 .expect("Failed to get token set")
                 .lock()
                 .await;
-            all_randoms = token_set.all_randoms.clone();
+            secure_key_for_hmac = token_set.secret_key_for_hmac.clone();
+            topic = token_set.topic.clone();
         }
 
-        for i in 0..4usize {
+        for i in 0..4u16 {
             // Manually construct a token using the filed data
-            let mut token = [0u8; TOKEN_LEN];
-            token[..TIMESTAMP_LEN].copy_from_slice(&timestamp[..]);
-            token[TIMESTAMP_LEN..]
-                .copy_from_slice(&all_randoms[(RANDOM_LEN * i)..(RANDOM_LEN * (i + 1))]);
+            let token = calculate_token(&timestamp, &secure_key_for_hmac, topic.as_str(), i);
 
             // Verify resp and the token_set
             let resp = atl.verify(&token).await.expect("Verification failed");
@@ -602,9 +611,7 @@ mod tests {
                 .expect("Failed to get token set")
                 .lock()
                 .await;
-            token1 = token_set1
-                .current_token()
-                .expect("failed constructing the current token");
+            token1 = token_set1.current_token();
         }
         let resp = atl.verify(&token1).await.expect("Verification failed");
         assert!(
@@ -622,9 +629,7 @@ mod tests {
                 .expect("Failed to get token set")
                 .lock()
                 .await;
-            token2 = token_set2
-                .current_token()
-                .expect("failed constructing the current token");
+            token2 = token_set2.current_token();
         }
         let resp = atl.verify(&token2).await.expect("Verification failed");
         assert!(resp.is_some(), "Verification should pass for a valid token");
@@ -639,9 +644,7 @@ mod tests {
                 .expect("Failed to get token set")
                 .lock()
                 .await;
-            token3 = token_set3
-                .current_token()
-                .expect("failed constructing the current token");
+            token3 = token_set3.current_token();
         }
         let resp = atl.verify(&token3).await.expect("Verification failed");
         assert!(

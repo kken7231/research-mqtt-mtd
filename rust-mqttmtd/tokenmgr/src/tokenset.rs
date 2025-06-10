@@ -1,15 +1,17 @@
 use crate::errors::TokenSetError;
-use base64::{Engine, engine::general_purpose};
+use base64::{engine::general_purpose, Engine};
 use bytes::{Bytes, BytesMut};
+use libmqttmtd::utils::calculate_token;
 use libmqttmtd::{
     aead::{algo::SupportedAlgorithm, open, seal},
     auth_serv::issuer,
-    consts::{RANDOM_LEN, TIMESTAMP_LEN, TOKEN_LEN},
+    consts::TIMESTAMP_LEN,
     utils,
 };
+use ring::hmac::{Key, HMAC_SHA256};
 use std::{
     fs,
-    io::{Read, Seek, Write},
+    io::{Read, Write},
     path::{Path, PathBuf},
 };
 
@@ -21,15 +23,14 @@ pub struct TokenSet {
     pub path: PathBuf,
 
     timestamp: [u8; TIMESTAMP_LEN],
-    all_randoms: Bytes,
     num_tokens: u16,
     token_idx: u16,
-    all_randoms_offset: u16,
     topic: String,
     is_pub: bool,
 
     algo: SupportedAlgorithm,
-    enc_key: Bytes,
+    secret_key: Bytes,
+    secret_key_for_hmac: Key,
     nonce_base: u128,
 }
 
@@ -42,14 +43,13 @@ impl TokenSet {
     /// Gets the current token. `None` if `token_idx` has reached `num_tokens`,
     /// otherwise `Some`. DOES NOT increment token_idx
     pub fn get_current_b64token(&self) -> Option<String> {
-        let random_start = RANDOM_LEN * (self.token_idx - self.all_randoms_offset) as usize;
-        let random_end = RANDOM_LEN + random_start;
-
-        if self.all_randoms.len() >= random_end {
-            let mut cur_token = [0u8; TOKEN_LEN];
-            cur_token[..TIMESTAMP_LEN].copy_from_slice(&self.timestamp[..]);
-            cur_token[TIMESTAMP_LEN..].copy_from_slice(&self.all_randoms[random_start..random_end]);
-
+        if self.token_idx < self.num_tokens {
+            let cur_token = calculate_token(
+                &self.timestamp,
+                &self.secret_key_for_hmac,
+                self.topic.as_str(),
+                self.token_idx,
+            );
             Some(general_purpose::URL_SAFE_NO_PAD.encode(&cur_token))
         } else {
             None
@@ -59,11 +59,15 @@ impl TokenSet {
     pub fn print_current_token(&self) {
         println!(
             "Current token: {}",
-            self.timestamp
-                .iter()
-                .chain(self.all_randoms[..RANDOM_LEN].iter())
-                .map(|b| format!("{:02x}", b))
-                .collect::<String>()
+            calculate_token(
+                &self.timestamp,
+                &self.secret_key_for_hmac,
+                self.topic.as_str(),
+                self.token_idx
+            )
+            .iter()
+            .map(|b| format!("{:02x}", b))
+            .collect::<String>()
         );
     }
 
@@ -82,7 +86,7 @@ impl TokenSet {
     pub fn seal_cli2serv(&self, payload: &mut [u8]) -> Result<Bytes, ring::error::Unspecified> {
         let tag = seal(
             self.algo,
-            &self.enc_key,
+            &self.secret_key,
             &self.get_nonce_for_cli2serv_pub(),
             payload,
         )?;
@@ -96,7 +100,7 @@ impl TokenSet {
     pub fn open_cli2serv(&self, in_out: &mut [u8]) -> Result<(), ring::error::Unspecified> {
         open(
             self.algo,
-            &self.enc_key,
+            &self.secret_key,
             &self.get_nonce_for_cli2serv_pub(),
             in_out,
         )
@@ -111,7 +115,7 @@ impl TokenSet {
     ) -> Result<Bytes, ring::error::Unspecified> {
         let tag = seal(
             self.algo,
-            &self.enc_key,
+            &self.secret_key,
             &self.get_nonce_for_serv2cli_pub(packet_id),
             payload,
         )?;
@@ -129,7 +133,7 @@ impl TokenSet {
     ) -> Result<(), ring::error::Unspecified> {
         open(
             self.algo,
-            &self.enc_key,
+            &self.secret_key,
             &self.get_nonce_for_serv2cli_pub(packet_id),
             in_out,
         )
@@ -170,25 +174,16 @@ impl TokenSet {
         // num_tokens
         let num_tokens = (request.num_tokens_divided_by_4() as u16).rotate_left(2);
 
-        // all_randoms
-        if response.all_randoms().len() % RANDOM_LEN != 0 {
-            return Err(TokenSetError::RandomLenMismatchError(
-                response.all_randoms().len(),
-            ));
-        }
-        let all_randoms = Bytes::copy_from_slice(response.all_randoms());
-
         Ok(Self {
             path: PathBuf::new(),
             timestamp: response.timestamp().clone(),
-            all_randoms,
             num_tokens,
             token_idx: 0,
-            all_randoms_offset: 0,
             topic: request.topic().to_owned(),
             is_pub: request.is_pub(),
             algo: request.algo(),
-            enc_key: Bytes::copy_from_slice(response.enc_key()),
+            secret_key: Bytes::copy_from_slice(response.secret_key()),
+            secret_key_for_hmac: Key::new(HMAC_SHA256, response.secret_key()),
             nonce_base,
         })
     }
@@ -208,7 +203,7 @@ impl TokenSet {
         // Convert OsStr to a string slice. to_string_lossy handles non-UTF-8 filenames.
         let filename_str = filename_osstr.to_string_lossy();
         let curidx_slice = &filename_str[topic_encoded.len()..];
-
+        
         // Parse and get cur_idx from the filename
         let token_idx = curidx_slice.parse::<u16>();
         if let Err(_) = token_idx {
@@ -232,12 +227,12 @@ impl TokenSet {
         let algo = SupportedAlgorithm::try_from(buf[0])
             .map_err(|e| TokenSetError::UnsupportedAlgorithmError(e))?;
 
-        // enc_key
-        let enc_key_len = algo.key_len();
-        let mut enc_key = BytesMut::zeroed(enc_key_len);
-        file.read_exact(&mut enc_key)
+        // secret_key
+        let secret_key_len = algo.key_len();
+        let mut secret_key = BytesMut::zeroed(secret_key_len);
+        file.read_exact(&mut secret_key)
             .map_err(|e| TokenSetError::FileReadError(e))?;
-        let enc_key = enc_key.freeze();
+        let secret_key = secret_key.freeze();
 
         // nonce_base
         let mut nonce_base_bytes = [0u8; 16];
@@ -261,47 +256,16 @@ impl TokenSet {
         file.read_exact(&mut timestamp[..])
             .map_err(|e| TokenSetError::FileReadError(e))?;
 
-        // file_all_randoms_offset
-        file.read_exact(&mut buf[0..2])
-            .map_err(|e| TokenSetError::FileReadError(e))?;
-        let file_all_randoms_offset = u16::from_be_bytes(buf);
-        if num_tokens <= file_all_randoms_offset {
-            return Err(TokenSetError::InvalidNumTokensError(
-                num_tokens_divided_by_4,
-            ));
-        } else if file_token_idx < file_all_randoms_offset {
-            return Err(TokenSetError::InvalidCurIdxInFilenameError(Some(
-                file_token_idx,
-            )));
-        }
-
-        // decide how many bytes to skip
-        let skip_len = (file_token_idx - file_all_randoms_offset) * RANDOM_LEN as u16;
-        file.seek_relative(skip_len as i64)
-            .map_err(|e| TokenSetError::FileReadError(e))?;
-
-        // all_randoms in this structure will have randoms from `token_idx` by skipping
-        // some bytes
-        let mut all_randoms = BytesMut::zeroed((num_tokens - file_token_idx) as usize * RANDOM_LEN);
-        let actual_read = file
-            .read(&mut all_randoms)
-            .map_err(|e| TokenSetError::FileReadError(e))?;
-        if actual_read < (num_tokens - file_token_idx) as usize * RANDOM_LEN {
-            return Err(TokenSetError::RandomLenMismatchError(actual_read));
-        }
-        let all_randoms = all_randoms.freeze();
-
         Ok(Self {
             path,
             timestamp,
-            all_randoms,
-            all_randoms_offset: file_token_idx,
             num_tokens,
             token_idx: file_token_idx,
             topic,
             is_pub,
             algo,
-            enc_key,
+            secret_key_for_hmac: Key::new(HMAC_SHA256, secret_key.as_ref()),
+            secret_key,
             nonce_base,
         })
     }
@@ -334,11 +298,11 @@ impl TokenSet {
         file.write_all(&buf[0..1])
             .map_err(|e| TokenSetError::FileWriteError(e))?;
 
-        // enc_key
-        if self.enc_key.len() != self.algo.key_len() {
-            return Err(TokenSetError::EncKeyMismatchError(self.enc_key.len()));
+        // secret_key
+        if self.secret_key.len() != self.algo.key_len() {
+            return Err(TokenSetError::EncKeyMismatchError(self.secret_key.len()));
         }
-        file.write_all(&self.enc_key)
+        file.write_all(&self.secret_key)
             .map_err(|e| TokenSetError::FileWriteError(e))?;
 
         // nonce_base
@@ -352,22 +316,6 @@ impl TokenSet {
 
         // timestamp
         file.write_all(&self.timestamp)
-            .map_err(|e| TokenSetError::FileWriteError(e))?;
-
-        // all_randoms_offset
-        // File's all_randoms_offset: the absolute original index where the random data
-        // in this file begins.
-        file.write_all(&self.token_idx.to_be_bytes())
-            .map_err(|e| TokenSetError::FileWriteError(e))?;
-
-        // all_randoms
-        let skip_len = (self.token_idx - self.all_randoms_offset) as usize * RANDOM_LEN;
-        if skip_len > self.all_randoms.len() {
-            return Err(TokenSetError::InvalidNumTokensError(
-                self.num_tokens.rotate_right(2) as u8,
-            ));
-        }
-        file.write_all(&self.all_randoms[skip_len..])
             .map_err(|e| TokenSetError::FileWriteError(e))?;
 
         self.path = path;

@@ -1,11 +1,11 @@
 use super::*;
-use base64::{Engine, engine::general_purpose};
+use base64::{engine::general_purpose, Engine};
 use bytes::Bytes;
 use libmqttmtd::{
     aead::algo::SupportedAlgorithm::{Aes128Gcm, Aes256Gcm},
-    consts::{RANDOM_LEN, TIMESTAMP_LEN},
+    consts::TIMESTAMP_LEN,
 };
-use rand::{RngCore, seq::IndexedRandom};
+use rand::{seq::IndexedRandom, RngCore};
 use std::{
     path::PathBuf,
     time::{SystemTime, UNIX_EPOCH},
@@ -35,12 +35,6 @@ impl TestDataHydrator {
             .unwrap_or_else(|e| panic!("failed to get bytes: {}", e))
     }
 
-    fn get_test_randoms(&mut self, num_tokens: u16) -> Bytes {
-        let mut all_randoms = BytesMut::zeroed(num_tokens as usize * RANDOM_LEN);
-        self.rng.fill_bytes(&mut all_randoms[..]);
-        all_randoms.freeze()
-    }
-
     fn get_enc_nonce(
         &mut self,
         algo_opt: impl Into<Option<SupportedAlgorithm>>,
@@ -61,9 +55,9 @@ impl TestDataHydrator {
         self.rng
             .fill_bytes(&mut nonce_base[16 - algo.nonce_len()..]);
         let nonce_base = u128::from_be_bytes(nonce_base);
-        let mut enc_key = BytesMut::zeroed(algo.key_len());
-        self.rng.fill_bytes(&mut enc_key[..]);
-        (algo, enc_key.freeze(), nonce_base)
+        let mut secret_key = BytesMut::zeroed(algo.key_len());
+        self.rng.fill_bytes(&mut secret_key[..]);
+        (algo, secret_key.freeze(), nonce_base)
     }
 
     fn get_token_set(
@@ -72,24 +66,21 @@ impl TestDataHydrator {
         is_pub: bool,
         num_tokens_divided_by_4: u8,
         token_idx: u16,
-        all_randoms_offset: u16,
         topic: impl Into<String>,
     ) -> TokenSet {
         let timestamp = Self::get_test_timestamp();
         let num_tokens = (num_tokens_divided_by_4 as u16).rotate_left(2);
-        let all_randoms = self.get_test_randoms(num_tokens - all_randoms_offset);
-        let (algo, enc_key, nonce_base) = self.get_enc_nonce(algo);
+        let (algo, secret_key, nonce_base) = self.get_enc_nonce(algo);
         TokenSet {
             path: PathBuf::new(),
             timestamp,
-            all_randoms,
             num_tokens,
             token_idx,
-            all_randoms_offset,
             topic: topic.into(),
             is_pub,
             algo,
-            enc_key,
+            secret_key_for_hmac: Key::new(HMAC_SHA256, secret_key.as_ref()),
+            secret_key,
             nonce_base,
         }
     }
@@ -99,19 +90,12 @@ const TEST_TOPIC: &str = "topic/pubsub";
 const TEST_NUM_TOKENS_DIVIDED_BY_4: u8 = 2;
 
 async fn new_response_reader(
-    enc_key: Bytes,
+    secret_key: Bytes,
     nonce_base: Bytes,
     timestamp: [u8; TIMESTAMP_LEN],
-    all_randoms: Bytes,
     algo: SupportedAlgorithm,
-    num_tokens_divided_by_4: u8,
 ) -> Result<issuer::ResponseReader, Box<dyn std::error::Error>> {
-    let writer = issuer::ResponseWriter::new(
-        enc_key.clone(),
-        nonce_base.clone(),
-        timestamp,
-        all_randoms.clone(),
-    );
+    let writer = issuer::ResponseWriter::new(secret_key.clone(), nonce_base.clone(), timestamp);
 
     let mut inner_vec: Vec<u8> = Vec::new();
 
@@ -119,11 +103,9 @@ async fn new_response_reader(
 
     let mut async_reader = futures::io::Cursor::new(inner_vec).compat();
 
-    Ok(
-        issuer::ResponseReader::read_from(&mut async_reader, algo, num_tokens_divided_by_4)
-            .await?
-            .unwrap(),
-    )
+    Ok(issuer::ResponseReader::read_from(&mut async_reader, algo)
+        .await?
+        .unwrap())
 }
 
 async fn req_res_from_tokenset(token_set: &TokenSet) -> (issuer::Request, issuer::ResponseReader) {
@@ -136,14 +118,12 @@ async fn req_res_from_tokenset(token_set: &TokenSet) -> (issuer::Request, issuer
     .unwrap_or_else(|e| panic!("{:?}", e));
 
     let response = new_response_reader(
-        token_set.enc_key.clone(),
+        token_set.secret_key.clone(),
         Bytes::copy_from_slice(
             &token_set.nonce_base.to_be_bytes()[16 - token_set.algo.nonce_len()..],
         ),
         token_set.timestamp,
-        token_set.all_randoms.clone(),
         token_set.algo,
-        token_set.num_tokens.rotate_right(2) as u8,
     )
     .await
     .unwrap_or_else(|e| panic!("{:?}", e));
@@ -181,13 +161,16 @@ fn test_get_current_b64token() {
         IS_PUB_PUB,
         TEST_NUM_TOKENS_DIVIDED_BY_4,
         0,
-        0,
         "dummy",
     );
 
     // Get the first token (token_idx = 0)
-    let mut expected_token_1_bytes = BytesMut::from(&token_set.timestamp[..]);
-    expected_token_1_bytes.extend_from_slice(&token_set.all_randoms[..RANDOM_LEN]);
+    let expected_token_1_bytes = calculate_token(
+        &token_set.timestamp,
+        &token_set.secret_key_for_hmac,
+        token_set.topic.as_str(),
+        0,
+    );
     let expected_token_1 = general_purpose::URL_SAFE_NO_PAD.encode(&expected_token_1_bytes);
     assert_eq!(token_set.get_current_b64token(), Some(expected_token_1));
 
@@ -195,45 +178,26 @@ fn test_get_current_b64token() {
     token_set.token_idx = 1;
 
     // Get the second token (token_idx = 1)
-    let mut expected_token_2_bytes = BytesMut::from(&token_set.timestamp[..]);
-    expected_token_2_bytes.extend_from_slice(&token_set.all_randoms[RANDOM_LEN..RANDOM_LEN * 2]);
+    let expected_token_2_bytes = calculate_token(
+        &token_set.timestamp,
+        &token_set.secret_key_for_hmac,
+        token_set.topic.as_str(),
+        1,
+    );
     let expected_token_2 = general_purpose::URL_SAFE_NO_PAD.encode(&expected_token_2_bytes);
     assert_eq!(token_set.get_current_b64token(), Some(expected_token_2));
 
-    // Simulate a scenario where the all_randoms buffer starts at a non-zero offset
-    let token_set_offset = TestDataHydrator::new().get_token_set(
-        None,
-        IS_PUB_PUB,
-        TEST_NUM_TOKENS_DIVIDED_BY_4,
-        1,
-        1,
-        "dummy",
-    );
-
-    // Get the token at absolute index 1. This corresponds to index (1 - 1) = 0 in
-    // the buffer.
-    let mut expected_token_offset_bytes = BytesMut::from(&token_set_offset.timestamp[..]);
-    expected_token_offset_bytes.extend_from_slice(&token_set_offset.all_randoms[..RANDOM_LEN]);
-    let expected_token_offset =
-        general_purpose::URL_SAFE_NO_PAD.encode(&expected_token_offset_bytes);
-    assert_eq!(
-        token_set_offset.get_current_b64token(),
-        Some(expected_token_offset)
-    );
-
     // Simulate using all tokens (token_idx reaches num_tokens)
-    let mut token_set_idx_end = token_set_offset; // Start with offset 0
-    token_set_idx_end.token_idx = token_set_idx_end.num_tokens; // Absolute index is num_tokens
+    token_set.token_idx = token_set.num_tokens; // Absolute index is num_tokens
 
     // Should return None because token_idx >= num_tokens
     // The condition `self.all_randoms.len() >= random_end` will also be false as
     // random_start will be out of bounds
-    assert_eq!(token_set_idx_end.get_current_b64token(), None);
+    assert_eq!(token_set.get_current_b64token(), None);
 
     // Simulate index beyond num_tokens
-    let mut token_set_idx_beyond = token_set_idx_end;
-    token_set_idx_beyond.token_idx = token_set_idx_beyond.num_tokens + 1;
-    assert_eq!(token_set_idx_beyond.get_current_b64token(), None);
+    token_set.token_idx += 1;
+    assert_eq!(token_set.get_current_b64token(), None);
 }
 
 #[test]
@@ -243,7 +207,6 @@ fn test_get_nonce() {
         Aes128Gcm,
         IS_PUB_PUB,
         TEST_NUM_TOKENS_DIVIDED_BY_4,
-        0,
         0,
         "dummy",
     );
@@ -263,7 +226,6 @@ fn test_get_nonce() {
         IS_PUB_PUB,
         TEST_NUM_TOKENS_DIVIDED_BY_4,
         5,
-        0,
         "dummy",
     );
     let expected_nonce_bytes_5: [u8; 16] = (token_set_idx5.nonce_base + 5).to_be_bytes();
@@ -279,7 +241,6 @@ fn test_get_nonce() {
         Aes256Gcm,
         IS_PUB_PUB,
         TEST_NUM_TOKENS_DIVIDED_BY_4,
-        0,
         0,
         "dummy",
     );
@@ -299,7 +260,6 @@ async fn test_seal_open_success() {
         Aes256Gcm,
         IS_PUB_PUB,
         TEST_NUM_TOKENS_DIVIDED_BY_4,
-        0,
         0,
         "dummy",
     );
@@ -323,7 +283,6 @@ async fn test_from_issuer_req_resp_success() {
         IS_PUB_PUB,
         TEST_NUM_TOKENS_DIVIDED_BY_4,
         0,
-        0,
         "dummy",
     );
     let (request, response) = req_res_from_tokenset(&token_set_original).await;
@@ -334,18 +293,12 @@ async fn test_from_issuer_req_resp_success() {
     // Path should be empty
     assert_eq!(token_set.path, PathBuf::new());
     assert_eq!(token_set.timestamp, token_set_original.timestamp);
-    // all_randoms should contain all random bytes from the response
-    assert_eq!(token_set.all_randoms, token_set_original.all_randoms);
     assert_eq!(token_set.num_tokens, token_set_original.num_tokens);
     assert_eq!(token_set.token_idx, token_set_original.token_idx);
-    assert_eq!(
-        token_set.all_randoms_offset,
-        token_set_original.all_randoms_offset
-    ); // Should be initialized to 0
     assert_eq!(token_set.topic, token_set_original.topic);
     assert_eq!(token_set.is_pub, token_set_original.is_pub);
     assert_eq!(token_set.algo, token_set_original.algo);
-    assert_eq!(token_set.enc_key, token_set_original.enc_key);
+    assert_eq!(token_set.secret_key, token_set_original.secret_key);
 
     // Check nonce_base conversion
     assert_eq!(token_set.nonce_base, token_set_original.nonce_base);
@@ -356,7 +309,6 @@ async fn test_from_issuer_req_resp_success() {
 // index where the random data in *this specific file* starts.
 fn create_dummy_token_file(
     filename_token_idx: u16,
-    file_all_randoms_offset: u16,
     algo: impl Into<Option<SupportedAlgorithm>>,
     is_pub: bool,
     num_tokens_divided_by_4: u8,
@@ -370,13 +322,18 @@ fn create_dummy_token_file(
         .path()
         .join(filename);
 
-    let mut token_set =
-        TestDataHydrator::new().get_token_set(algo, is_pub, num_tokens_divided_by_4, 0, 0, topic);
+    let mut token_set = TestDataHydrator::new().get_token_set(
+        algo,
+        is_pub,
+        num_tokens_divided_by_4,
+        filename_token_idx,
+        topic,
+    );
     fs::create_dir_all(file_path.parent().unwrap()).expect("failed to create dirs");
     let mut file = fs::File::create_new(&file_path).expect("failed to create file");
     file.write_all(&[token_set.algo as u8])
         .expect("failed to write file");
-    file.write_all(&token_set.enc_key)
+    file.write_all(&token_set.secret_key)
         .expect("failed to write file");
     file.write_all(&token_set.nonce_base.to_be_bytes()[16 - token_set.algo.nonce_len()..])
         .expect("failed to write file");
@@ -384,22 +341,16 @@ fn create_dummy_token_file(
         .expect("failed to write file");
     file.write_all(&token_set.timestamp)
         .expect("failed to write file");
-    file.write_all(&file_all_randoms_offset.to_be_bytes())
-        .expect("failed to write file");
-    file.write_all(&token_set.all_randoms[(file_all_randoms_offset as usize * RANDOM_LEN)..])
-        .expect("failed to write file");
     token_set.path = file_path.clone();
     (token_set, file_path)
 }
 
 #[test]
-fn test_from_file_success_idx_0_offset_0() {
+fn test_from_file_success_idx_0() {
     let filename_token_idx = 0u16;
-    let file_all_randoms_offset = 0u16;
 
     let (token_set_original, file_path) = create_dummy_token_file(
         filename_token_idx,
-        file_all_randoms_offset,
         None,
         IS_PUB_PUB,
         TEST_NUM_TOKENS_DIVIDED_BY_4,
@@ -417,23 +368,23 @@ fn test_from_file_success_idx_0_offset_0() {
     assert_eq!(token_set.topic, token_set_original.topic);
     assert_eq!(token_set.is_pub, token_set_original.is_pub);
     assert_eq!(token_set.token_idx, filename_token_idx);
-    assert_eq!(token_set.all_randoms_offset, file_all_randoms_offset);
     assert_eq!(token_set.algo, token_set_original.algo);
-    assert_eq!(token_set.enc_key, token_set_original.enc_key);
+    assert_eq!(token_set.secret_key, token_set_original.secret_key);
     assert_eq!(token_set.nonce_base, token_set_original.nonce_base);
     assert_eq!(token_set.num_tokens, token_set_original.num_tokens);
     assert_eq!(token_set.timestamp, token_set_original.timestamp);
-    assert_eq!(token_set.all_randoms, token_set_original.all_randoms);
+    assert_eq!(
+        token_set.get_current_b64token(),
+        token_set_original.get_current_b64token()
+    );
 }
 
 #[test]
-fn test_from_file_success_idx_greater_than_0_offset_equal_idx() {
+fn test_from_file_success_idx_greater_than_0() {
     let filename_token_idx = 4u16; // Filename index is 4
-    let file_all_randoms_offset = 4u16; // File content starts at original index 4
 
     let (token_set_original, file_path) = create_dummy_token_file(
         filename_token_idx,
-        file_all_randoms_offset,
         None,
         IS_PUB_PUB,
         TEST_NUM_TOKENS_DIVIDED_BY_4,
@@ -451,52 +402,15 @@ fn test_from_file_success_idx_greater_than_0_offset_equal_idx() {
     assert_eq!(token_set.topic, token_set_original.topic);
     assert_eq!(token_set.is_pub, token_set_original.is_pub);
     assert_eq!(token_set.token_idx, filename_token_idx);
-    assert_eq!(token_set.all_randoms_offset, file_all_randoms_offset);
+    assert_eq!(token_set_original.token_idx, filename_token_idx);
     assert_eq!(token_set.algo, token_set_original.algo);
-    assert_eq!(token_set.enc_key, token_set_original.enc_key);
+    assert_eq!(token_set.secret_key, token_set_original.secret_key);
     assert_eq!(token_set.nonce_base, token_set_original.nonce_base);
     assert_eq!(token_set.num_tokens, token_set_original.num_tokens);
     assert_eq!(token_set.timestamp, token_set_original.timestamp);
     assert_eq!(
-        token_set.all_randoms,
-        token_set_original.all_randoms[(filename_token_idx as usize * RANDOM_LEN)..]
-    );
-}
-
-#[test]
-fn test_from_file_success_idx_greater_than_0_offset_less_than_idx() {
-    let filename_token_idx = 6u16; // Filename index is 6
-    let file_all_randoms_offset = 4u16; // File content starts at original index 4
-
-    let (token_set_original, file_path) = create_dummy_token_file(
-        filename_token_idx,
-        file_all_randoms_offset,
-        None,
-        IS_PUB_PUB,
-        TEST_NUM_TOKENS_DIVIDED_BY_4,
-        TEST_TOPIC,
-    );
-
-    let token_set = TokenSet::from_file(
-        file_path.clone(),
-        token_set_original.is_pub,
-        token_set_original.topic.clone(),
-    )
-    .unwrap_or_else(|e| panic!("failed to get a tokenset {}", e));
-
-    assert_eq!(token_set.path, file_path);
-    assert_eq!(token_set.topic, token_set_original.topic);
-    assert_eq!(token_set.is_pub, token_set_original.is_pub);
-    assert_eq!(token_set.token_idx, filename_token_idx);
-    assert_eq!(token_set.all_randoms_offset, filename_token_idx);
-    assert_eq!(token_set.algo, token_set_original.algo);
-    assert_eq!(token_set.enc_key, token_set_original.enc_key);
-    assert_eq!(token_set.nonce_base, token_set_original.nonce_base);
-    assert_eq!(token_set.num_tokens, token_set_original.num_tokens);
-    assert_eq!(token_set.timestamp, token_set_original.timestamp);
-    assert_eq!(
-        token_set.all_randoms,
-        token_set_original.all_randoms[(filename_token_idx as usize * RANDOM_LEN)..]
+        token_set.get_current_b64token(),
+        token_set_original.get_current_b64token()
     );
 }
 
@@ -527,11 +441,9 @@ fn test_from_file_error_path_not_having_filename() {
 #[test]
 fn test_from_file_error_invalid_cur_idx_in_filename() {
     let filename_token_idx = 6u16; // Filename index is 6
-    let file_all_randoms_offset = 4u16; // File content starts at original index 4
 
     let (token_set_original, mut file_path) = create_dummy_token_file(
         filename_token_idx,
-        file_all_randoms_offset,
         None,
         IS_PUB_PUB,
         TEST_NUM_TOKENS_DIVIDED_BY_4,
@@ -568,7 +480,6 @@ fn test_from_file_error_invalid_cur_idx_in_filename() {
         let invalid_path_large = (&file_path).parent().unwrap().join(invalid_filename_large);
         fs::rename(&file_path, &invalid_path_large)
             .expect("Failed to rename file for index large test");
-        file_path = invalid_path_large.clone();
         let result_large =
             TokenSet::from_file(invalid_path_large.clone(), true, token_set.topic.clone());
         match result_large {
@@ -576,25 +487,6 @@ fn test_from_file_error_invalid_cur_idx_in_filename() {
                 assert_eq!(idx, invalid_idx_large);
             }
             _ => panic!("Expected InvalidCurIdxInFilenameError(Some) for large index"),
-        }
-    }
-
-    // filename_token_idx < file_all_randoms_offset
-    {
-        let invalid_idx_less_than_offset = 2u16; // Less than file_all_randoms_offset = 4
-        // let valid_file_all_randoms_offset = 4u16;
-        let invalid_filename_less = format!("{}{}", topic_encoded, invalid_idx_less_than_offset);
-        let invalid_path_less = (&file_path).parent().unwrap().join(invalid_filename_less);
-        fs::rename(&file_path, &invalid_path_less)
-            .expect("Failed to rename file for index large test");
-        let result_less = TokenSet::from_file(invalid_path_less, true, token_set.topic.clone());
-        match result_less {
-            Err(TokenSetError::InvalidCurIdxInFilenameError(Some(idx))) => {
-                assert_eq!(idx, invalid_idx_less_than_offset);
-            }
-            _ => panic!(
-                "Expected InvalidCurIdxInFilenameError(Some) for index less than file offset"
-            ),
         }
     }
 }
@@ -630,7 +522,6 @@ fn test_from_file_error_nonce_len_mismatch_read() -> Result<(), ()> {
         IS_PUB_PUB,
         TEST_NUM_TOKENS_DIVIDED_BY_4,
         0,
-        0,
         TEST_TOPIC,
     );
 
@@ -642,7 +533,7 @@ fn test_from_file_error_nonce_len_mismatch_read() -> Result<(), ()> {
     let mut file = fs::File::create(&file_path).expect("failed to create file");
     file.write_all(&[token_set.algo as u8])
         .expect("failed to write file");
-    file.write_all(&token_set.enc_key)
+    file.write_all(&token_set.secret_key)
         .expect("failed to write file");
     file.write_all(
         &token_set.nonce_base.to_be_bytes()[16 - token_set.algo.nonce_len()..]
@@ -652,10 +543,6 @@ fn test_from_file_error_nonce_len_mismatch_read() -> Result<(), ()> {
     file.write_all(&[token_set.num_tokens.rotate_right(2) as u8])
         .expect("failed to write file");
     file.write_all(&token_set.timestamp)
-        .expect("failed to write file");
-    file.write_all(&0u16.to_be_bytes())
-        .expect("failed to write file");
-    file.write_all(&token_set.all_randoms[..])
         .expect("failed to write file");
 
     let result = TokenSet::from_file(file_path, true, token_set.topic.clone());
@@ -673,13 +560,11 @@ fn test_from_file_error_invalid_num_tokens() {
     // num_tokens <= filename_token_idx
     {
         let filename_token_idx = 6u16;
-        let file_all_randoms_offset = 0u16;
         let invalid_num_tokens_divided_by_4 = 1u8; // < TEST_NUM_TOKENS_DIVIDED_BY_4
         let token_set = TestDataHydrator::new().get_token_set(
             Aes128Gcm,
             IS_PUB_PUB,
             TEST_NUM_TOKENS_DIVIDED_BY_4,
-            0,
             0,
             TEST_TOPIC,
         );
@@ -690,15 +575,13 @@ fn test_from_file_error_invalid_num_tokens() {
         let mut file = fs::File::create(&file_path).expect("failed to create file");
         file.write_all(&[token_set.algo as u8])
             .expect("failed to write file");
-        file.write_all(&token_set.enc_key)
+        file.write_all(&token_set.secret_key)
             .expect("failed to write file");
         file.write_all(&token_set.nonce_base.to_be_bytes()[16 - token_set.algo.nonce_len()..])
             .expect("failed to write file"); // too small nonce
         file.write_all(&[invalid_num_tokens_divided_by_4])
             .expect("failed to write file"); // invalid num_tokens
         file.write_all(&token_set.timestamp)
-            .expect("failed to write file");
-        file.write_all(&file_all_randoms_offset.to_be_bytes())
             .expect("failed to write file");
 
         let result =
@@ -710,98 +593,6 @@ fn test_from_file_error_invalid_num_tokens() {
             }
             _ => panic!("Expected InvalidNumTokensError for num_tokens <= token_idx"),
         }
-    }
-
-    // num_tokens <= file_all_randoms_offset
-    {
-        let filename_token_idx = 6u16;
-        let file_all_randoms_offset = 6u16;
-        let invalid_num_tokens_divided_by_4 = 1u8; // < TEST_NUM_TOKENS_DIVIDED_BY_4
-        let token_set = TestDataHydrator::new().get_token_set(
-            Aes128Gcm,
-            IS_PUB_PUB,
-            TEST_NUM_TOKENS_DIVIDED_BY_4,
-            0,
-            0,
-            TEST_TOPIC,
-        );
-        let temp_dir = tempdir().expect("Failed to create temp dir");
-        let topic_encoded = TokenSet::topic_b64encode(token_set.topic.clone());
-        let filename = format!("{}{}", topic_encoded, filename_token_idx);
-        let file_path = temp_dir.path().join(filename);
-        let mut file = fs::File::create(&file_path).expect("failed to create file");
-        file.write_all(&[token_set.algo as u8])
-            .expect("failed to write file");
-        file.write_all(&token_set.enc_key)
-            .expect("failed to write file");
-        file.write_all(&token_set.nonce_base.to_be_bytes()[16 - token_set.algo.nonce_len()..])
-            .expect("failed to write file"); // too small nonce
-        file.write_all(&[invalid_num_tokens_divided_by_4])
-            .expect("failed to write file"); // invalid num_tokens
-        file.write_all(&token_set.timestamp)
-            .expect("failed to write file");
-        file.write_all(&file_all_randoms_offset.to_be_bytes())
-            .expect("failed to write file");
-
-        let result =
-            TokenSet::from_file(file_path.clone(), token_set.is_pub, token_set.topic.clone());
-
-        match result {
-            Err(TokenSetError::InvalidNumTokensError(n)) => {
-                assert_eq!(n, invalid_num_tokens_divided_by_4);
-            }
-            _ => panic!("Expected InvalidNumTokensError for num_tokens <= token_idx"),
-        }
-    }
-}
-
-#[test]
-fn test_from_file_error_random_len_mismatch_read() {
-    let filename_token_idx = 0u16;
-    let file_all_randoms_offset = 0u16;
-    // Write fewer randoms than expected based on num_tokens and filename_token_idx
-    // Expected length is (num_tokens - filename_token_idx) * RANDOM_LEN = (8 - 0) *
-    // RANDOM_LEN = 8 * RANDOM_LEN
-    let invalid_all_randoms_len = RANDOM_LEN;
-    let token_set = TestDataHydrator::new().get_token_set(
-        Aes128Gcm,
-        IS_PUB_PUB,
-        TEST_NUM_TOKENS_DIVIDED_BY_4,
-        0,
-        0,
-        TEST_TOPIC,
-    );
-    let temp_dir = tempdir().expect("Failed to create temp dir");
-    let topic_encoded = TokenSet::topic_b64encode(token_set.topic.clone());
-    let filename = format!("{}{}", topic_encoded, filename_token_idx);
-    let file_path = temp_dir.path().join(filename);
-    let mut file = fs::File::create(&file_path).expect("failed to create file");
-    file.write_all(&[token_set.algo as u8])
-        .expect("failed to write file");
-    file.write_all(&token_set.enc_key)
-        .expect("failed to write file");
-    file.write_all(&token_set.nonce_base.to_be_bytes()[16 - token_set.algo.nonce_len()..])
-        .expect("failed to write file"); // too small nonce
-    file.write_all(&[token_set.num_tokens.rotate_right(2) as u8])
-        .expect("failed to write file"); // invalid num_tokens
-    file.write_all(&token_set.timestamp)
-        .expect("failed to write file");
-    file.write_all(&file_all_randoms_offset.to_be_bytes())
-        .expect("failed to write file");
-    file.write_all(&token_set.all_randoms[..invalid_all_randoms_len])
-        .expect("failed to write file");
-
-    let result = TokenSet::from_file(file_path.clone(), token_set.is_pub, token_set.topic.clone());
-
-    // The code expects to read (num_tokens - filename_token_idx) * RANDOM_LEN
-    // bytes. We wrote fewer bytes. The `read` into the BytesMut will read
-    // what's available, and then the check `if actual_read < expected_len`
-    // should trigger.
-    match result {
-        Err(TokenSetError::RandomLenMismatchError(actual_read)) => {
-            assert_eq!(actual_read, invalid_all_randoms_len);
-        }
-        _ => panic!("Expected RandomLenMismatchError when randoms are incomplete"),
     }
 }
 
@@ -817,7 +608,6 @@ fn test_save_to_file_success() {
         IS_PUB_PUB,
         TEST_NUM_TOKENS_DIVIDED_BY_4,
         2,
-        0,
         TEST_TOPIC,
     );
 
@@ -842,24 +632,15 @@ fn test_save_to_file_success() {
         .unwrap_or_else(|e| panic!("{:?}", e));
 
     let mut expected_bytes = Vec::new();
-    // Header fields order: algo, enc_key, nonce_base, num_tokens_divided_by_4,
+    // Header fields order: algo, secret_key, nonce_base, num_tokens_divided_by_4,
     // timestamp, all_randoms_offset
     expected_bytes.push(token_set.algo as u8);
-    expected_bytes.extend_from_slice(&token_set.enc_key);
+    expected_bytes.extend_from_slice(&token_set.secret_key);
     expected_bytes.extend_from_slice(
         &token_set.nonce_base.to_be_bytes()[(16 - token_set.algo.nonce_len())..],
     );
     expected_bytes.push(token_set.num_tokens.rotate_right(2) as u8);
     expected_bytes.extend_from_slice(&token_set.timestamp);
-    // file_all_randoms_offset (which is struct.token_idx)
-    expected_bytes.extend_from_slice(&initial_token_idx.to_be_bytes());
-
-    // all_randoms content - skips (token_idx - all_randoms_offset) from the
-    // in-memory Bytes
-    let skip_len = (initial_token_idx - token_set.all_randoms_offset) as usize * RANDOM_LEN;
-    // The bytes written are from index `skip_len` in `all_randoms_in_memory` to the
-    // end.
-    expected_bytes.extend_from_slice(&token_set.all_randoms[skip_len..]);
 
     assert_eq!(read_buf, expected_bytes);
 }
@@ -877,7 +658,6 @@ fn test_save_to_file_success_replaces_old() {
         IS_PUB_PUB,
         TEST_NUM_TOKENS_DIVIDED_BY_4,
         updated_token_idx,
-        0,
         TEST_TOPIC,
     );
     let pub_sub_dir = token_sets_dir.join("pub");
@@ -918,7 +698,7 @@ fn test_save_to_file_success_replaces_old() {
 }
 
 #[test]
-fn test_save_to_file_error_enc_key_mismatch() {
+fn test_save_to_file_error_secret_key_mismatch() {
     let token_sets_dir = tempdir()
         .expect("failed to create tempdir")
         .path()
@@ -928,10 +708,9 @@ fn test_save_to_file_error_enc_key_mismatch() {
         IS_PUB_PUB,
         TEST_NUM_TOKENS_DIVIDED_BY_4,
         0,
-        0,
         TEST_TOPIC,
     );
-    token_set.enc_key = BytesMut::zeroed(token_set.algo.key_len() - 1).freeze(); // wrong len
+    token_set.secret_key = BytesMut::zeroed(token_set.algo.key_len() - 1).freeze(); // wrong len
 
     let result = token_set.save_to_file(&token_sets_dir);
 
@@ -979,7 +758,6 @@ fn test_save_to_file_error_file_create_error() {
         None,
         IS_PUB_PUB,
         TEST_NUM_TOKENS_DIVIDED_BY_4,
-        0,
         0,
         TEST_TOPIC,
     );
@@ -1041,7 +819,6 @@ fn test_save_to_file_error_file_remove_error() {
         is_pub,
         TEST_NUM_TOKENS_DIVIDED_BY_4,
         updated_token_idx, // not initial_token_idx
-        0,
         topic,
     );
     token_set.path = initial_file_path.clone();
@@ -1079,7 +856,6 @@ fn test_refresh_filename_success() {
 
     let (mut token_set, initial_file_path) = create_dummy_token_file(
         initial_token_idx,
-        0,
         None,
         IS_PUB_PUB,
         TEST_NUM_TOKENS_DIVIDED_BY_4,
@@ -1116,7 +892,6 @@ fn test_refresh_filename_error_file_not_found() {
         IS_PUB_PUB,
         TEST_NUM_TOKENS_DIVIDED_BY_4,
         0,
-        0,
         "dummy",
     );
     token_set.path = non_existent_path.clone();
@@ -1146,7 +921,6 @@ fn test_refresh_filename_error_file_rename_error() {
     // Create the initial dummy file
     let (mut token_set, initial_file_path) = create_dummy_token_file(
         initial_token_idx,
-        0,
         None,
         is_pub,
         TEST_NUM_TOKENS_DIVIDED_BY_4,
@@ -1200,14 +974,8 @@ fn test_integration_save_load_use() -> Result<(), TokenSetError> {
     fs::create_dir_all(&pub_dir).map_err(|e| TokenSetError::FileCreateError(e))?;
 
     // Initial state (like from_issuer_req_resp, but manually setup for test)
-    let mut token_set = TestDataHydrator::new().get_token_set(
-        None,
-        is_pub,
-        TEST_NUM_TOKENS_DIVIDED_BY_4,
-        0,
-        0,
-        topic,
-    );
+    let mut token_set =
+        TestDataHydrator::new().get_token_set(None, is_pub, TEST_NUM_TOKENS_DIVIDED_BY_4, 0, topic);
 
     // 1. Save the initial token set to a file
     token_set.save_to_file(&token_sets_dir)?;
@@ -1221,8 +989,6 @@ fn test_integration_save_load_use() -> Result<(), TokenSetError> {
 
     // 2. Simulate using some tokens (e.g., 3 tokens)
     let tokens_to_use: u16 = 3;
-    let expected_token_content_after_use =
-        &token_set.all_randoms[(tokens_to_use as usize * RANDOM_LEN)..];
 
     // Create a *new* TokenSet instance loaded from the file after using some tokens
     // This simulates loading the state at a later point.
@@ -1238,12 +1004,6 @@ fn test_integration_save_load_use() -> Result<(), TokenSetError> {
 
     // Verify initial loaded state
     assert_eq!(loaded_token_set.token_idx, token_set.token_idx); // Loaded from filename
-    assert_eq!(
-        loaded_token_set.all_randoms_offset,
-        token_set.all_randoms_offset
-    ); // Loaded from file header (which was token_idx 0)
-    // all_randoms buffer contains data from file_token_idx (0) onwards
-    assert_eq!(loaded_token_set.all_randoms, token_set.all_randoms);
     assert_eq!(loaded_token_set.num_tokens, token_set.num_tokens);
     assert_eq!(loaded_token_set.topic, token_set.topic);
 
@@ -1257,14 +1017,12 @@ fn test_integration_save_load_use() -> Result<(), TokenSetError> {
             .expect("Should get a token");
 
         // Verify the token content matches the random at the expected original index
-        let expected_random = &token_set.all_randoms
-            [(consumed_count * RANDOM_LEN)..((consumed_count + 1) * RANDOM_LEN)];
-        let expected_token_bytes: Vec<u8> = current_loaded_token_set
-            .timestamp
-            .iter()
-            .chain(expected_random.iter())
-            .cloned()
-            .collect();
+        let expected_token_bytes = calculate_token(
+            &current_loaded_token_set.timestamp,
+            &current_loaded_token_set.secret_key_for_hmac,
+            current_loaded_token_set.topic.as_str(),
+            consumed_count as u16,
+        );
         let expected_token_b64 = general_purpose::URL_SAFE_NO_PAD.encode(&expected_token_bytes);
         assert_eq!(current_token_b64, expected_token_b64);
 
@@ -1298,13 +1056,6 @@ fn test_integration_save_load_use() -> Result<(), TokenSetError> {
 
     // Verify reloaded state
     assert_eq!(reloaded_token_set.token_idx, tokens_to_use); // Loaded from filename (3)
-    // all_randoms_offset should be where the loaded buffer starts (filename index)
-    assert_eq!(reloaded_token_set.all_randoms_offset, tokens_to_use); // Corrected based on discussion
-    // all_randoms buffer contains data from filename_token_idx (3) onwards
-    assert_eq!(
-        reloaded_token_set.all_randoms,
-        expected_token_content_after_use
-    );
     assert_eq!(reloaded_token_set.num_tokens, token_set.num_tokens);
 
     // 6. Continue using remaining tokens from the reloaded set
@@ -1319,14 +1070,12 @@ fn test_integration_save_load_use() -> Result<(), TokenSetError> {
             .expect("Should get a token");
 
         // Verify the token content matches the random at the expected original index
-        let expected_random = &token_set.all_randoms
-            [(expected_original_index * RANDOM_LEN)..(expected_original_index + 1) * RANDOM_LEN];
-        let expected_token_bytes: Vec<u8> = final_loaded_token_set
-            .timestamp
-            .iter()
-            .chain(expected_random.iter())
-            .cloned()
-            .collect();
+        let expected_token_bytes = calculate_token(
+            &final_loaded_token_set.timestamp,
+            &final_loaded_token_set.secret_key_for_hmac,
+            final_loaded_token_set.topic.as_str(),
+            expected_original_index as u16,
+        );
         let expected_token_b64 = general_purpose::URL_SAFE_NO_PAD.encode(&expected_token_bytes);
         assert_eq!(current_token_b64, expected_token_b64);
 

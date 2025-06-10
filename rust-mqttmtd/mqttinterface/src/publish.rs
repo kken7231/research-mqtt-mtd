@@ -64,7 +64,7 @@ pub async fn unfreeze_publish(
         // open payload
         aead::open(
             response.algo,
-            &response.enc_key,
+            &response.secret_key,
             &response.nonce,
             &mut in_out[..],
         )
