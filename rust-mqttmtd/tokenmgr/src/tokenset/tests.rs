@@ -47,17 +47,17 @@ impl TestDataHydrator {
                     SupportedAlgorithm::Aes256Gcm,
                     SupportedAlgorithm::Chacha20Poly1305,
                 ]
-                .choose(&mut self.rng)
-                .unwrap())
+                    .choose(&mut self.rng)
+                    .unwrap())
             }
         };
         let mut nonce_base = [0u8; 16];
         self.rng
             .fill_bytes(&mut nonce_base[16 - algo.nonce_len()..]);
         let nonce_base = u128::from_be_bytes(nonce_base);
-        let mut secret_key = BytesMut::zeroed(algo.key_len());
-        self.rng.fill_bytes(&mut secret_key[..]);
-        (algo, secret_key.freeze(), nonce_base)
+        let mut session_key = BytesMut::zeroed(algo.key_len());
+        self.rng.fill_bytes(&mut session_key[..]);
+        (algo, session_key.freeze(), nonce_base)
     }
 
     fn get_token_set(
@@ -70,7 +70,7 @@ impl TestDataHydrator {
     ) -> TokenSet {
         let timestamp = Self::get_test_timestamp();
         let num_tokens = (num_tokens_divided_by_4 as u16).rotate_left(2);
-        let (algo, secret_key, nonce_base) = self.get_enc_nonce(algo);
+        let (algo, session_key, nonce_base) = self.get_enc_nonce(algo);
         TokenSet {
             path: PathBuf::new(),
             timestamp,
@@ -79,8 +79,8 @@ impl TestDataHydrator {
             topic: topic.into(),
             is_pub,
             algo,
-            secret_key_for_hmac: Key::new(HMAC_SHA256, secret_key.as_ref()),
-            secret_key,
+            session_key_for_hmac: Key::new(HMAC_SHA256, session_key.as_ref()),
+            session_key,
             nonce_base,
         }
     }
@@ -90,12 +90,12 @@ const TEST_TOPIC: &str = "topic/pubsub";
 const TEST_NUM_TOKENS_DIVIDED_BY_4: u8 = 2;
 
 async fn new_response_reader(
-    secret_key: Bytes,
+    session_key: Bytes,
     nonce_base: Bytes,
     timestamp: [u8; TIMESTAMP_LEN],
     algo: SupportedAlgorithm,
 ) -> Result<issuer::ResponseReader, Box<dyn std::error::Error>> {
-    let writer = issuer::ResponseWriter::new(secret_key.clone(), nonce_base.clone(), timestamp);
+    let writer = issuer::ResponseWriter::new(session_key.clone(), nonce_base.clone(), timestamp);
 
     let mut inner_vec: Vec<u8> = Vec::new();
 
@@ -115,18 +115,18 @@ async fn req_res_from_tokenset(token_set: &TokenSet) -> (issuer::Request, issuer
         token_set.algo,
         token_set.topic.clone(),
     )
-    .unwrap_or_else(|e| panic!("{:?}", e));
+        .unwrap_or_else(|e| panic!("{:?}", e));
 
     let response = new_response_reader(
-        token_set.secret_key.clone(),
+        token_set.session_key.clone(),
         Bytes::copy_from_slice(
             &token_set.nonce_base.to_be_bytes()[16 - token_set.algo.nonce_len()..],
         ),
         token_set.timestamp,
         token_set.algo,
     )
-    .await
-    .unwrap_or_else(|e| panic!("{:?}", e));
+        .await
+        .unwrap_or_else(|e| panic!("{:?}", e));
 
     (request, response)
 }
@@ -167,7 +167,7 @@ fn test_get_current_b64token() {
     // Get the first token (token_idx = 0)
     let expected_token_1_bytes = calculate_token(
         &token_set.timestamp,
-        &token_set.secret_key_for_hmac,
+        &token_set.session_key_for_hmac,
         token_set.topic.as_str(),
         0,
     );
@@ -180,7 +180,7 @@ fn test_get_current_b64token() {
     // Get the second token (token_idx = 1)
     let expected_token_2_bytes = calculate_token(
         &token_set.timestamp,
-        &token_set.secret_key_for_hmac,
+        &token_set.session_key_for_hmac,
         token_set.topic.as_str(),
         1,
     );
@@ -298,7 +298,7 @@ async fn test_from_issuer_req_resp_success() {
     assert_eq!(token_set.topic, token_set_original.topic);
     assert_eq!(token_set.is_pub, token_set_original.is_pub);
     assert_eq!(token_set.algo, token_set_original.algo);
-    assert_eq!(token_set.secret_key, token_set_original.secret_key);
+    assert_eq!(token_set.session_key, token_set_original.session_key);
 
     // Check nonce_base conversion
     assert_eq!(token_set.nonce_base, token_set_original.nonce_base);
@@ -333,7 +333,7 @@ fn create_dummy_token_file(
     let mut file = fs::File::create_new(&file_path).expect("failed to create file");
     file.write_all(&[token_set.algo as u8])
         .expect("failed to write file");
-    file.write_all(&token_set.secret_key)
+    file.write_all(&token_set.session_key)
         .expect("failed to write file");
     file.write_all(&token_set.nonce_base.to_be_bytes()[16 - token_set.algo.nonce_len()..])
         .expect("failed to write file");
@@ -362,14 +362,14 @@ fn test_from_file_success_idx_0() {
         token_set_original.is_pub,
         token_set_original.topic.clone(),
     )
-    .unwrap_or_else(|e| panic!("failed to get a tokenset {}", e));
+        .unwrap_or_else(|e| panic!("failed to get a tokenset {}", e));
 
     assert_eq!(token_set.path, file_path);
     assert_eq!(token_set.topic, token_set_original.topic);
     assert_eq!(token_set.is_pub, token_set_original.is_pub);
     assert_eq!(token_set.token_idx, filename_token_idx);
     assert_eq!(token_set.algo, token_set_original.algo);
-    assert_eq!(token_set.secret_key, token_set_original.secret_key);
+    assert_eq!(token_set.session_key, token_set_original.session_key);
     assert_eq!(token_set.nonce_base, token_set_original.nonce_base);
     assert_eq!(token_set.num_tokens, token_set_original.num_tokens);
     assert_eq!(token_set.timestamp, token_set_original.timestamp);
@@ -396,7 +396,7 @@ fn test_from_file_success_idx_greater_than_0() {
         token_set_original.is_pub,
         token_set_original.topic.clone(),
     )
-    .unwrap_or_else(|e| panic!("failed to get a tokenset {}", e));
+        .unwrap_or_else(|e| panic!("failed to get a tokenset {}", e));
 
     assert_eq!(token_set.path, file_path);
     assert_eq!(token_set.topic, token_set_original.topic);
@@ -404,7 +404,7 @@ fn test_from_file_success_idx_greater_than_0() {
     assert_eq!(token_set.token_idx, filename_token_idx);
     assert_eq!(token_set_original.token_idx, filename_token_idx);
     assert_eq!(token_set.algo, token_set_original.algo);
-    assert_eq!(token_set.secret_key, token_set_original.secret_key);
+    assert_eq!(token_set.session_key, token_set_original.session_key);
     assert_eq!(token_set.nonce_base, token_set_original.nonce_base);
     assert_eq!(token_set.num_tokens, token_set_original.num_tokens);
     assert_eq!(token_set.timestamp, token_set_original.timestamp);
@@ -455,7 +455,7 @@ fn test_from_file_error_invalid_cur_idx_in_filename() {
         token_set_original.is_pub,
         token_set_original.topic.clone(),
     )
-    .unwrap_or_else(|e| panic!("failed to get a tokenset {}", e));
+        .unwrap_or_else(|e| panic!("failed to get a tokenset {}", e));
     let topic_encoded = TokenSet::topic_b64encode(token_set.topic.clone());
 
     // Invalid index format
@@ -533,13 +533,13 @@ fn test_from_file_error_nonce_len_mismatch_read() -> Result<(), ()> {
     let mut file = fs::File::create(&file_path).expect("failed to create file");
     file.write_all(&[token_set.algo as u8])
         .expect("failed to write file");
-    file.write_all(&token_set.secret_key)
+    file.write_all(&token_set.session_key)
         .expect("failed to write file");
     file.write_all(
         &token_set.nonce_base.to_be_bytes()[16 - token_set.algo.nonce_len()..]
             [..token_set.algo.nonce_len() - 1],
     )
-    .expect("failed to write file"); // too small nonce
+        .expect("failed to write file"); // too small nonce
     file.write_all(&[token_set.num_tokens.rotate_right(2) as u8])
         .expect("failed to write file");
     file.write_all(&token_set.timestamp)
@@ -575,7 +575,7 @@ fn test_from_file_error_invalid_num_tokens() {
         let mut file = fs::File::create(&file_path).expect("failed to create file");
         file.write_all(&[token_set.algo as u8])
             .expect("failed to write file");
-        file.write_all(&token_set.secret_key)
+        file.write_all(&token_set.session_key)
             .expect("failed to write file");
         file.write_all(&token_set.nonce_base.to_be_bytes()[16 - token_set.algo.nonce_len()..])
             .expect("failed to write file"); // too small nonce
@@ -632,10 +632,10 @@ fn test_save_to_file_success() {
         .unwrap_or_else(|e| panic!("{:?}", e));
 
     let mut expected_bytes = Vec::new();
-    // Header fields order: algo, secret_key, nonce_base, num_tokens_divided_by_4,
+    // Header fields order: algo, session_key, nonce_base, num_tokens_divided_by_4,
     // timestamp, all_randoms_offset
     expected_bytes.push(token_set.algo as u8);
-    expected_bytes.extend_from_slice(&token_set.secret_key);
+    expected_bytes.extend_from_slice(&token_set.session_key);
     expected_bytes.extend_from_slice(
         &token_set.nonce_base.to_be_bytes()[(16 - token_set.algo.nonce_len())..],
     );
@@ -698,7 +698,7 @@ fn test_save_to_file_success_replaces_old() {
 }
 
 #[test]
-fn test_save_to_file_error_secret_key_mismatch() {
+fn test_save_to_file_error_session_key_mismatch() {
     let token_sets_dir = tempdir()
         .expect("failed to create tempdir")
         .path()
@@ -710,7 +710,7 @@ fn test_save_to_file_error_secret_key_mismatch() {
         0,
         TEST_TOPIC,
     );
-    token_set.secret_key = BytesMut::zeroed(token_set.algo.key_len() - 1).freeze(); // wrong len
+    token_set.session_key = BytesMut::zeroed(token_set.algo.key_len() - 1).freeze(); // wrong len
 
     let result = token_set.save_to_file(&token_sets_dir);
 
@@ -1019,7 +1019,7 @@ fn test_integration_save_load_use() -> Result<(), TokenSetError> {
         // Verify the token content matches the random at the expected original index
         let expected_token_bytes = calculate_token(
             &current_loaded_token_set.timestamp,
-            &current_loaded_token_set.secret_key_for_hmac,
+            &current_loaded_token_set.session_key_for_hmac,
             current_loaded_token_set.topic.as_str(),
             consumed_count as u16,
         );
@@ -1072,7 +1072,7 @@ fn test_integration_save_load_use() -> Result<(), TokenSetError> {
         // Verify the token content matches the random at the expected original index
         let expected_token_bytes = calculate_token(
             &final_loaded_token_set.timestamp,
-            &final_loaded_token_set.secret_key_for_hmac,
+            &final_loaded_token_set.session_key_for_hmac,
             final_loaded_token_set.topic.as_str(),
             expected_original_index as u16,
         );

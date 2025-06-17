@@ -1,12 +1,11 @@
-use bytes::{Bytes, BytesMut};
+use bytes::{Buf, BufMut, Bytes, BytesMut};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 use super::error::{AuthServerParserError, IssuerRequestValidationError};
 use crate::{
     aead::algo::SupportedAlgorithm,
-    auth_serv_read, auth_serv_read_check_v2_header, auth_serv_read_into_new_bytes,
-    auth_serv_read_u16, auth_serv_read_u8, auth_serv_write, auth_serv_write_u16,
-    auth_serv_write_u8, auth_serv_write_v2_header,
+    auth_serv_check_v2_header, auth_serv_read, auth_serv_read_into_new_bytes,
+    auth_serv_read_into_new_mut_bytes, auth_serv_v2_header, auth_serv_write,
     consts::{PACKET_TYPE_ISSUER_REQUEST, PACKET_TYPE_ISSUER_RESPONSE, TIMESTAMP_LEN},
 };
 
@@ -91,19 +90,22 @@ impl Request {
     pub async fn read_from<R: AsyncRead + Unpin>(
         stream: &mut R,
     ) -> Result<Self, AuthServerParserError> {
+        // read header, compound, algo and topic_len
+        auth_serv_read_into_new_mut_bytes!(buf, stream, 1 + 1 + 1 + 2);
+
         // header
-        auth_serv_read_check_v2_header!(stream, PACKET_TYPE_ISSUER_REQUEST);
+        auth_serv_check_v2_header!(buf.get_u8(), PACKET_TYPE_ISSUER_REQUEST);
 
         // compound
-        let compound = auth_serv_read_u8!(stream);
+        let compound = buf.get_u8();
         let is_pub = compound & 0x80 != 0;
         let num_tokens_divided_by_4 = compound & 0x7F;
 
         // algo
-        let algo = SupportedAlgorithm::try_from(auth_serv_read_u8!(stream))?;
+        let algo = SupportedAlgorithm::try_from(buf.get_u8())?;
 
         // topic_len
-        let topic_len = auth_serv_read_u16!(stream) as usize;
+        let topic_len = buf.get_u16() as usize;
 
         // topic
         auth_serv_read_into_new_bytes!(topic, stream, topic_len);
@@ -121,19 +123,23 @@ impl Request {
             return Err(AuthServerParserError::TopicTooLongError);
         }
 
+        // header, compound, algo and topic_len
+        let mut buf = BytesMut::with_capacity(1 + 1 + 1 + 2 + self.topic.len());
+
         // HEADER
-        let mut counter = auth_serv_write_v2_header!(stream, PACKET_TYPE_ISSUER_REQUEST);
+        buf.put_u8(auth_serv_v2_header!(PACKET_TYPE_ISSUER_REQUEST));
 
         // Write to stream
         let mut first_byte = *self.num_tokens_divided_by_4.to_be_bytes().last().unwrap() & 0x7F;
         if self.is_pub {
             first_byte |= 0x80;
         }
-        counter += auth_serv_write_u8!(stream, first_byte);
-        counter += auth_serv_write_u8!(stream, self.algo as u8);
-        counter += auth_serv_write_u16!(stream, self.topic.len() as u16);
-        counter += auth_serv_write!(stream, self.topic.as_bytes());
-        Ok(counter)
+        buf.put_u8(first_byte);
+        buf.put_u8(self.algo as u8);
+        buf.put_u16(self.topic.len() as u16);
+        buf.put_slice(self.topic.as_bytes());
+        auth_serv_write!(stream, &buf[..]);
+        Ok(buf.len())
     }
 }
 
@@ -142,26 +148,26 @@ impl Request {
 /// # Structure:
 ///
 /// ## v1
-/// 1. `secret_key` (optional)
+/// 1. `session_key` (optional)
 /// 2. `timestamp`
 /// 3. `all_random_bytes`
 ///
 /// ## v2
 /// 0. header
 /// 1. `status` (u8, refer to [ResponseStatus])
-/// 2. `secret_key`
+/// 2. `session_key`
 /// 3. `nonce_base`
 /// 4. `timestamp`
 pub struct ResponseWriter {
-    secret_key: Bytes,
+    session_key: Bytes,
     nonce_base: Bytes,
     timestamp: [u8; TIMESTAMP_LEN],
 }
 
 impl ResponseWriter {
-    pub fn new(secret_key: Bytes, nonce_base: Bytes, timestamp: [u8; TIMESTAMP_LEN]) -> Self {
+    pub fn new(session_key: Bytes, nonce_base: Bytes, timestamp: [u8; TIMESTAMP_LEN]) -> Self {
         Self {
-            secret_key,
+            session_key,
             nonce_base,
             timestamp,
         }
@@ -185,36 +191,51 @@ impl ResponseWriter {
         stream: &mut W,
         status: ResponseStatus,
     ) -> Result<usize, AuthServerParserError> {
+        let is_full_resp = status == ResponseStatus::Success && resp.is_some();
+
+        // Prep the buf
+        let buf_capacity = if is_full_resp {
+            // header, status, session_key, nonce_base and timestamp
+            let unwrapped = resp.unwrap();
+            2 + unwrapped.session_key.len() + unwrapped.nonce_base.len() + unwrapped.timestamp.len()
+        } else {
+            // only header and status
+            2usize
+        };
+        let mut buf = BytesMut::with_capacity(buf_capacity);
+
         // header
-        let mut counter = auth_serv_write_v2_header!(stream, PACKET_TYPE_ISSUER_RESPONSE);
+        buf.put_u8(auth_serv_v2_header!(PACKET_TYPE_ISSUER_RESPONSE));
 
         // status
-        counter += auth_serv_write_u8!(stream, status as u8);
+        buf.put_u8(status as u8);
 
         // status check
-        if status != ResponseStatus::Success || resp.is_none() {
-            return Ok(counter);
+        if !is_full_resp {
+            auth_serv_write!(stream, &buf[..]);
+            return Ok(buf.len());
         }
         let resp = resp.unwrap();
 
         // other attributes if success
-        counter += auth_serv_write!(stream, &resp.secret_key);
-        counter += auth_serv_write!(stream, &resp.nonce_base);
-        counter += auth_serv_write!(stream, &resp.timestamp);
-        Ok(counter)
+        buf.put_slice(&resp.session_key[..]);
+        buf.put_slice(&resp.nonce_base[..]);
+        buf.put_slice(&resp.timestamp[..]);
+        auth_serv_write!(stream, &buf[..]);
+        Ok(buf.len())
     }
 }
 
 #[derive(Debug)]
 pub struct ResponseReader {
-    secret_key: Bytes,
+    session_key: Bytes,
     nonce_base: Bytes,
     timestamp: [u8; TIMESTAMP_LEN],
 }
 
 impl ResponseReader {
-    pub fn secret_key(&self) -> &[u8] {
-        &self.secret_key
+    pub fn session_key(&self) -> &[u8] {
+        &self.session_key
     }
 
     pub fn nonce_base(&self) -> &[u8] {
@@ -229,24 +250,32 @@ impl ResponseReader {
         stream: &mut R,
         algo: SupportedAlgorithm,
     ) -> Result<Option<Self>, AuthServerParserError> {
+        // read header and status
+        auth_serv_read_into_new_mut_bytes!(buf, stream, 2);
+
         // header
-        auth_serv_read_check_v2_header!(stream, PACKET_TYPE_ISSUER_RESPONSE);
+        auth_serv_check_v2_header!(buf.get_u8(), PACKET_TYPE_ISSUER_RESPONSE);
 
         // status
-        let status = ResponseStatus::from(auth_serv_read_u8!(stream));
+        let status = ResponseStatus::from(buf.get_u8());
         if status != ResponseStatus::Success {
             return Ok(None);
         }
 
         // other attributes if success
-        auth_serv_read_into_new_bytes!(secret_key, stream, algo.key_len());
-        auth_serv_read_into_new_bytes!(nonce_base, stream, algo.nonce_len());
-        auth_serv_read_into_new_bytes!(timestamp, stream, TIMESTAMP_LEN);
+        auth_serv_read_into_new_mut_bytes!(
+            buf,
+            stream,
+            algo.key_len() + algo.nonce_len() + TIMESTAMP_LEN
+        );
+        let session_key = buf.split_to(algo.key_len());
+        let nonce_base = buf.split_to(algo.nonce_len());
+        let timestamp: [u8; TIMESTAMP_LEN] = buf.as_ref().try_into().unwrap();
 
         Ok(Some(Self {
-            secret_key,
+            session_key,
             nonce_base,
-            timestamp: timestamp.as_ref().try_into().unwrap(),
+            timestamp,
         }))
     }
 }
@@ -275,8 +304,7 @@ mod tests {
         auth_serv::{
             error::AuthServerParserError,
             issuer::{Request, ResponseReader, ResponseWriter},
-        }
-        ,
+        },
     };
 
     use crate::consts::{PACKET_TYPE_ISSUER_REQUEST, PACKET_TYPE_ISSUER_RESPONSE};
@@ -288,7 +316,8 @@ mod tests {
     #[tokio::test]
     async fn request_response_read_from_invalid_header() {
         // starts with invalid header
-        let mut mock_stream = Builder::new().read(&[0x01]).build();
+        // at least a packet has 6 bytes
+        let mut mock_stream = Builder::new().read(&[0x01, 0x02, 0x03, 0x04, 0x05, 0x06]).build();
 
         let result = Request::read_from(&mut mock_stream).await;
 
@@ -302,17 +331,17 @@ mod tests {
         };
 
         // Write in all the remained bytes
-        let mut read_buf = [0u8; 4];
+        let mut read_buf = [0u8; 6];
         let _ = mock_stream.read(&mut read_buf).await;
 
         // starts with invalid header
-        let mut mock_stream = Builder::new().read(&[0x01]).build();
+        let mut mock_stream = Builder::new().read(&[0x01, 0x02, 0x03, 0x04, 0x05, 0x06]).build();
 
         let result = ResponseReader::read_from(
             &mut mock_stream,
             SupportedAlgorithm::Aes128Gcm, // Dummy algo (not used for error)
         )
-        .await;
+            .await;
 
         assert!(result.is_err());
         // Expect an IO error indicating unexpected EOF
@@ -324,7 +353,7 @@ mod tests {
         };
 
         // Write in all the remained bytes
-        let mut read_buf = [0u8; 4];
+        let mut read_buf = [0u8; 6];
         let _ = mock_stream.read(&mut read_buf).await;
     }
 
@@ -337,7 +366,7 @@ mod tests {
                 SupportedAlgorithm::Aes256Gcm, // algo
                 "test/topic/req".to_string(),  // topic
             )
-            .expect("failed to create a request"),
+                .expect("failed to create a request"),
         );
 
         let expected_bytes = [
@@ -390,7 +419,7 @@ mod tests {
 
     #[tokio::test]
     async fn response_write_read_success_roundtrip() {
-        let secret_key = Bytes::from_static(&[
+        let session_key = Bytes::from_static(&[
             0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22,
             0x33, 0x44,
         ]); // Dummy key
@@ -417,8 +446,8 @@ mod tests {
             0x11,
             0x22,
             0x33,
-            0x44, /* secret_key: [0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33,
-                   * 0x44, 0x11, 0x22, 0x33, 0x44] */
+            0x44, /* session_key: [0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22,
+                   * 0x33, 0x44, 0x11, 0x22, 0x33, 0x44] */
             0xAA,
             0xBB,
             0xCC,
@@ -440,7 +469,7 @@ mod tests {
             0xFF, // timestamp: [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]
         ];
 
-        let original_resp_writer = ResponseWriter::new(secret_key, nonce_base, timestamp);
+        let original_resp_writer = ResponseWriter::new(session_key, nonce_base, timestamp);
 
         // Mock stream to write to
         let mut mock_stream = Builder::new().write(&expected_bytes).read(&[]).build();
@@ -462,8 +491,8 @@ mod tests {
         let parsed_resp = parsed_resp_option.unwrap();
 
         assert_eq!(
-            parsed_resp.secret_key.as_ref(),
-            original_resp_writer.secret_key.as_ref()
+            parsed_resp.session_key.as_ref(),
+            original_resp_writer.session_key.as_ref()
         );
         assert_eq!(parsed_resp.timestamp, timestamp);
         assert_eq!(written_len, expected_bytes.len(), "Written length mismatch");
@@ -490,8 +519,8 @@ mod tests {
             &mut read_stream,
             SupportedAlgorithm::Aes128Gcm, // Dummy algo (not used for error)
         )
-        .await
-        .expect("Failed to read response");
+            .await
+            .expect("Failed to read response");
 
         assert!(
             parsed_resp_option.is_none(),

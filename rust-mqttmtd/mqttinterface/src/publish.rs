@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use base64::{Engine, engine::general_purpose};
+use base64::{engine::general_purpose, Engine};
 use bytes::BytesMut;
 use libmqttmtd::{
     aead::{self},
@@ -64,11 +64,11 @@ pub async fn unfreeze_publish(
         // open payload
         aead::open(
             response.algo,
-            &response.secret_key,
+            &response.session_key,
             &response.nonce,
             &mut in_out[..],
         )
-        .map_err(|e| PublishUnfreezeError::PayloadOpenError(e))?;
+            .map_err(|e| PublishUnfreezeError::PayloadOpenError(e))?;
         let tag_len = response.algo.tag_len();
         in_out.truncate(in_out.len() - tag_len);
         publish.payload = in_out.freeze();
