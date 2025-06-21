@@ -1,5 +1,5 @@
 #[macro_export]
-macro_rules! auth_serv_read {
+macro_rules! stream_read {
     ($stream: expr, $buf:expr) => {
         $stream
             .read_exact($buf)
@@ -9,21 +9,30 @@ macro_rules! auth_serv_read {
 }
 
 #[macro_export]
-macro_rules! auth_serv_read_into_new_mut_bytes {
-    ($var_name:ident, $stream:expr, $len:expr) => {
-        let mut $var_name = BytesMut::zeroed($len);
-        auth_serv_read!($stream, &mut $var_name[..]);
-        let mut $var_name = $var_name.freeze();
-    };
+macro_rules! stream_read_heap {
+    ($stream:expr, $len:expr) => {{
+        let mut buf = BytesMut::zeroed($len);
+        stream_read!($stream, &mut buf[..]);
+        buf.freeze()
+    }};
 }
 
 #[macro_export]
-macro_rules! auth_serv_read_into_new_bytes {
-    ($var_name:ident, $stream:expr, $len:expr) => {
-        let mut $var_name = BytesMut::zeroed($len);
-        auth_serv_read!($stream, &mut $var_name[..]);
-        let $var_name = $var_name.freeze();
-    };
+macro_rules! stream_read_static {
+    ($stream:expr, $len:expr) => {{
+        let mut buf = [0u8; $len];
+        stream_read!($stream, &mut buf[..]);
+        std::io::Cursor::new(buf)
+    }};
+}
+
+#[macro_export]
+macro_rules! stream_read_topic {
+    ($stream:expr, $len:expr) => {{
+        let mut buf = vec![0u8; $len];
+        stream_read!($stream, &mut buf[..]);
+        String::from_utf8(buf.to_vec())?
+    }};
 }
 
 

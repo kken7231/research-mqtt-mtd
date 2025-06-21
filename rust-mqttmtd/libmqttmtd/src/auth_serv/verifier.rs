@@ -4,9 +4,9 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use super::error::AuthServerParserError;
 use crate::{
     aead::algo::SupportedAlgorithm,
-    auth_serv_check_v2_header, auth_serv_read, auth_serv_read_into_new_bytes,
-    auth_serv_read_into_new_mut_bytes, auth_serv_v2_header, auth_serv_write,
+    auth_serv_check_v2_header, auth_serv_v2_header, auth_serv_write,
     consts::{PACKET_TYPE_VERIFIER_REQUEST, PACKET_TYPE_VERIFIER_RESPONSE, TOKEN_LEN},
+    stream_read, stream_read_heap, stream_read_static, stream_read_topic,
 };
 
 /// # Request for Verifier interface
@@ -51,14 +51,16 @@ impl Request {
         stream: &mut R,
     ) -> Result<Self, AuthServerParserError> {
         // read header and token
-        auth_serv_read_into_new_bytes!(buf, stream, 1 + TOKEN_LEN);
+        let mut buf = stream_read_static!(stream, 1 + TOKEN_LEN);
 
         // header
-        auth_serv_check_v2_header!(buf[0], PACKET_TYPE_VERIFIER_REQUEST);
+        auth_serv_check_v2_header!(buf.get_u8(), PACKET_TYPE_VERIFIER_REQUEST);
 
-        Ok(Self {
-            token: *&buf[1..].try_into().unwrap(),
-        })
+        // token
+        let mut token = [0u8; TOKEN_LEN];
+        buf.copy_to_slice(&mut token[..]);
+
+        Ok(Self { token })
     }
 
     /// Writes [Request] to a stream.
@@ -134,7 +136,7 @@ impl ResponseReader {
         stream: &mut R,
     ) -> Result<Option<Self>, AuthServerParserError> {
         // read header and status
-        auth_serv_read_into_new_mut_bytes!(buf, stream, 1 + 1);
+        let mut buf = stream_read_static!(stream, 1 + 1);
 
         // header
         auth_serv_check_v2_header!(buf.get_u8(), PACKET_TYPE_VERIFIER_RESPONSE);
@@ -146,7 +148,7 @@ impl ResponseReader {
         }
 
         // read compound and topic_len
-        auth_serv_read_into_new_mut_bytes!(buf, stream, 1 + 2);
+        let mut buf = stream_read_static!(stream, 1 + 2);
 
         // allowed_access, algo
         let compound = buf.get_u8();
@@ -157,17 +159,9 @@ impl ResponseReader {
         let topic_len = buf.get_u16() as usize;
 
         // read topic, session_key and nonce
-        auth_serv_read_into_new_mut_bytes!(
-            buf,
-            stream,
-            topic_len + algo.key_len() + algo.nonce_len()
-        );
-        let topic = buf.split_to(topic_len);
-        let session_key = buf.split_to(algo.key_len());
-        let nonce = buf;
-
-        // topic (vector to convert in from_utf8)
-        let topic = String::from_utf8(topic.to_vec())?;
+        let topic = stream_read_topic!(stream, topic_len);
+        let session_key = stream_read_heap!(stream, algo.key_len());
+        let nonce = stream_read_heap!(stream, algo.nonce_len());
 
         Ok(Some(Self {
             allowed_access_is_pub,
@@ -377,7 +371,11 @@ mod tests {
     async fn request_response_read_from_invalid_header() {
         // starts with invalid header
         // packet should have a fixed size of 1 + TOKEN_LEN
-        let mut mock_stream = Builder::new().read(&[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D]).build();
+        let mut mock_stream = Builder::new()
+            .read(&[
+                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D,
+            ])
+            .build();
 
         let result = Request::read_from(&mut mock_stream).await;
 
@@ -395,7 +393,11 @@ mod tests {
         let _ = mock_stream.read(&mut read_buf).await;
 
         // starts with invalid header
-        let mut mock_stream = Builder::new().read(&[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D]).build();
+        let mut mock_stream = Builder::new()
+            .read(&[
+                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D,
+            ])
+            .build();
 
         let result = ResponseReader::read_from(&mut mock_stream).await;
 
