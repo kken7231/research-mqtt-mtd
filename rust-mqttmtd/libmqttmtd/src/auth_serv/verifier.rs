@@ -103,9 +103,9 @@ impl Request {
 ///     2. compound byte
 ///         - bit 7: allowed_access_is_pub
 ///         - bit 3-0: algo (len=1 byte)
-///             - 0: AES_128_GCM,
-///             - 1: AES_256_GCM,
-///             - 2: CHACHA20_POLY1305
+///             - 1: AES_128_GCM,
+///             - 2: AES_256_GCM,
+///             - 3: CHACHA20_POLY1305
 ///     3. len_topic, big endian (len=2 bytes)
 ///     4. topic (len=len_topic bytes)
 ///     5. session_key
@@ -417,7 +417,7 @@ mod tests {
     async fn response_write_read_success_roundtrip() {
         let original_resp_writer = ResponseWriter::new(
             true,                                 // allowed_access_is_pub
-            SupportedAlgorithm::Chacha20Poly1305, // algo (2)
+            SupportedAlgorithm::Chacha20Poly1305, // algo (3)
             Bytes::from_static(&[
                 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C,
             ]), // nonce (12 bytes for CHACHA20)
@@ -432,7 +432,7 @@ mod tests {
         let expected_bytes = [
             0x20u8 | PACKET_TYPE_VERIFIER_RESPONSE,
             0x01, // Status: Success (1)
-            0x82, // Compound byte: allowed_access_is_pub (1) | algo (2) = 0x82
+            0x83, // Compound byte: allowed_access_is_pub (1) | algo (3) = 0x83
             0x00,
             0x0E, // Topic len: 14 (u16 BE)
             b'v',

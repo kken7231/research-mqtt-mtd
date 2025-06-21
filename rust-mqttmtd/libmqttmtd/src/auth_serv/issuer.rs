@@ -372,7 +372,7 @@ mod tests {
         let expected_bytes = [
             0x20u8 | PACKET_TYPE_ISSUER_REQUEST,
             0x85, // Compound byte: is_pub (1) | num_tokens_divided_dy_4 (5) = 0x85
-            0x01, // AEAD Algo: Aes256Gcm (1)
+            0x02, // AEAD Algo: Aes256Gcm (2)
             // Topic len: "test/topic/req" is 14 bytes (u16 BE)
             0x00,
             0x0E, // Topic: "test/topic/req"
