@@ -44,7 +44,7 @@ jobs:
 
       - name: Run tests for specific packages
         run: |
-          cargo test --workspace --exclude tokenmgr --exclude libmqttmtd_macros
+          cargo test --release --workspace --exclude tokenmgr --exclude libmqttmtd_macros
 
   docker-tests:
     name: Docker Compose Tests
