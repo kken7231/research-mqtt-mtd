@@ -7,9 +7,9 @@ use ring::aead::{MAX_TAG_LEN, NONCE_LEN};
 #[repr(u8)]
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum SupportedAlgorithm {
-    Aes128Gcm = 0,
-    Aes256Gcm = 1,
-    Chacha20Poly1305 = 2,
+    Aes128Gcm = 1,
+    Aes256Gcm = 2,
+    Chacha20Poly1305 = 3,
 }
 
 impl SupportedAlgorithm {

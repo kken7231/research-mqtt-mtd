@@ -29,8 +29,8 @@ pub struct TokenSet {
     is_pub: bool,
 
     algo: SupportedAlgorithm,
-    secret_key: Bytes,
-    secret_key_for_hmac: Key,
+    session_key: Bytes,
+    session_key_for_hmac: Key,
     nonce_base: u128,
 }
 
@@ -46,7 +46,7 @@ impl TokenSet {
         if self.token_idx < self.num_tokens {
             let cur_token = calculate_token(
                 &self.timestamp,
-                &self.secret_key_for_hmac,
+                &self.session_key_for_hmac,
                 self.topic.as_str(),
                 self.token_idx,
             );
@@ -61,13 +61,13 @@ impl TokenSet {
             "Current token: {}",
             calculate_token(
                 &self.timestamp,
-                &self.secret_key_for_hmac,
+                &self.session_key_for_hmac,
                 self.topic.as_str(),
                 self.token_idx
             )
-            .iter()
-            .map(|b| format!("{:02x}", b))
-            .collect::<String>()
+                .iter()
+                .map(|b| format!("{:02x}", b))
+                .collect::<String>()
         );
     }
 
@@ -86,7 +86,7 @@ impl TokenSet {
     pub fn seal_cli2serv(&self, payload: &mut [u8]) -> Result<Bytes, ring::error::Unspecified> {
         let tag = seal(
             self.algo,
-            &self.secret_key,
+            &self.session_key,
             &self.get_nonce_for_cli2serv_pub(),
             payload,
         )?;
@@ -100,7 +100,7 @@ impl TokenSet {
     pub fn open_cli2serv(&self, in_out: &mut [u8]) -> Result<(), ring::error::Unspecified> {
         open(
             self.algo,
-            &self.secret_key,
+            &self.session_key,
             &self.get_nonce_for_cli2serv_pub(),
             in_out,
         )
@@ -115,7 +115,7 @@ impl TokenSet {
     ) -> Result<Bytes, ring::error::Unspecified> {
         let tag = seal(
             self.algo,
-            &self.secret_key,
+            &self.session_key,
             &self.get_nonce_for_serv2cli_pub(packet_id),
             payload,
         )?;
@@ -133,7 +133,7 @@ impl TokenSet {
     ) -> Result<(), ring::error::Unspecified> {
         open(
             self.algo,
-            &self.secret_key,
+            &self.session_key,
             &self.get_nonce_for_serv2cli_pub(packet_id),
             in_out,
         )
@@ -182,8 +182,8 @@ impl TokenSet {
             topic: request.topic().to_owned(),
             is_pub: request.is_pub(),
             algo: request.algo(),
-            secret_key: Bytes::copy_from_slice(response.secret_key()),
-            secret_key_for_hmac: Key::new(HMAC_SHA256, response.secret_key()),
+            session_key: Bytes::copy_from_slice(response.session_key()),
+            session_key_for_hmac: Key::new(HMAC_SHA256, response.session_key()),
             nonce_base,
         })
     }
@@ -203,7 +203,7 @@ impl TokenSet {
         // Convert OsStr to a string slice. to_string_lossy handles non-UTF-8 filenames.
         let filename_str = filename_osstr.to_string_lossy();
         let curidx_slice = &filename_str[topic_encoded.len()..];
-        
+
         // Parse and get cur_idx from the filename
         let token_idx = curidx_slice.parse::<u16>();
         if let Err(_) = token_idx {
@@ -227,12 +227,12 @@ impl TokenSet {
         let algo = SupportedAlgorithm::try_from(buf[0])
             .map_err(|e| TokenSetError::UnsupportedAlgorithmError(e))?;
 
-        // secret_key
-        let secret_key_len = algo.key_len();
-        let mut secret_key = BytesMut::zeroed(secret_key_len);
-        file.read_exact(&mut secret_key)
+        // session_key
+        let session_key_len = algo.key_len();
+        let mut session_key = BytesMut::zeroed(session_key_len);
+        file.read_exact(&mut session_key)
             .map_err(|e| TokenSetError::FileReadError(e))?;
-        let secret_key = secret_key.freeze();
+        let session_key = session_key.freeze();
 
         // nonce_base
         let mut nonce_base_bytes = [0u8; 16];
@@ -264,8 +264,8 @@ impl TokenSet {
             topic,
             is_pub,
             algo,
-            secret_key_for_hmac: Key::new(HMAC_SHA256, secret_key.as_ref()),
-            secret_key,
+            session_key_for_hmac: Key::new(HMAC_SHA256, session_key.as_ref()),
+            session_key,
             nonce_base,
         })
     }
@@ -298,11 +298,11 @@ impl TokenSet {
         file.write_all(&buf[0..1])
             .map_err(|e| TokenSetError::FileWriteError(e))?;
 
-        // secret_key
-        if self.secret_key.len() != self.algo.key_len() {
-            return Err(TokenSetError::EncKeyMismatchError(self.secret_key.len()));
+        // session_key
+        if self.session_key.len() != self.algo.key_len() {
+            return Err(TokenSetError::EncKeyMismatchError(self.session_key.len()));
         }
-        file.write_all(&self.secret_key)
+        file.write_all(&self.session_key)
             .map_err(|e| TokenSetError::FileWriteError(e))?;
 
         // nonce_base

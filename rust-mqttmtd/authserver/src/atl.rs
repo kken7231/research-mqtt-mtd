@@ -34,13 +34,13 @@ pub(crate) struct TokenSet {
     valid_dur: Duration,
 
     algo: SupportedAlgorithm,
-    secret_key: Bytes,
-    secret_key_for_hmac: Key,
+    session_key: Bytes,
+    session_key_for_hmac: Key,
     nonce_base: u128,
 }
 
 impl TokenSet {
-    /// Initializes a new [TokenSet]. Random values such as `secret_key` and
+    /// Initializes a new [TokenSet]. Random values such as `session_key` and
     /// `nonce_base` are not initialized here. Initialization of those
     /// values is what [AccessTokenList] is responsible for. # Parameters:
     /// - `valid_dur`: must be less than one year, otherwise error thrown
@@ -70,8 +70,8 @@ impl TokenSet {
             is_pub,
             valid_dur,
             algo,
-            secret_key: Bytes::new(),
-            secret_key_for_hmac: Key::new(HMAC_SHA256, &[]),
+            session_key: Bytes::new(),
+            session_key_for_hmac: Key::new(HMAC_SHA256, &[]),
             nonce_base: 0u128,
         })
     }
@@ -79,7 +79,7 @@ impl TokenSet {
     pub(crate) fn current_random(&self) -> Result<Bytes, ATLError> {
         if self.token_idx <= self.num_tokens {
             Ok(calculate_random(
-                &self.secret_key_for_hmac,
+                &self.session_key_for_hmac,
                 &self.topic.as_str(),
                 self.token_idx,
             ))
@@ -93,7 +93,7 @@ impl TokenSet {
         let timestamp = AccessTokenList::sparse_masked_u64_to_part(self.masked_timestamp);
         libmqttmtd::utils::calculate_token(
             &timestamp,
-            &self.secret_key_for_hmac,
+            &self.session_key_for_hmac,
             self.topic.as_str(),
             self.token_idx,
         )
@@ -172,13 +172,13 @@ impl AccessTokenList {
         &self,
         mut token_set: TokenSet,
     ) -> Result<(issuer::ResponseWriter, u64), ATLError> {
-        // Fill secret_key
+        // Fill session_key
         loop {
-            let mut secret_key = BytesMut::zeroed(token_set.algo.key_len());
+            let mut session_key = BytesMut::zeroed(token_set.algo.key_len());
             self.rng
-                .fill(&mut secret_key)
+                .fill(&mut session_key)
                 .map_err(|e| ATLError::RandGenError(e))?;
-            let secret_key_for_hmac = Key::new(HMAC_SHA256, &secret_key);
+            let session_key_for_hmac = Key::new(HMAC_SHA256, &session_key);
 
             // Check all randoms are unique
             // randoms are calculated by hashing and truncating the first 6 bytes
@@ -186,7 +186,7 @@ impl AccessTokenList {
             let mut duplicate_found = false;
             for i in 0..token_set.num_tokens {
                 duplicate_found |= !generated_tokens.insert(calculate_random(
-                    &secret_key_for_hmac,
+                    &session_key_for_hmac,
                     token_set.topic.as_str(),
                     i,
                 ));
@@ -195,9 +195,9 @@ impl AccessTokenList {
                 continue;
             }
 
-            // assign secret_key
-            token_set.secret_key = secret_key.freeze();
-            token_set.secret_key_for_hmac = Key::new(HMAC_SHA256, &token_set.secret_key);
+            // assign session_key
+            token_set.session_key = session_key.freeze();
+            token_set.session_key_for_hmac = Key::new(HMAC_SHA256, &token_set.session_key);
             break;
         }
 
@@ -239,7 +239,7 @@ impl AccessTokenList {
 
         // Copy to issuer::ResponseWriter
         let resp = issuer::ResponseWriter::new(
-            token_set.secret_key.clone(),
+            token_set.session_key.clone(),
             utils::nonce_from_u128_to_bytes(token_set.algo, token_set.nonce_base),
             Self::sparse_masked_u64_to_part(token_set.masked_timestamp),
         );
@@ -375,7 +375,7 @@ impl AccessTokenList {
                     token_set.algo,
                     token_set.current_nonce().clone(),
                     Bytes::from(token_set.topic.clone()),
-                    token_set.secret_key.to_owned(),
+                    token_set.session_key.to_owned(),
                 );
 
                 // Increment and revocation check
@@ -429,7 +429,7 @@ mod tests {
             valid_dur,
             SupportedAlgorithm::Aes128Gcm,
         )
-        .expect("Failed to create test TokenSet")
+            .expect("Failed to create test TokenSet")
     }
 
     #[tokio::test]
@@ -483,7 +483,7 @@ mod tests {
                 .expect("Failed to get token set")
                 .lock()
                 .await;
-            secure_key_for_hmac = token_set.secret_key_for_hmac.clone();
+            secure_key_for_hmac = token_set.session_key_for_hmac.clone();
             topic = token_set.topic.clone();
         }
 

@@ -1,4 +1,4 @@
-use base64::{Engine, engine::general_purpose};
+use base64::{engine::general_purpose, Engine};
 use bytes::{BufMut, Bytes, BytesMut};
 use libmqttmtd::{
     aead,
@@ -17,7 +17,7 @@ pub(super) struct ClientSubscriptionInfo {
     token_idx: u16,
     algo: SupportedAlgorithm,
     nonce_base: u128,
-    secret_key: Bytes,
+    session_key: Bytes,
 }
 
 impl ClientSubscriptionInfo {
@@ -28,7 +28,7 @@ impl ClientSubscriptionInfo {
             token_idx: 0,
             algo: Aes128Gcm,
             nonce_base: 0,
-            secret_key: Bytes::new(),
+            session_key: Bytes::new(),
         }
     }
 }
@@ -101,7 +101,7 @@ pub async fn unfreeze_subscribe(
             let nonce_base = nonce - (info.token_idx as u128);
 
             info.nonce_base = nonce_base;
-            info.secret_key = response.secret_key;
+            info.session_key = response.session_key;
             info.algo = response.algo;
         }
 
@@ -172,7 +172,7 @@ pub async fn freeze_subscribed_publish(
     {
         let info = subscription_info.read().await;
         if !info.is_subscribed {
-            println!("No subscription registered so far, blocking...",);
+            println!("No subscription registered so far, blocking...", );
             return Ok(None);
         }
 
@@ -186,7 +186,7 @@ pub async fn freeze_subscribed_publish(
         in_out.put_u16(publish.topic.len() as u16);
         in_out.extend_from_slice(publish.topic.as_bytes());
         in_out.extend_from_slice(&publish.payload);
-        tag = aead::seal(info.algo, &info.secret_key, &nonce, &mut in_out)
+        tag = aead::seal(info.algo, &info.session_key, &nonce, &mut in_out)
             .map_err(|e| SubscribedPublishFreezeError::PayloadSealError(e))?;
     }
 
