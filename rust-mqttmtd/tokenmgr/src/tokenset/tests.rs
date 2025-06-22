@@ -13,6 +13,7 @@ use std::{
 use tempfile::tempdir;
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 
+use libmqttmtd::utils::get_nonce;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
@@ -35,10 +36,10 @@ impl TestDataHydrator {
             .unwrap_or_else(|e| panic!("failed to get bytes: {}", e))
     }
 
-    fn get_enc_nonce(
+    fn get_nonce(
         &mut self,
         algo_opt: impl Into<Option<SupportedAlgorithm>>,
-    ) -> (SupportedAlgorithm, Bytes, u128) {
+    ) -> (SupportedAlgorithm, Bytes, Bytes) {
         let algo = match algo_opt.into() {
             Some(algo) => algo,
             None => {
@@ -47,17 +48,15 @@ impl TestDataHydrator {
                     SupportedAlgorithm::Aes256Gcm,
                     SupportedAlgorithm::Chacha20Poly1305,
                 ]
-                    .choose(&mut self.rng)
-                    .unwrap())
+                .choose(&mut self.rng)
+                .unwrap())
             }
         };
-        let mut nonce_base = [0u8; 16];
-        self.rng
-            .fill_bytes(&mut nonce_base[16 - algo.nonce_len()..]);
-        let nonce_base = u128::from_be_bytes(nonce_base);
+        let mut nonce_padding = BytesMut::zeroed(algo.nonce_len() - 4);
+        self.rng.fill_bytes(&mut nonce_padding);
         let mut session_key = BytesMut::zeroed(algo.key_len());
         self.rng.fill_bytes(&mut session_key[..]);
-        (algo, session_key.freeze(), nonce_base)
+        (algo, session_key.freeze(), nonce_padding.freeze())
     }
 
     fn get_token_set(
@@ -70,7 +69,7 @@ impl TestDataHydrator {
     ) -> TokenSet {
         let timestamp = Self::get_test_timestamp();
         let num_tokens = (num_tokens_divided_by_4 as u16).rotate_left(2);
-        let (algo, session_key, nonce_base) = self.get_enc_nonce(algo);
+        let (algo, session_key, nonce_padding) = self.get_nonce(algo);
         TokenSet {
             path: PathBuf::new(),
             timestamp,
@@ -81,7 +80,7 @@ impl TestDataHydrator {
             algo,
             session_key_for_hmac: Key::new(HMAC_SHA256, session_key.as_ref()),
             session_key,
-            nonce_base,
+            nonce_padding,
         }
     }
 }
@@ -91,11 +90,11 @@ const TEST_NUM_TOKENS_DIVIDED_BY_4: u8 = 2;
 
 async fn new_response_reader(
     session_key: Bytes,
-    nonce_base: Bytes,
+    nonce_padding: Bytes,
     timestamp: [u8; TIMESTAMP_LEN],
     algo: SupportedAlgorithm,
 ) -> Result<issuer::ResponseReader, Box<dyn std::error::Error>> {
-    let writer = issuer::ResponseWriter::new(session_key.clone(), nonce_base.clone(), timestamp);
+    let writer = issuer::ResponseWriter::new(session_key.clone(), nonce_padding.clone(), timestamp);
 
     let mut inner_vec: Vec<u8> = Vec::new();
 
@@ -115,18 +114,16 @@ async fn req_res_from_tokenset(token_set: &TokenSet) -> (issuer::Request, issuer
         token_set.algo,
         token_set.topic.clone(),
     )
-        .unwrap_or_else(|e| panic!("{:?}", e));
+    .unwrap_or_else(|e| panic!("{:?}", e));
 
     let response = new_response_reader(
         token_set.session_key.clone(),
-        Bytes::copy_from_slice(
-            &token_set.nonce_base.to_be_bytes()[16 - token_set.algo.nonce_len()..],
-        ),
+        token_set.nonce_padding.clone(),
         token_set.timestamp,
         token_set.algo,
     )
-        .await
-        .unwrap_or_else(|e| panic!("{:?}", e));
+    .await
+    .unwrap_or_else(|e| panic!("{:?}", e));
 
     (request, response)
 }
@@ -212,12 +209,11 @@ fn test_get_nonce() {
     );
 
     // Test with token_idx = 0
-    let expected_nonce_bytes_0: [u8; 16] = (token_set.nonce_base + 0).to_be_bytes();
-    let expected_nonce_aes128_0: Bytes =
-        Bytes::copy_from_slice(&expected_nonce_bytes_0[(16 - token_set.algo.nonce_len())..]); // Last 12 bytes
+    let expected_nonce_bytes_0 =
+        get_nonce(Aes128Gcm, &token_set.nonce_padding[..], None, 0).unwrap();
     assert_eq!(
         token_set.get_nonce_for_cli2serv_pub(),
-        expected_nonce_aes128_0
+        expected_nonce_bytes_0
     );
 
     // Test with token_idx > 0
@@ -228,12 +224,11 @@ fn test_get_nonce() {
         5,
         "dummy",
     );
-    let expected_nonce_bytes_5: [u8; 16] = (token_set_idx5.nonce_base + 5).to_be_bytes();
-    let expected_nonce_aes128_5: Bytes =
-        Bytes::copy_from_slice(&expected_nonce_bytes_5[(16 - Aes128Gcm.nonce_len())..]);
+    let expected_nonce_bytes_5 =
+        get_nonce(Aes128Gcm, &token_set.nonce_padding[..], None, 5).unwrap();
     assert_eq!(
         token_set_idx5.get_nonce_for_cli2serv_pub(),
-        expected_nonce_aes128_5
+        expected_nonce_bytes_5
     );
 
     // Test with a different algorithm (assuming Aes256Gcm with nonce_len 12 exists)
@@ -244,12 +239,11 @@ fn test_get_nonce() {
         0,
         "dummy",
     );
-    let expected_nonce_bytes_0: [u8; 16] = token_set_algo.nonce_base.to_be_bytes();
-    let expected_nonce_aes256_0: Bytes =
-        Bytes::copy_from_slice(&expected_nonce_bytes_0[(16 - Aes256Gcm.nonce_len())..]); // AES256-GCM commonly uses 12-byte nonces
+    let expected_nonce_bytes_0 =
+        get_nonce(Aes256Gcm, &token_set.nonce_padding[..], None, 0).unwrap();
     assert_eq!(
         token_set_algo.get_nonce_for_cli2serv_pub(),
-        expected_nonce_aes256_0
+        expected_nonce_bytes_0
     );
 }
 
@@ -300,8 +294,8 @@ async fn test_from_issuer_req_resp_success() {
     assert_eq!(token_set.algo, token_set_original.algo);
     assert_eq!(token_set.session_key, token_set_original.session_key);
 
-    // Check nonce_base conversion
-    assert_eq!(token_set.nonce_base, token_set_original.nonce_base);
+    // Check nonce_padding conversion
+    assert_eq!(token_set.nonce_padding, token_set_original.nonce_padding);
 }
 
 // Helper to create a dummy file for from_file tests
@@ -335,7 +329,7 @@ fn create_dummy_token_file(
         .expect("failed to write file");
     file.write_all(&token_set.session_key)
         .expect("failed to write file");
-    file.write_all(&token_set.nonce_base.to_be_bytes()[16 - token_set.algo.nonce_len()..])
+    file.write_all(&token_set.nonce_padding)
         .expect("failed to write file");
     file.write_all(&[token_set.num_tokens.rotate_right(2) as u8])
         .expect("failed to write file");
@@ -362,7 +356,7 @@ fn test_from_file_success_idx_0() {
         token_set_original.is_pub,
         token_set_original.topic.clone(),
     )
-        .unwrap_or_else(|e| panic!("failed to get a tokenset {}", e));
+    .unwrap_or_else(|e| panic!("failed to get a tokenset {}", e));
 
     assert_eq!(token_set.path, file_path);
     assert_eq!(token_set.topic, token_set_original.topic);
@@ -370,7 +364,7 @@ fn test_from_file_success_idx_0() {
     assert_eq!(token_set.token_idx, filename_token_idx);
     assert_eq!(token_set.algo, token_set_original.algo);
     assert_eq!(token_set.session_key, token_set_original.session_key);
-    assert_eq!(token_set.nonce_base, token_set_original.nonce_base);
+    assert_eq!(token_set.nonce_padding, token_set_original.nonce_padding);
     assert_eq!(token_set.num_tokens, token_set_original.num_tokens);
     assert_eq!(token_set.timestamp, token_set_original.timestamp);
     assert_eq!(
@@ -396,7 +390,7 @@ fn test_from_file_success_idx_greater_than_0() {
         token_set_original.is_pub,
         token_set_original.topic.clone(),
     )
-        .unwrap_or_else(|e| panic!("failed to get a tokenset {}", e));
+    .unwrap_or_else(|e| panic!("failed to get a tokenset {}", e));
 
     assert_eq!(token_set.path, file_path);
     assert_eq!(token_set.topic, token_set_original.topic);
@@ -405,7 +399,7 @@ fn test_from_file_success_idx_greater_than_0() {
     assert_eq!(token_set_original.token_idx, filename_token_idx);
     assert_eq!(token_set.algo, token_set_original.algo);
     assert_eq!(token_set.session_key, token_set_original.session_key);
-    assert_eq!(token_set.nonce_base, token_set_original.nonce_base);
+    assert_eq!(token_set.nonce_padding, token_set_original.nonce_padding);
     assert_eq!(token_set.num_tokens, token_set_original.num_tokens);
     assert_eq!(token_set.timestamp, token_set_original.timestamp);
     assert_eq!(
@@ -455,7 +449,7 @@ fn test_from_file_error_invalid_cur_idx_in_filename() {
         token_set_original.is_pub,
         token_set_original.topic.clone(),
     )
-        .unwrap_or_else(|e| panic!("failed to get a tokenset {}", e));
+    .unwrap_or_else(|e| panic!("failed to get a tokenset {}", e));
     let topic_encoded = TokenSet::topic_b64encode(token_set.topic.clone());
 
     // Invalid index format
@@ -535,10 +529,7 @@ fn test_from_file_error_nonce_len_mismatch_read() -> Result<(), ()> {
         .expect("failed to write file");
     file.write_all(&token_set.session_key)
         .expect("failed to write file");
-    file.write_all(
-        &token_set.nonce_base.to_be_bytes()[16 - token_set.algo.nonce_len()..]
-            [..token_set.algo.nonce_len() - 1],
-    )
+    file.write_all(&token_set.nonce_padding)
         .expect("failed to write file"); // too small nonce
     file.write_all(&[token_set.num_tokens.rotate_right(2) as u8])
         .expect("failed to write file");
@@ -577,7 +568,7 @@ fn test_from_file_error_invalid_num_tokens() {
             .expect("failed to write file");
         file.write_all(&token_set.session_key)
             .expect("failed to write file");
-        file.write_all(&token_set.nonce_base.to_be_bytes()[16 - token_set.algo.nonce_len()..])
+        file.write_all(&token_set.nonce_padding)
             .expect("failed to write file"); // too small nonce
         file.write_all(&[invalid_num_tokens_divided_by_4])
             .expect("failed to write file"); // invalid num_tokens
@@ -632,13 +623,11 @@ fn test_save_to_file_success() {
         .unwrap_or_else(|e| panic!("{:?}", e));
 
     let mut expected_bytes = Vec::new();
-    // Header fields order: algo, session_key, nonce_base, num_tokens_divided_by_4,
+    // Header fields order: algo, session_key, nonce_padding, num_tokens_divided_by_4,
     // timestamp, all_randoms_offset
     expected_bytes.push(token_set.algo as u8);
     expected_bytes.extend_from_slice(&token_set.session_key);
-    expected_bytes.extend_from_slice(
-        &token_set.nonce_base.to_be_bytes()[(16 - token_set.algo.nonce_len())..],
-    );
+    expected_bytes.extend_from_slice(&token_set.nonce_padding);
     expected_bytes.push(token_set.num_tokens.rotate_right(2) as u8);
     expected_bytes.extend_from_slice(&token_set.timestamp);
 

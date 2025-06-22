@@ -3,27 +3,27 @@ use crate::consts::{RANDOM_LEN, TIMESTAMP_LEN, TOKEN_LEN};
 use bytes::{BufMut, Bytes, BytesMut};
 use ring::hmac::Key;
 
-pub fn nonce_from_u128_to_bytes(algo: SupportedAlgorithm, u: u128) -> Bytes {
-    let mut nonce_bytes = BytesMut::with_capacity(algo.nonce_len());
-    (0..algo.nonce_len()).for_each(|i| {
-        nonce_bytes.put_u8(((u >> (8 * (algo.nonce_len() - i - 1))) & 0xFF) as u8);
-    });
-    nonce_bytes.freeze()
-}
-
-pub fn nonce_from_bytes_to_u128(algo: SupportedAlgorithm, bs: Bytes) -> u128 {
-    let mut nonce = 0u128;
-    bs.iter().take(algo.nonce_len()).for_each(|b| {
-        nonce |= *b as u128;
-        nonce <<= 8
-    });
-    nonce
+pub fn get_nonce(
+    algo: SupportedAlgorithm,
+    nonce_padding: &[u8],
+    packet_id: Option<u16>,
+    token_idx: u16,
+) -> Option<Bytes> {
+    if algo.nonce_len() - 4 != nonce_padding.len() {
+        return None;
+    }
+    let mut nonce = BytesMut::with_capacity(algo.nonce_len());
+    nonce.put(nonce_padding);
+    nonce.put_u16(packet_id.unwrap_or(0));
+    nonce.put_u16(token_idx);
+    Some(nonce.freeze())
 }
 
 pub fn calculate_random(key: &Key, topic: &str, token_idx: u16) -> Bytes {
-    let topic_counter_str = format!("{}{}", topic, token_idx);
-    let topic_counter = topic_counter_str.as_bytes();
-    Bytes::copy_from_slice(&ring::hmac::sign(key, &topic_counter).as_ref()[..RANDOM_LEN])
+    let mut topic_idx = BytesMut::with_capacity(topic.len() + 2);
+    topic_idx.put(topic.as_bytes());
+    topic_idx.put_u16(token_idx);
+    Bytes::copy_from_slice(&ring::hmac::sign(key, &topic_idx[..]).as_ref()[..RANDOM_LEN])
 }
 
 pub fn calculate_token(

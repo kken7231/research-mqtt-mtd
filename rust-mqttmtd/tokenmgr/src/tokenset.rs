@@ -31,7 +31,7 @@ pub struct TokenSet {
     algo: SupportedAlgorithm,
     session_key: Bytes,
     session_key_for_hmac: Key,
-    nonce_base: u128,
+    nonce_padding: Bytes,
 }
 
 impl TokenSet {
@@ -65,9 +65,9 @@ impl TokenSet {
                 self.topic.as_str(),
                 self.token_idx
             )
-                .iter()
-                .map(|b| format!("{:02x}", b))
-                .collect::<String>()
+            .iter()
+            .map(|b| format!("{:02x}", b))
+            .collect::<String>()
         );
     }
 
@@ -141,15 +141,18 @@ impl TokenSet {
 
     /// Gets a nonce for the publish from client to broker.
     pub fn get_nonce_for_cli2serv_pub(&self) -> Bytes {
-        let nonce = self.nonce_base + (self.token_idx as u128);
-        utils::nonce_from_u128_to_bytes(self.algo, nonce)
+        utils::get_nonce(self.algo, &self.nonce_padding[..], None, self.token_idx).unwrap()
     }
 
     /// Gets a nonce for the publish from broker to client.
     pub fn get_nonce_for_serv2cli_pub(&self, packet_id: u16) -> Bytes {
-        let nonce =
-            self.nonce_base + ((packet_id as u128).rotate_left(16) | (self.token_idx as u128));
-        utils::nonce_from_u128_to_bytes(self.algo, nonce)
+        utils::get_nonce(
+            self.algo,
+            &self.nonce_padding[..],
+            Some(packet_id),
+            self.token_idx,
+        )
+        .unwrap()
     }
 
     /// Constructs a token set from Issuer Request & Response. intentionally
@@ -161,15 +164,12 @@ impl TokenSet {
         // algo
         let algo = request.algo();
 
-        // nonce_base
-        if response.nonce_base().len() < algo.nonce_len() {
+        // nonce_padding
+        if response.nonce_padding().len() != algo.nonce_len() - 4 {
             return Err(TokenSetError::NonceLenMismatchError(
-                response.nonce_base().len(),
+                response.nonce_padding().len(),
             ));
         }
-        let mut nonce_base_bytes = [0u8; 16];
-        nonce_base_bytes[(16 - algo.nonce_len())..].copy_from_slice(&response.nonce_base());
-        let nonce_base = u128::from_be_bytes(nonce_base_bytes);
 
         // num_tokens
         let num_tokens = (request.num_tokens_divided_by_4() as u16).rotate_left(2);
@@ -184,7 +184,7 @@ impl TokenSet {
             algo: request.algo(),
             session_key: Bytes::copy_from_slice(response.session_key()),
             session_key_for_hmac: Key::new(HMAC_SHA256, response.session_key()),
-            nonce_base,
+            nonce_padding: Bytes::copy_from_slice(response.nonce_padding()),
         })
     }
 
@@ -234,11 +234,12 @@ impl TokenSet {
             .map_err(|e| TokenSetError::FileReadError(e))?;
         let session_key = session_key.freeze();
 
-        // nonce_base
-        let mut nonce_base_bytes = [0u8; 16];
-        file.read_exact(&mut nonce_base_bytes[(16 - algo.nonce_len())..])
+        // nonce_padding
+        let nonce_padding_len = algo.nonce_len() - 4;
+        let mut nonce_padding = BytesMut::zeroed(nonce_padding_len);
+        file.read_exact(&mut nonce_padding)
             .map_err(|e| TokenSetError::FileReadError(e))?;
-        let nonce_base = u128::from_be_bytes(nonce_base_bytes);
+        let nonce_padding = nonce_padding.freeze();
 
         // num_tokens_divided_by_4
         file.read_exact(&mut buf[0..1])
@@ -266,7 +267,7 @@ impl TokenSet {
             algo,
             session_key_for_hmac: Key::new(HMAC_SHA256, session_key.as_ref()),
             session_key,
-            nonce_base,
+            nonce_padding,
         })
     }
 
@@ -305,8 +306,8 @@ impl TokenSet {
         file.write_all(&self.session_key)
             .map_err(|e| TokenSetError::FileWriteError(e))?;
 
-        // nonce_base
-        file.write_all(&self.nonce_base.to_be_bytes()[(16 - self.algo.nonce_len())..])
+        // nonce_padding
+        file.write_all(&self.nonce_padding)
             .map_err(|e| TokenSetError::FileWriteError(e))?;
 
         // num_tokens_divided_by_4

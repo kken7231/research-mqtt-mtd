@@ -55,7 +55,7 @@ local pf_is_resp_status_vals = {
 }
 local pf_is_resp_status      = ProtoField.uint8 (abbr_is_req .. "status"     , "Status", base.HEX, pf_is_resp_status_vals)
 local pf_is_resp_secret_key     = ProtoField.bytes (abbr_is_req .. "secret_key"    , "Secret key")
-local pf_is_resp_nonce_base  = ProtoField.bytes (abbr_is_req .. "nonce_base" , "Nonce base")
+local pf_is_resp_nonce_padding  = ProtoField.bytes (abbr_is_req .. "nonce_padding" , "Nonce base")
 local pf_is_resp_timestamp   = ProtoField.bytes (abbr_is_req .. "timestamp"  , "Timestamp")
 
 -- Verifier Request Fields
@@ -94,7 +94,7 @@ mqttmtd_proto.fields = {
 
     pf_is_resp_status,
     pf_is_resp_secret_key,
-    pf_is_resp_nonce_base,
+    pf_is_resp_nonce_padding,
     pf_is_resp_timestamp,
 
     pf_ve_req_token,
@@ -297,9 +297,9 @@ function handler_issuer_response(buffer, pinfo, subtree)
 
     local nonce_len = get_aead_nonce_length(algo)
     if nonce_len == nil then return offset end
-    local nonce_base = buffer(offset, nonce_len)
+    local nonce_padding = buffer(offset, nonce_len - 4)
     offset = offset + nonce_len
-    subtree:add(pf_is_resp_nonce_base, nonce_base)
+    subtree:add(pf_is_resp_nonce_padding, nonce_padding)
 
     local timestamp = buffer(offset, TIMESTAMP_LEN)
     offset = offset + TIMESTAMP_LEN

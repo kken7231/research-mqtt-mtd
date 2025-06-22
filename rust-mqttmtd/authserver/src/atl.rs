@@ -3,12 +3,11 @@
 use crate::error::ATLError;
 use bytes::{Bytes, BytesMut};
 use libmqttmtd::consts::TOKEN_LEN;
-use libmqttmtd::utils::calculate_random;
+use libmqttmtd::utils::{calculate_random, get_nonce};
 use libmqttmtd::{
     aead::algo::SupportedAlgorithm,
     auth_serv::{issuer, verifier},
     consts::TIMESTAMP_LEN,
-    utils,
 };
 use ring::hmac::{Key, HMAC_SHA256};
 use ring::rand::{SecureRandom, SystemRandom};
@@ -36,12 +35,12 @@ pub(crate) struct TokenSet {
     algo: SupportedAlgorithm,
     session_key: Bytes,
     session_key_for_hmac: Key,
-    nonce_base: u128,
+    nonce_padding: Bytes,
 }
 
 impl TokenSet {
     /// Initializes a new [TokenSet]. Random values such as `session_key` and
-    /// `nonce_base` are not initialized here. Initialization of those
+    /// `nonce_padding` are not initialized here. Initialization of those
     /// values is what [AccessTokenList] is responsible for. # Parameters:
     /// - `valid_dur`: must be less than one year, otherwise error thrown
     pub(crate) fn new(
@@ -72,7 +71,7 @@ impl TokenSet {
             algo,
             session_key: Bytes::new(),
             session_key_for_hmac: Key::new(HMAC_SHA256, &[]),
-            nonce_base: 0u128,
+            nonce_padding: Bytes::new(),
         })
     }
 
@@ -99,9 +98,17 @@ impl TokenSet {
         )
     }
 
-    pub(crate) fn current_nonce(&self) -> Bytes {
-        let nonce = self.nonce_base + self.token_idx as u128;
-        utils::nonce_from_u128_to_bytes(self.algo, nonce)
+    pub(crate) fn current_nonce(&self) -> Option<Bytes> {
+        get_nonce(self.algo, &self.nonce_padding[..], None, self.token_idx)
+    }
+
+    pub(crate) fn current_nonce_for_subscribed_publish(&self, packet_id: u16) -> Option<Bytes> {
+        get_nonce(
+            self.algo,
+            &self.nonce_padding[..],
+            Some(packet_id),
+            self.token_idx,
+        )
     }
 }
 
@@ -201,12 +208,12 @@ impl AccessTokenList {
             break;
         }
 
-        // Fill nonce_base
-        let mut nonce_base = [0u8; 16];
+        // Fill nonce_padding
+        let mut nonce_padding = BytesMut::zeroed(token_set.algo.nonce_len() - 4);
         self.rng
-            .fill(&mut nonce_base[16 - token_set.algo.nonce_len()..])
+            .fill(&mut nonce_padding)
             .map_err(|e| ATLError::RandGenError(e))?;
-        token_set.nonce_base = u128::from_be_bytes(nonce_base);
+        token_set.nonce_padding = nonce_padding.freeze();
 
         self.file_without_rand_init(token_set).await
     }
@@ -240,7 +247,7 @@ impl AccessTokenList {
         // Copy to issuer::ResponseWriter
         let resp = issuer::ResponseWriter::new(
             token_set.session_key.clone(),
-            utils::nonce_from_u128_to_bytes(token_set.algo, token_set.nonce_base),
+            token_set.current_nonce().unwrap(),
             Self::sparse_masked_u64_to_part(token_set.masked_timestamp),
         );
 
@@ -373,7 +380,7 @@ impl AccessTokenList {
                 let resp = verifier::ResponseWriter::new(
                     token_set.is_pub,
                     token_set.algo,
-                    token_set.current_nonce().clone(),
+                    token_set.current_nonce().unwrap(),
                     Bytes::from(token_set.topic.clone()),
                     token_set.session_key.to_owned(),
                 );
@@ -429,7 +436,7 @@ mod tests {
             valid_dur,
             SupportedAlgorithm::Aes128Gcm,
         )
-            .expect("Failed to create test TokenSet")
+        .expect("Failed to create test TokenSet")
     }
 
     #[tokio::test]

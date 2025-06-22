@@ -7,69 +7,67 @@
 ### Common components
 
 #### Packet header
-
-- Magic number (3 bytes): `0x4D51ED`
-- Compound byte (1 byte)
-    - bit 7-4: MQTT-MTD version
-    - bit 3-0: Packet type
-        - `0b0000`: Issuer request
-        - `0b0001`: Issuer response
-        - `0b0100`: Verifier request
-        - `0b0101`: Verifier response
+- bit 7-4: MQTT-MTD version
+- bit 3-0: Packet type
+    - `0b0000`: Issuer request
+    - `0b0001`: Issuer response
+    - `0b0100`: Verifier request
+    - `0b0101`: Verifier response
 
 #### Aead algorithm
-
-- `0`: AES_128_GCM
-- `1`: AES_256_GCM
-- `2`: CHACHA20_POLY1305
-
-#### Topic
-
-- Length (2 bytes) - Length of the topic (big endian)
-- Topic - UTF-8 encoded Topic Name/Filter
+- `1`: AES_128_GCM
+- `2`: AES_256_GCM
+- `3`: CHACHA20_POLY1305
 
 ### Issuer
 
 #### Request
 
-- Packet header
-- Compound byte (1 byte)
-    - bit 7: Request for pub - On if requests for pub tokens, otherwise sub.
-    - bit 6-0: Requested number of tokens divided by 4
-- AEAD algorithm (1 byte)
-- Topic
+| Index | Component | Sub component      | Length                  |                                                          |
+|-------|-----------|--------------------|-------------------------|----------------------------------------------------------|
+| 0     | Header    | -                  | 1 byte                  | `0x20`                                                   |
+| 1     | *Compound |                    | 1 byte                  |                                                          |
+|       |           | `is_pub`           | 1 bit                   | bit 7: On if requested for publish, otherwise subscribe. |
+|       |           | `num_tokens_div_4` | 7 bits                  | bit 6-0: Requested number of tokens divided by 4.        |
+| 2     | Algorithm | -                  | 1 byte                  | AEAD algorithm                                           |
+| 3     | *Topic    |                    | (2 + `topic_len`) bytes | Topic Name / Topic Filter                                |
+|       |           | `topic_len`        | 2 bytes                 | Length of the topic in big endian.                       |
+|       |           | `topic`            | `topic_len` bytes       | Topic Name / Topic Filter                                |
 
 #### Response
 
-- Packet header
-- Status (1 byte) - Indicates issuance result.
-    - `0x01`: Success
-    - `0xFF`: Error
-- (Status == Success) Encryption key (length depends on the AEAD algorithm in the request) - Key to be used on payload
-  encryption.
-- (Status == Success) Nonce base (12 bytes) - Nonce base to be used on payload encryption.
-- (Status == Success) Timestamp (6 bytes) - Timestamp to be used as `timestamp` in one-time tokens.
-- (Status == Success) All randoms (`num_tokens_divided_by_4`  x 4 x 6 bytes) - Collection of random bytes to be used as
-  `random` in one-time tokens.
+| Index                           | Component      | Length                |                                                                          |
+|---------------------------------|----------------|-----------------------|--------------------------------------------------------------------------|
+| 0                               | Header         | 1 byte                | `0x21`                                                                   |
+| 1                               | Status         | 1 byte                | Issuance result.<br/> - `0x01`: Success<br/> - `0xFF`: Error             |
+| 2                               | *Session key   | `key_len` bytes       | Secret key that is to be used for encryption and HMAC random generation. |
+| 2 + `key_len`                   | *Nonce padding | `nonce_len - 4` bytes | Nonce padding that is to be used for constructing a nonce.               |
+| 2 + `key_len` + `nonce_len - 4` | *Timestamp     | 6 bytes               | Timestamp that will be in tokens.                                        |
+
+Components with * are present only when Status == `Success`
 
 ### Verifier
 
 #### Request
-- Packet header
-- Token (12 bytes) - Token to be checked.
 
-### Response
-- Packet header
-- Status (1 byte) - Indicates verification result.
-  - `0x01`: Success
-  - `0x02`: Failure
-  - `0xFF`: Error
-- (Status == Success) Compound byte (1 byte)
-    - bit 7: Allowed access is pub - On if pub verified, otherwise sub.
-    - bit 6-0: AEAD algorithm
-- (Status == Success) Topic
-- (Status == Success) Encryption key (length depends on the AEAD algorithm) - Key to be used on payload
-  decryption.
-- (Status == Success) Nonce(12 bytes) - Nonce to be used on payload decryption.
+| Index | Component | Length    |                      |
+|-------|-----------|-----------|----------------------|
+| 0     | Header    | 1 byte    | `0x24`               |
+| 1     | Token     | var bytes | Token to be checked. |
 
+#### Response
 
+| Index                       | Component    | Sub component | Length                  |                                                                                         |
+|-----------------------------|--------------|---------------|-------------------------|-----------------------------------------------------------------------------------------|
+| 0                           | Header       | -             | 1 byte                  | `0x25`                                                                                  |
+| 1                           | Status       | -             | 1 byte                  | Verification result.<br/> - `0x01`: Success<br/> - `0x02`: Failure<br/> - `0xFF`: Error |
+| 2                           | *Compound    |               | 1 byte                  |                                                                                         |
+|                             |              | `is_pub`      | 1 bit                   | bit 7: On if verified for publish, otherwise subscribe.                                 |
+|                             |              | `algo`        | 7 bits                  | bit 6-0: AEAD algorithm                                                                 |
+| 3                           | *Topic       |               | (2 + `topic_len`) bytes | Topic Name / Topic Filter                                                               |
+|                             |              | `topic_len`   | 2 bytes                 | Length of the topic in big endian.                                                      |
+|                             |              | `topic`       | `topic_len` bytes       | Topic Name / Topic Filter                                                               |
+| 5 + `topic_len`             | *Session key | -             | `key_len` bytes         | Secret key that is to be used for encryption and HMAC random generation.                |
+| 5 + `topic_len` + `key_len` | *Nonce       | -             | `nonce_len` bytes       | Nonce that is to be used for encryption.                                                |
+
+Components with * are present only when Status == `Success`

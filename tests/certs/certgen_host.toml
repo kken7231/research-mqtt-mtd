@@ -1,0 +1,7 @@
+output_dir = "~/git/research-mqtt-mtd/tests/certs"
+key_algo = "rsa"
+rsa_key_size = 4096
+ca_cn = "ca"
+server_cn = "server"
+client_cn = ["client1", "subscriber"]
+validity_days = 365

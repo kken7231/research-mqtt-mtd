@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/research-mqtt-mtd.iml" filepath="$PROJECT_DIR$/.idea/research-mqtt-mtd.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/research_mqtt_mtd.iml" filepath="$PROJECT_DIR$/.idea/research_mqtt_mtd.iml" />
     </modules>
   </component>
 </project>

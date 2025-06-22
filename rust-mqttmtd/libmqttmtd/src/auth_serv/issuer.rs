@@ -155,19 +155,19 @@ impl Request {
 /// 0. header
 /// 1. `status` (u8, refer to [ResponseStatus])
 /// 2. `session_key`
-/// 3. `nonce_base`
+/// 3. `nonce_padding`
 /// 4. `timestamp`
 pub struct ResponseWriter {
     session_key: Bytes,
-    nonce_base: Bytes,
+    nonce_padding: Bytes,
     timestamp: [u8; TIMESTAMP_LEN],
 }
 
 impl ResponseWriter {
-    pub fn new(session_key: Bytes, nonce_base: Bytes, timestamp: [u8; TIMESTAMP_LEN]) -> Self {
+    pub fn new(session_key: Bytes, nonce_padding: Bytes, timestamp: [u8; TIMESTAMP_LEN]) -> Self {
         Self {
             session_key,
-            nonce_base,
+            nonce_padding,
             timestamp,
         }
     }
@@ -194,9 +194,11 @@ impl ResponseWriter {
 
         // Prep the buf
         let buf_capacity = if is_full_resp {
-            // header, status, session_key, nonce_base and timestamp
+            // header, status, session_key, nonce_padding and timestamp
             let unwrapped = resp.unwrap();
-            2 + unwrapped.session_key.len() + unwrapped.nonce_base.len() + unwrapped.timestamp.len()
+            2 + unwrapped.session_key.len()
+                + unwrapped.nonce_padding.len()
+                + unwrapped.timestamp.len()
         } else {
             // only header and status
             2usize
@@ -218,7 +220,7 @@ impl ResponseWriter {
 
         // other attributes if success
         buf.put_slice(&resp.session_key[..]);
-        buf.put_slice(&resp.nonce_base[..]);
+        buf.put_slice(&resp.nonce_padding[..]);
         buf.put_slice(&resp.timestamp[..]);
         auth_serv_write!(stream, &buf[..]);
         Ok(buf.len())
@@ -228,7 +230,7 @@ impl ResponseWriter {
 #[derive(Debug)]
 pub struct ResponseReader {
     session_key: Bytes,
-    nonce_base: Bytes,
+    nonce_padding: Bytes,
     timestamp: [u8; TIMESTAMP_LEN],
 }
 
@@ -237,8 +239,8 @@ impl ResponseReader {
         &self.session_key
     }
 
-    pub fn nonce_base(&self) -> &[u8] {
-        &self.nonce_base
+    pub fn nonce_padding(&self) -> &[u8] {
+        &self.nonce_padding
     }
 
     pub fn timestamp(&self) -> &[u8; TIMESTAMP_LEN] {
@@ -262,15 +264,18 @@ impl ResponseReader {
         }
 
         // other attributes if success
-        let mut buf = stream_read_heap!(stream, algo.key_len() + algo.nonce_len() + TIMESTAMP_LEN);
+        let mut buf = stream_read_heap!(
+            stream,
+            algo.key_len() + algo.nonce_len() - 4 + TIMESTAMP_LEN
+        );
         let session_key = buf.split_to(algo.key_len());
-        let nonce_base = buf.split_to(algo.nonce_len());
+        let nonce_padding = buf.split_to(algo.nonce_len() - 4);
         let mut timestamp = [0u8; TIMESTAMP_LEN];
         buf.copy_to_slice(&mut timestamp);
 
         Ok(Some(Self {
             session_key,
-            nonce_base,
+            nonce_padding,
             timestamp,
         }))
     }
@@ -341,7 +346,7 @@ mod tests {
             &mut mock_stream,
             SupportedAlgorithm::Aes128Gcm, // Dummy algo (not used for error)
         )
-            .await;
+        .await;
 
         assert!(result.is_err());
         // Expect an IO error indicating unexpected EOF
@@ -366,7 +371,7 @@ mod tests {
                 SupportedAlgorithm::Aes256Gcm, // algo
                 "test/topic/req".to_string(),  // topic
             )
-                .expect("failed to create a request"),
+            .expect("failed to create a request"),
         );
 
         let expected_bytes = [
@@ -424,9 +429,7 @@ mod tests {
             0x33, 0x44,
         ]); // Dummy key
         let timestamp = [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]; // Dummy timestamp
-        let nonce_base = Bytes::from_static(&[
-            0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF,
-        ]); // Dummy nonce_base
+        let nonce_padding = Bytes::from_static(&[0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0xAA, 0xBB]); // Dummy nonce_padding
 
         let expected_bytes = [
             0x20u8 | PACKET_TYPE_ISSUER_RESPONSE,
@@ -455,12 +458,7 @@ mod tests {
             0xEE,
             0xFF,
             0xAA,
-            0xBB,
-            0xCC,
-            0xDD,
-            0xEE,
-            0xFF, /* nonce_base: [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0xAA, 0xBB, 0xCC, 0xDD,
-                   * 0xEE, 0xFF] */
+            0xBB, /* nonce_padding: [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0xAA, 0xBB] */
             0xAA,
             0xBB,
             0xCC,
@@ -469,7 +467,7 @@ mod tests {
             0xFF, // timestamp: [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]
         ];
 
-        let original_resp_writer = ResponseWriter::new(session_key, nonce_base, timestamp);
+        let original_resp_writer = ResponseWriter::new(session_key, nonce_padding, timestamp);
 
         // Mock stream to write to
         let mut mock_stream = Builder::new().write(&expected_bytes).read(&[]).build();
@@ -519,8 +517,8 @@ mod tests {
             &mut read_stream,
             SupportedAlgorithm::Aes128Gcm, // Dummy algo (not used for error)
         )
-            .await
-            .expect("Failed to read response");
+        .await
+        .expect("Failed to read response");
 
         assert!(
             parsed_resp_option.is_none(),

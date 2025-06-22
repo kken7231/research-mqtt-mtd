@@ -16,7 +16,7 @@ pub(super) struct ClientSubscriptionInfo {
     is_subscribed: bool,
     token_idx: u16,
     algo: SupportedAlgorithm,
-    nonce_base: u128,
+    nonce_padding: Bytes,
     session_key: Bytes,
 }
 
@@ -27,7 +27,7 @@ impl ClientSubscriptionInfo {
             // dummy unused data below
             token_idx: 0,
             algo: Aes128Gcm,
-            nonce_base: 0,
+            nonce_padding: Bytes::new(),
             session_key: Bytes::new(),
         }
     }
@@ -94,13 +94,11 @@ pub async fn unfreeze_subscribe(
                 info.token_idx = 0;
             }
 
-            // Restore nonce_base
-            let mut nonce_bytes = [0u8; 16];
-            nonce_bytes[16 - response.algo.nonce_len()..].copy_from_slice(response.nonce.as_ref());
-            let nonce = u128::from_be_bytes(nonce_bytes);
-            let nonce_base = nonce - (info.token_idx as u128);
+            // Restore nonce_padding
+            let mut nonce_padding = BytesMut::zeroed(response.algo.nonce_len() - 4);
+            nonce_padding.copy_from_slice(response.nonce.as_ref());
 
-            info.nonce_base = nonce_base;
+            info.nonce_padding = nonce_padding.freeze();
             info.session_key = response.session_key;
             info.algo = response.algo;
         }
@@ -172,14 +170,22 @@ pub async fn freeze_subscribed_publish(
     {
         let info = subscription_info.read().await;
         if !info.is_subscribed {
-            println!("No subscription registered so far, blocking...", );
+            println!("No subscription registered so far, blocking...",);
             return Ok(None);
         }
 
         // nonce
-        let nonce =
-            info.nonce_base + ((publish.pkid as u128).rotate_left(16) | (info.token_idx as u128));
-        let nonce = utils::nonce_from_u128_to_bytes(info.algo, nonce);
+        let nonce = utils::get_nonce(
+            info.algo,
+            &info.nonce_padding[..],
+            Some(publish.pkid),
+            info.token_idx,
+        );
+        if nonce.is_none() {
+            println!("Failed to calculate nonce, blocking...",);
+            return Ok(None);
+        }
+        let nonce = nonce.unwrap();
 
         // seal
         in_out = BytesMut::with_capacity(2 + publish.topic.len() + publish.payload.len());
