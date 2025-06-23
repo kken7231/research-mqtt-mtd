@@ -2,6 +2,69 @@
 
 [![Rust CI on v2](https://github.com/kken7231/research-mqtt-mtd/actions/workflows/rust_ci.yml/badge.svg)](https://github.com/kken7231/research-mqtt-mtd/actions/workflows/rust_ci.yml)
 
+## Flows
+
+### 1. Fetch tokens
+
+Tokens are issued by the *Auth Server*. TLSv1.3 with a valid certificate is needed for the connection.
+*Auth Server* checks the followings in addition to the optional client authentication:
+
+- The first DNS SAN (Subject Alternative Name) has an entry in the ACL.
+- The matched entry grants the combination of `topic` and `is_pub`
+
+Request and response packet layouts are described below, in
+the [Auth Server Packet Mapping](#auth-server-packet-mapping) section. The communication establishes a "**session**",
+which
+consists of a session key, a nonce padding and a timestamp.
+
+### 2. Use tokens for client-to-server PUBLISH
+
+#### 1. On client
+
+Client must do the following calculations before constructing a PUBLISH packet:
+
+- **Random** := HMAC-SHA256(Concat(`topic`|`token_idx`))\[0:6]
+- **Token** := URLSafeB64Encode(Concat(`timestamp`|**Random**)).
+- **Nonce** := Concat(`nonce_padding`, `0x0000`, `token_idx`). The length of `nonce_padding` must be (`algo.nonce_len` -
+  4\) bytes.
+- **Encrypted payload**: Encrypt(data=`payload`, nonce=**Nonce**). Tag is **postpended** to the ciphertext.
+
+Now a PUBLISH packet \[topic=**Token**, payload=**Encrypted payload**] is ready to be sent to the server-side *MQTT
+Interface*.
+
+#### 2. On server
+
+*MQTT Interface* verifies the token and decrypts the payload, following the above process reversely. Finally, *MQTT
+Interface* sends out a decoded PUBLISH packet to the internal MQTT server.
+
+### 3. Use tokens in a SUBSCRIBE context
+
+#### 1. On client
+
+Client must do the following calculations before constructing a SUBSCRIBE packet:
+
+- **Random** := HMAC-SHA256(Concat(`topic`|`token_idx`))\[0:6]
+- **Token** := Concat(`timestamp`|**Random**).
+
+Now a SUBSCRIBE packet \[topic filter=**Token**] is ready to be sent to the server-side *MQTT
+Interface*.
+
+#### 2. On server
+
+*MQTT Interface* verifies the token. Finally, *MQTT
+Interface* sends out a decoded SUBSCRIBE packet to the internal MQTT server.
+
+#### 3. When Server receives a matching PUBLISH packet
+
+*MQTT Interface* do the following calculations before constructing a PUBLISH packet to Client:
+
+- **Nonce** := Concat(`nonce_padding`, packet_id, `token_idx`). The length of `nonce_padding` must be (
+  `algo.nonce_len` -
+  4\) bytes.
+- **Encrypted payload** and **Tag**: Encrypt(data=`payload`, nonce=**Nonce**).
+
+Now a PUBLISH packet \[topic=URLSafeB64Encode(**Tag**), payload=**Encrypted payload**] is ready to be sent to Client.
+
 ## Auth Server Packet Mapping
 
 ### Common components
