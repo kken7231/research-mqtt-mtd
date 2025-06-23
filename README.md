@@ -67,9 +67,9 @@ Now a PUBLISH packet \[topic=URLSafeB64Encode(**Tag**), payload=**Encrypted payl
 
 ## Auth Server Packet Mapping
 
-![wireshark_plugin](./img/wireshark_plugin.png)
+![wireshark_plugin](img/wireshark_plugin.png)
 
-[Wireshark Lua plugin @ `./wireshark`](./wireshark/README.md) is written and available.
+[Wireshark Lua plugin @ `./wireshark`](wireshark/README.md) is written and available.
 
 ### Packet header
 
