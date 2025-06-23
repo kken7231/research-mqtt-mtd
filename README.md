@@ -67,18 +67,20 @@ Now a PUBLISH packet \[topic=URLSafeB64Encode(**Tag**), payload=**Encrypted payl
 
 ## Auth Server Packet Mapping
 
-### Common components
+![wireshark_plugin](./img/wireshark_plugin.png)
 
-#### Packet header
+[Wireshark Lua plugin @ `./wireshark`](./wireshark/README.md) is written and available.
 
-- bit 7-4: MQTT-MTD version
+### Packet header
+
+- bit 7-4: MQTT-MTD version (`0x2`)
 - bit 3-0: Packet type
     - `0b0000`: Issuer request
     - `0b0001`: Issuer response
     - `0b0100`: Verifier request
     - `0b0101`: Verifier response
 
-#### Aead algorithm
+### AEAD algorithm
 
 - `1`: AES_128_GCM
 - `2`: AES_256_GCM
@@ -88,7 +90,7 @@ Now a PUBLISH packet \[topic=URLSafeB64Encode(**Tag**), payload=**Encrypted payl
 
 #### Request
 
-| Index | Component | Sub component      | Length                  |                                                          |
+| Index | Component | Sub component      | Length                  | Content                                                  |
 |-------|-----------|--------------------|-------------------------|----------------------------------------------------------|
 | 0     | Header    | -                  | 1 byte                  | `0x20`                                                   |
 | 1     | Compound  |                    | 1 byte                  |                                                          |
@@ -101,13 +103,13 @@ Now a PUBLISH packet \[topic=URLSafeB64Encode(**Tag**), payload=**Encrypted payl
 
 #### Response
 
-| Index                           | Component      | Length                |                                                                          |
-|---------------------------------|----------------|-----------------------|--------------------------------------------------------------------------|
-| 0                               | Header         | 1 byte                | `0x21`                                                                   |
-| 1                               | Status         | 1 byte                | Issuance result.<br/> - `0x01`: Success<br/> - `0xFF`: Error             |
-| 2                               | *Session key   | `key_len` bytes       | Secret key that is to be used for encryption and HMAC random generation. |
-| 2 + `key_len`                   | *Nonce padding | `nonce_len - 4` bytes | Nonce padding that is to be used for constructing a nonce.               |
-| 2 + `key_len` + `nonce_len - 4` | *Timestamp     | 6 bytes               | Timestamp that will be in tokens.                                        |
+| Index                           | Component      | Length                  | Content                                                                  |
+|---------------------------------|----------------|-------------------------|--------------------------------------------------------------------------|
+| 0                               | Header         | 1 byte                  | `0x21`                                                                   |
+| 1                               | Status         | 1 byte                  | Issuance result.<br/> - `0x01`: Success<br/> - `0xFF`: Error             |
+| 2                               | *Session key   | `key_len` bytes         | Secret key that is to be used for encryption and HMAC random generation. |
+| 2 + `key_len`                   | *Nonce padding | (`nonce_len` - 4) bytes | Nonce padding that is to be used for constructing a nonce.               |
+| 2 + `key_len` + `nonce_len` - 4 | *Timestamp     | 6 bytes                 | Timestamp that will be in tokens.                                        |
 
 Components with * are present only when Status == `Success`
 
@@ -115,14 +117,14 @@ Components with * are present only when Status == `Success`
 
 #### Request
 
-| Index | Component | Length    |                      |
+| Index | Component | Length    | Content              |
 |-------|-----------|-----------|----------------------|
 | 0     | Header    | 1 byte    | `0x24`               |
 | 1     | Token     | var bytes | Token to be checked. |
 
 #### Response
 
-| Index                       | Component    | Sub component | Length                  |                                                                                         |
+| Index                       | Component    | Sub component | Length                  | Content                                                                                 |
 |-----------------------------|--------------|---------------|-------------------------|-----------------------------------------------------------------------------------------|
 | 0                           | Header       | -             | 1 byte                  | `0x25`                                                                                  |
 | 1                           | Status       | -             | 1 byte                  | Verification result.<br/> - `0x01`: Success<br/> - `0x02`: Failure<br/> - `0xFF`: Error |
