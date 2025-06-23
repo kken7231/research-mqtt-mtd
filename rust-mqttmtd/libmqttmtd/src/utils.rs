@@ -20,10 +20,10 @@ pub fn get_nonce(
 }
 
 pub fn calculate_random(key: &Key, topic: &str, token_idx: u16) -> Bytes {
-    let mut topic_idx = BytesMut::with_capacity(topic.len() + 2);
-    topic_idx.put(topic.as_bytes());
-    topic_idx.put_u16(token_idx);
-    Bytes::copy_from_slice(&ring::hmac::sign(key, &topic_idx[..]).as_ref()[..RANDOM_LEN])
+    let mut topic_and_idx = BytesMut::with_capacity(topic.len() + 2);
+    topic_and_idx.put(topic.as_bytes());
+    topic_and_idx.put_u16(token_idx);
+    Bytes::copy_from_slice(&ring::hmac::sign(key, &topic_and_idx[..]).as_ref()[..RANDOM_LEN])
 }
 
 pub fn calculate_token(

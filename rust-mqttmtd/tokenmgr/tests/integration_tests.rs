@@ -10,7 +10,8 @@ use libmqttmtd::{
     socket::tls_config::TlsConfigLoader,
 };
 use libmqttmtd_macros::ToStringLines;
-use rumqttc::{v5, v5::mqttbytes::v5::Packet};
+use rumqttc::v5::{Event, Incoming};
+use rumqttc::{v5, v5::mqttbytes::v5::Packet, Outgoing};
 use serde::{Deserialize, Serialize};
 use std::{
     path::{Path, PathBuf},
@@ -128,6 +129,48 @@ fn get_issuer_addr(config: &Arc<IntegrationTestsConfig>) -> String {
     format!("{}:{}", config.issuer_host, config.issuer_port)
 }
 
+fn get_event_description(event: &Event) -> String {
+    match event {
+        Event::Incoming(packet) => {
+            let mut output = "Incoming".to_string();
+            match packet {
+                Incoming::Connect(_, _, _) => output += "(Connect)",
+                Incoming::ConnAck(_) => output += "(ConnAck)",
+                Incoming::Publish(_) => output += "(Publish)",
+                Incoming::PubAck(_) => output += "(PubAck)",
+                Incoming::PingReq(_) => output += "(PingReq)",
+                Incoming::PingResp(_) => output += "(PingResp)",
+                Incoming::Subscribe(_) => output += "(Subscribe)",
+                Incoming::SubAck(_) => output += "(SubAck)",
+                Incoming::PubRec(_) => output += "(PubRec)",
+                Incoming::PubRel(_) => output += "(PubRel)",
+                Incoming::PubComp(_) => output += "(PubComp)",
+                Incoming::Unsubscribe(_) => output += "(Unsubscribe)",
+                Incoming::UnsubAck(_) => output += "(UnsubAck)",
+                Incoming::Disconnect(_) => output += "(Disconnect)",
+            }
+            output
+        }
+        Event::Outgoing(packet) => {
+            let mut output = "Outgoing".to_string();
+            match packet {
+                Outgoing::Publish(_) => output += "(Publish)",
+                Outgoing::Subscribe(_) => output += "(Subscribe)",
+                Outgoing::Unsubscribe(_) => output += "(Unsubscribe)",
+                Outgoing::PubAck(_) => output += "(PubAck)",
+                Outgoing::PubRec(_) => output += "(PubRec)",
+                Outgoing::PubRel(_) => output += "(PubRel)",
+                Outgoing::PubComp(_) => output += "(PubComp)",
+                Outgoing::PingReq => output += "(PingReq)",
+                Outgoing::PingResp => output += "(PingResp)",
+                Outgoing::Disconnect => output += "(Disconnect)",
+                Outgoing::AwaitAck(_) => output += "(AwaitAck)",
+            }
+            output
+        }
+    }
+}
+
 async fn mqtt_publish(
     notify: impl Into<Option<Arc<Notify>>>,
     broker_host: impl Into<String>,
@@ -170,7 +213,10 @@ async fn mqtt_publish(
                     println!("[mqtt_publish] Publish sent");
                     return Ok(());
                 }
-                Ok(e) => println!("[mqtt_publish] Received event: {:?}", e),
+                Ok(e) => println!(
+                    "[mqtt_publish] Received event: {}",
+                    get_event_description(&e)
+                ),
                 Err(e) => {
                     eprintln!("[assert_subscribe] error: {:?}", e);
                     return Err(e);
@@ -225,7 +271,10 @@ async fn assert_subscribe(
                     assert_eq!(publish.payload, expected_payload.into());
                     return Ok(());
                 }
-                Ok(e) => println!("[assert_subscribe] Received event: {:?}", e),
+                Ok(e) => println!(
+                    "[assert_subscribe] Received event: {}",
+                    get_event_description(&e)
+                ),
                 Err(e) => {
                     eprintln!("[assert_subscribe] error: {:?}", e);
                     return Err(e);
@@ -278,12 +327,10 @@ async fn assert_subscribe_mqttmtd(
                     notify.notify_one();
                 }
                 Ok(v5::Event::Incoming(Packet::Publish(publish))) => {
-                    println!(
-                        "[assert_subscribe] Received publish, decrypting...: {:?}",
-                        publish
-                    );
+                    println!("[assert_subscribe] Received publish, decrypting...");
                     let mut in_out = BytesMut::from(&publish.payload[..]);
                     in_out.extend(
+                        // tag
                         general_purpose::URL_SAFE_NO_PAD
                             .decode(publish.topic)
                             .unwrap_or_else(|e| panic!("{:?}", e)),
@@ -303,7 +350,10 @@ async fn assert_subscribe_mqttmtd(
                     );
                     return Ok(());
                 }
-                Ok(e) => println!("[assert_subscribe] Received event: {:?}", e),
+                Ok(e) => println!(
+                    "[assert_subscribe] Received event: {}",
+                    get_event_description(&e)
+                ),
                 Err(e) => {
                     eprintln!("[assert_subscribe] error: {:?}", e);
                     return Err(e);

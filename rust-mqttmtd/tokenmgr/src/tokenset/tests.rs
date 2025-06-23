@@ -225,7 +225,7 @@ fn test_get_nonce() {
         "dummy",
     );
     let expected_nonce_bytes_5 =
-        get_nonce(Aes128Gcm, &token_set.nonce_padding[..], None, 5).unwrap();
+        get_nonce(Aes128Gcm, &token_set_idx5.nonce_padding[..], None, 5).unwrap();
     assert_eq!(
         token_set_idx5.get_nonce_for_cli2serv_pub(),
         expected_nonce_bytes_5
@@ -240,7 +240,7 @@ fn test_get_nonce() {
         "dummy",
     );
     let expected_nonce_bytes_0 =
-        get_nonce(Aes256Gcm, &token_set.nonce_padding[..], None, 0).unwrap();
+        get_nonce(Aes256Gcm, &token_set_algo.nonce_padding[..], None, 0).unwrap();
     assert_eq!(
         token_set_algo.get_nonce_for_cli2serv_pub(),
         expected_nonce_bytes_0
@@ -529,7 +529,7 @@ fn test_from_file_error_nonce_len_mismatch_read() -> Result<(), ()> {
         .expect("failed to write file");
     file.write_all(&token_set.session_key)
         .expect("failed to write file");
-    file.write_all(&token_set.nonce_padding)
+    file.write_all(&token_set.nonce_padding[1..])
         .expect("failed to write file"); // too small nonce
     file.write_all(&[token_set.num_tokens.rotate_right(2) as u8])
         .expect("failed to write file");

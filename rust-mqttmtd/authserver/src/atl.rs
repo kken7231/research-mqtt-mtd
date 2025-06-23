@@ -101,15 +101,6 @@ impl TokenSet {
     pub(crate) fn current_nonce(&self) -> Option<Bytes> {
         get_nonce(self.algo, &self.nonce_padding[..], None, self.token_idx)
     }
-
-    pub(crate) fn current_nonce_for_subscribed_publish(&self, packet_id: u16) -> Option<Bytes> {
-        get_nonce(
-            self.algo,
-            &self.nonce_padding[..],
-            Some(packet_id),
-            self.token_idx,
-        )
-    }
 }
 
 type FullTimestamp = u64;
@@ -247,7 +238,7 @@ impl AccessTokenList {
         // Copy to issuer::ResponseWriter
         let resp = issuer::ResponseWriter::new(
             token_set.session_key.clone(),
-            token_set.current_nonce().unwrap(),
+            token_set.nonce_padding.clone(),
             Self::sparse_masked_u64_to_part(token_set.masked_timestamp),
         );
 

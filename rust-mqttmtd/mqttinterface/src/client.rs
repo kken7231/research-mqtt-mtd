@@ -121,7 +121,7 @@ pub async fn handler(
         move |publish| {
             let info_cloned = subinfo_serv2cli.clone();
             async move {
-                println!("Intercepted SUBSCRIBE packet to {}", cli_addr);
+                println!("Intercepted PUBLISH packet to {}", cli_addr);
                 let frozen = freeze_subscribed_publish(&info_cloned, publish).await;
                 match &frozen {
                     Ok(Some(_)) => {
@@ -150,8 +150,8 @@ pub async fn handler(
     // Run both tasks concurrently and wait for one to finish (which implies the
     // connection is closing)
     tokio::select! {
-        Err(e) = client_to_broker => eprintln!("[client->broker] Error observed: {}", e),
-        Err(e) = broker_to_client => eprintln!("[broker->client] Error observed: {}", e),
+        Err(e) = client_to_broker => eprintln!("(client->broker) Error observed: {}", e),
+        Err(e) = broker_to_client => eprintln!("(broker->client) Error observed: {}", e),
     }
 }
 

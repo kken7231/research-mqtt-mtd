@@ -11,9 +11,9 @@ use mqttbytes::v5::{Publish, Subscribe};
 use std::{fmt::Display, sync::Arc};
 use tokio::sync::RwLock;
 
+/// Buffer to memorize subscription
 #[derive(Debug)]
 pub(super) struct ClientSubscriptionInfo {
-    is_subscribed: bool,
     token_idx: u16,
     algo: SupportedAlgorithm,
     nonce_padding: Bytes,
@@ -23,8 +23,6 @@ pub(super) struct ClientSubscriptionInfo {
 impl ClientSubscriptionInfo {
     pub(super) fn new() -> Self {
         Self {
-            is_subscribed: false,
-            // dummy unused data below
             token_idx: 0,
             algo: Aes128Gcm,
             nonce_padding: Bytes::new(),
@@ -87,18 +85,16 @@ pub async fn unfreeze_subscribe(
         subscribe.filters.push(filter);
         {
             let mut info = subscription_info.write().await;
-            if info.is_subscribed {
-                info.token_idx += 1;
-            } else {
-                info.is_subscribed = true;
-                info.token_idx = 0;
-            }
-
-            // Restore nonce_padding
+            // Restore nonce_padding and token_idx
             let mut nonce_padding = BytesMut::zeroed(response.algo.nonce_len() - 4);
-            nonce_padding.copy_from_slice(response.nonce.as_ref());
-
+            nonce_padding.copy_from_slice(&response.nonce[..response.algo.nonce_len() - 4]);
             info.nonce_padding = nonce_padding.freeze();
+            info.token_idx = u16::from_be_bytes([
+                response.nonce[response.algo.nonce_len() - 2],
+                response.nonce[response.algo.nonce_len() - 1],
+            ]);
+            println!("info.token_idx={}", info.token_idx);
+
             info.session_key = response.session_key;
             info.algo = response.algo;
         }
@@ -169,8 +165,10 @@ pub async fn freeze_subscribed_publish(
 
     {
         let info = subscription_info.read().await;
-        if !info.is_subscribed {
-            println!("No subscription registered so far, blocking...",);
+        if info.session_key.len() != info.algo.key_len()
+            || info.nonce_padding.len() != info.algo.nonce_len() - 4
+        {
+            println!("No valid subscription registered so far, blocking...",);
             return Ok(None);
         }
 
