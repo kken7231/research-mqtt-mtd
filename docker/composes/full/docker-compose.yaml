@@ -10,11 +10,19 @@ services:
   subscriber:
     build:
       context: ../../..
-      dockerfile: ./docker/Dockerfile.subscriber
+      dockerfile_inline: |
+        FROM eclipse-mosquitto:2.0.21
+        # copy entrypoint
+        COPY ./docker/entrypoints/entrypoint_subscriber.sh /entrypoint_subscriber.sh
+        # copy certs
+        COPY ./tests/certs/ca/ca.crt /certs/ca/ca.crt
+        COPY ./tests/certs/clients /certs/clients
+        ENTRYPOINT ["/entrypoint_subscriber.sh"]
     container_name: subscriber
     environment:
       - PROTOCOL=${PROTOCOL}
       - CLIENT_NAME="subscriber"
+    init: true
 
   client:
     build:

@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 project(MQTTMTDClient CXX)
 
 set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_C_STANDARD 20)
 
 set(ARDUINO_PATH "$ENV{HOME}/Library/Arduino15")
 
@@ -18,9 +19,17 @@ file(GLOB ARDUINO_USER_LIBRARIES_PATHS
 )
 
 set(SRC_PATH "${CMAKE_CURRENT_SOURCE_DIR}/src")
-set(MBEDTLS_INCLUDE_PATH "~/git/mbedtls/include")
+set(MBEDTLS_INCLUDE_PATH "$ENV{HOME}/git/mbedtls/include")
 
-include_directories(
+add_library(MQTTMTDClient STATIC
+        src/MQTTMTDClient.h
+        src/MQTTMTDClient.cpp
+        ../cpp-mqttmtd-cli/src/libmqttmtd.cpp
+        ../cpp-mqttmtd-cli/src/libmqttmtd.h
+        tests/test_publish.c
+)
+target_include_directories(
+        MQTTMTDClient PUBLIC
         ${ARDUINO_CORE_PATH}
         ${ARDUINO_LIBRARIES_PATH}
         ${ARDUINO_ESP32_LIBRARIES_PATHS}
@@ -28,12 +37,3 @@ include_directories(
         ${SRC_PATH}
         ${MBEDTLS_INCLUDE_PATH}
 )
-add_library(MQTTMTDClient STATIC
-        src/MQTTMTDClient.h
-        src/MQTTMTDClient.cpp
-)
-
-# --- If you want to build an example sketch (optional) ---
-# This helps with testing and ensuring everything links correctly.
-# add_executable(example_sketch example/example_sketch.ino) # Replace with your example file
-# target_link_libraries(example_sketch YourArduinoLibrary)

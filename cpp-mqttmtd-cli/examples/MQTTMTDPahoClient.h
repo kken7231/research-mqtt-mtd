@@ -2,15 +2,16 @@
 // Created by kentarou on 2025/06/22.
 //
 
-#ifndef MQTTMTDClient_h
-#define MQTTMTDClient_h
+#ifndef paho_client_h
+#define paho_client_h
 
-#include <Arduino.h>
-#include "PubSubClient.h"
-#include "WiFiClientSecure.h"
+#include "MQTTClient.h"
+#include <cstring>
 #include <map>
-#include "../../cpp-mqttmtd-cli/src/libmqttmtd.h"
+#include <mbedtls/net_sockets.h>
+#include <mbedtls/ssl.h>
 
+#include "libmqttmtd.h"
 
 struct CStringCompare {
     bool operator()(const char *a, const char *b) const {
@@ -26,37 +27,47 @@ struct CStringCompare {
 #define ISSUER_HOST "server"
 #endif
 #ifndef ISSUER_PORT
-#define ISSUER_PORT 18771
+#define ISSUER_PORT "18771"
 #endif
 
-#ifndef MQTT_INTERFACE_HOST
-#define MQTT_INTERFACE_HOST "server"
+#ifndef MQTT_INTERFACE_URI
+#define MQTT_INTERFACE_URI "mqtt://server:1883"
 #endif
-#ifndef MQTT_INTERFACE_PORT
-#define MQTT_INTERFACE_PORT 1883
+
+#ifndef CLIENT_ID
+#define CLIENT_ID "client_id"
 #endif
 
 #ifndef AEAD_ALGORITHM
 #define AEAD_ALGORITHM SupportedAlgorithm::Aes256Gcm
 #endif
 
-class MQTTMTDClient : public PubSubClient {
+class MQTTMTDPahoClient {
 private:
     std::map<const char *, TokenSet *, CStringCompare> token_sets;
-    WiFiClientSecure _secure_client;
+    MQTTClient client;
+    mbedtls_ssl_context ssl{};
+    mbedtls_net_context server_fd{};
 
 public:
-    using PubSubClient::PubSubClient;
+    MQTTMTDPahoClient();
 
-    MQTTMTDClient &setCACert(const char *rootCA);
+    ~MQTTMTDPahoClient();
 
-    MQTTMTDClient &setCACertBundle(const uint8_t *bundle, size_t size);
+    MQTTMTDPahoClient &setCACert(const char *rootCA);
 
     void requestTokens(bool is_pub, uint8_t num_tokens_div_4, SupportedAlgorithm algo, const char *topic);
 
     bool mtd_publish(const char *topic, const char *payload);
 
     bool mtd_publish(const char *topic, const uint8_t *payload, unsigned int plength);
+
+private:
+    bool connect();
+
+    bool print(const char *payload);
+
+    size_t readBytes(uint8_t *out, size_t outlen);
 };
 
-#endif //MQTTMTDClient_h
+#endif //paho_client_h

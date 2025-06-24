@@ -26,7 +26,7 @@ RUN apk update && apk upgrade
 RUN apk add --no-cache tcpdump mosquitto dumb-init
 
 # copy entrypoint shellscript
-COPY ./docker/entrypoints/entrypoint_server.sh /run.sh
+COPY ./docker/entrypoints/entrypoint_server.sh /entrypoint_server.sh
 
 # copy authserver & mqttinterface binary
 COPY --from=builder /rust-mqttmtd/target/aarch64-unknown-linux-musl/debug/mqttmtd-authserver /mqttmtd/bin/
@@ -47,4 +47,4 @@ COPY ./tests/mqttmtd/acl.yaml /mqttmtd/acl.yaml
 HEALTHCHECK --interval=5s --timeout=3s --start-period=30s --retries=3 \
   CMD test -f /mqttmtd/server_ready || exit 1
 
-ENTRYPOINT ["dumb-init", "--", "/bin/sh", "/run.sh"]
+ENTRYPOINT ["dumb-init", "--", "/bin/sh", "/entrypoint_server.sh"]
