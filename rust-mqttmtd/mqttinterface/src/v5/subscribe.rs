@@ -13,7 +13,7 @@ use tokio::sync::RwLock;
 
 /// Buffer to memorize subscription
 #[derive(Debug)]
-pub(super) struct ClientSubscriptionInfo {
+pub(crate) struct ClientSubscriptionInfo {
     token_idx: u16,
     algo: SupportedAlgorithm,
     nonce_padding: Bytes,
@@ -21,7 +21,7 @@ pub(super) struct ClientSubscriptionInfo {
 }
 
 impl ClientSubscriptionInfo {
-    pub(super) fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             token_idx: 0,
             algo: Aes128Gcm,

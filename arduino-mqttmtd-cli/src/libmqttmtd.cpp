@@ -9,7 +9,7 @@
 #include "mbedtls/psa_util.h"
 #include "mbedtls/base64.h"
 
-size_t getKeyLenFromAlgo(const enum SupportedAlgorithm algo) {
+size_t getKeyLenFromAlgo(const SupportedAlgorithm algo) {
     switch (algo) {
         case Aes128Gcm:
             return 16;
@@ -21,11 +21,11 @@ size_t getKeyLenFromAlgo(const enum SupportedAlgorithm algo) {
     }
 }
 
-size_t getTagLenFromAlgo(const enum SupportedAlgorithm algo) {
+size_t getTagLenFromAlgo(const SupportedAlgorithm algo) {
     return 16;
 }
 
-size_t getNonceLenFromAlgo(const enum SupportedAlgorithm algo) {
+size_t getNonceLenFromAlgo(const SupportedAlgorithm algo) {
     return 12;
 }
 
@@ -80,7 +80,6 @@ psa_status_t newTokenSet(
         psa_destroy_key(session_key_id);
         return psa_status;
     }
-
     delete *out;
     *out = new TokenSet(topic, timestamp, num_tokens_div_4 * 4, is_pub, algo, session_key_id, hmac_key_id,
                         nonce_padding);
@@ -135,10 +134,9 @@ psa_status_t TokenSet::getCurrentB64Token(char *token_out) const {
     psa_status = psa_mac_sign_finish(&operation, const_cast<uint8_t *>(this->hmac_buf), 256 / 8, &mac_len);
     if (psa_status != PSA_SUCCESS) goto error;
 
-
-    if (int rc; (rc = mbedtls_base64_encode(reinterpret_cast<unsigned char *>(token_out + TIMESTAMP_B64LEN),
-                                            RANDOM_B64LEN + 1, &olen, this->hmac_buf, RANDOM_LEN)) != 0
-                || olen != RANDOM_B64LEN)
+    if (mbedtls_base64_encode(reinterpret_cast<unsigned char *>(token_out + TIMESTAMP_B64LEN),
+                              RANDOM_B64LEN + 1, &olen, this->hmac_buf, RANDOM_LEN) != 0
+        || olen != RANDOM_B64LEN)
         return PSA_ERROR_GENERIC_ERROR;
 
     return PSA_SUCCESS;

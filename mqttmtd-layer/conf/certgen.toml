@@ -1,0 +1,5 @@
+key_algo = "rsa"
+rsa_key_size = 4096
+ca_cn = "ca"
+client_cn = ["client1"]
+validity_days = 365

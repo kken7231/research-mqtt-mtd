@@ -85,8 +85,8 @@ pub(crate) async fn handler<IO: AsyncRead + AsyncWrite + Unpin>(
     let user_hostname = user_hostname.unwrap();
 
     // Check with ACL if access can be granted
-    if !acl.check_if_allowed(user_hostname, req.topic(), req.is_pub()) {
-        issuer_eprintln!(addr, "failed ACL verification");
+    if !acl.check_if_allowed(&user_hostname, req.topic(), req.is_pub()) {
+        issuer_eprintln!(addr, "failed ACL verification for {},{}", &user_hostname, req.topic()) ;
         if let Err(send_err) = issuer::ResponseWriter::write_error_to(&mut stream).await {
             issuer_eprintln!(
                 addr,

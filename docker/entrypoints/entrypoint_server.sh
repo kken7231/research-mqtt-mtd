@@ -6,6 +6,11 @@ case "$PROTOCOL" in
         mosquitto_conf="/mosquitto/conf/plain.conf"
         ;;
 
+    "plain_v4")
+        mqttinterface_toml="/mqttmtd/conf/mqttinterface_plain_v4.toml"
+        mosquitto_conf="/mosquitto/conf/plain.conf"
+        ;;
+
     "tls")
         mqttinterface_toml="/mqttmtd/conf/mqttinterface_tls.toml"
         mosquitto_conf="/mosquitto/conf/tls.conf"

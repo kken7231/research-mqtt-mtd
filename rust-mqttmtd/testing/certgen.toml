@@ -1,0 +1,7 @@
+output_dir = "~/git/research-mqtt-mtd/tests/certs_local"
+key_algo = "rsa"
+rsa_key_size = 4096
+ca_cn = "ca"
+server_cn = "haydn.local"
+client_cn = ["client1"]
+validity_days = 365

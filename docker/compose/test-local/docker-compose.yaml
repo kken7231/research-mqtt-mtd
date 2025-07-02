@@ -1,0 +1,14 @@
+services:
+  server:
+    build:
+      context: ../../..
+      dockerfile: ./docker/Dockerfile/Dockerfile.server-local
+    container_name: haydn.local
+    environment:
+      - PROTOCOL=plain_v4
+      - SSLKEYLOGFILE=/logs/sslkey.log
+    volumes:
+      - ../../../tests/logs:/logs
+    ports:
+      - "11883:11883"
+      - "18771:18771"

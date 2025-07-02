@@ -1,3 +1,4 @@
-[submodule "c-mqttmtd-cli/paho.mqtt.c"]
-	path = c-mqttmtd-cli/paho.mqtt.c
+[submodule "cpp-mqttmtd-cli/paho.mqtt.c"]
+	path = cpp-mqttmtd-cli/paho.mqtt.c
 	url = https://github.com/eclipse/paho.mqtt.c
+    branch = 1.4

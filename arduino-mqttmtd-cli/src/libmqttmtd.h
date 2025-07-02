@@ -29,7 +29,7 @@ size_t getNonceLenFromAlgo(SupportedAlgorithm algo);
 
 struct TokenSet {
     const char *topic;
-    uint8_t timestamp[TIMESTAMP_LEN];
+    uint8_t timestamp[TIMESTAMP_LEN]{};
     uint16_t num_tokens;
     uint16_t token_idx;
     bool is_pub;
@@ -37,7 +37,7 @@ struct TokenSet {
     SupportedAlgorithm algo;
     psa_key_id_t aead_key_id;
     psa_key_id_t hmac_key_id;
-    uint8_t hmac_buf[256 / 8];
+    uint8_t hmac_buf[256 / 8]{};
     uint8_t *nonce;
 
     TokenSet(

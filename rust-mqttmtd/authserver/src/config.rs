@@ -45,6 +45,10 @@ pub(super) struct CliArgs {
     #[arg(long)]
     enable_unix_sock: Option<bool>,
 
+    /// Allow TLSv1.2 for issuer connection.
+    #[arg(long)]
+    enable_tlsv1_2: Option<bool>,
+
     /// Path to the Access Control List (ACL) yaml file. Default: "./acl.yaml".
     /// Overrides config file.
     #[arg(long)]
@@ -63,6 +67,7 @@ pub(super) struct AppConfig {
     pub ca_certs_dir: PathBuf,
     pub enable_client_auth: bool,
     pub enable_server_key_log: bool,
+    pub enable_tlsv1_2: bool,
     pub issuer_port: u16,
     pub verifier_port: u16,
     pub enable_unix_sock: bool,
@@ -79,6 +84,7 @@ pub(super) fn load_config() -> Result<AppConfig, config::ConfigError> {
         .set_default("ca_certs_dir", "./certs/ca")?
         .set_default("enable_client_auth", true)?
         .set_default("enable_server_key_log", false)?
+        .set_default("enable_tlsv1_2", false)?
         .set_default("issuer_port", 3000)?
         .set_default("verifier_port", 3001)?
         .set_default("enable_unix_sock", true)?
@@ -99,6 +105,9 @@ pub(super) fn load_config() -> Result<AppConfig, config::ConfigError> {
     }
     if let Some(value) = args.enable_server_key_log {
         builder = builder.set_override("enable_server_key_log", value)?;
+    }
+    if let Some(enable_tlsv1_2) = args.enable_tlsv1_2 {
+        builder = builder.set_override("enable_tlsv1_2", enable_tlsv1_2)?;
     }
     if let Some(value) = args.issuer_port {
         builder = builder.set_override("issuer_port", value)?;

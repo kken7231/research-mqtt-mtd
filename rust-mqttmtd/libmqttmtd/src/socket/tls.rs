@@ -9,9 +9,9 @@ use crate::socket::plain::{
     stream::{PlainStream, PlainStreamAddress},
     tcp::TcpServerType,
 };
-use rustls::{ClientConfig, ServerConfig, pki_types::ServerName};
+use rustls::{pki_types::ServerName, ClientConfig, ServerConfig};
 use tokio::{net::TcpStream, task::JoinHandle, time::Duration};
-use tokio_rustls::{TlsAcceptor, TlsConnector, client, server};
+use tokio_rustls::{client, server, TlsAcceptor, TlsConnector};
 
 macro_rules! srv_println {
     ($($arg:tt)*) => {
@@ -145,7 +145,7 @@ mod tests {
     };
     use rcgen::CertifiedKey;
     use std::{
-        fs::{File, create_dir_all},
+        fs::{create_dir_all, File},
         io::{ErrorKind, Write},
         path::Path,
         sync::{LazyLock, Once},
@@ -166,6 +166,8 @@ mod tests {
     const DOMAIN_CA: &str = "localhost-ca";
     const DOMAIN_SERV: &str = "localhost";
     const DOMAIN_CLI: &str = "localhost-cli";
+
+    const DISABLE_TLSV1_2: bool = false;
 
     static DEFAULT_PROVIDER_INSTALLED: Once = Once::new();
     fn install_provider() {
@@ -221,6 +223,7 @@ mod tests {
     fn create_load_sample_configs(
         enable_client_auth: bool,
         enable_key_log: bool,
+        enable_tlsv1_2: bool,
         ca_domain: impl Into<String>,
         serv_domain: impl Into<String>,
         cli_domain: impl Into<String>,
@@ -251,6 +254,7 @@ mod tests {
             &ca_dir,
             enable_client_auth,
             enable_key_log,
+            enable_tlsv1_2,
         );
         assert!(conf_serv.is_ok());
 
@@ -269,8 +273,14 @@ mod tests {
     async fn spawn_serv_cli_pass() {
         const TO_SERVER: Duration = Duration::from_secs(1);
         const TO_CLIENT: Duration = Duration::from_secs(1);
-        let (conf_server, conf_client) =
-            create_load_sample_configs(true, false, DOMAIN_CA, DOMAIN_SERV, DOMAIN_CLI);
+        let (conf_server, conf_client) = create_load_sample_configs(
+            true,
+            false,
+            DISABLE_TLSV1_2,
+            DOMAIN_CA,
+            DOMAIN_SERV,
+            DOMAIN_CLI,
+        );
 
         let port = get_port().await;
 
@@ -300,8 +310,14 @@ mod tests {
 
         let port = get_port().await;
 
-        let (conf_server, _) =
-            create_load_sample_configs(true, false, DOMAIN_CA, DOMAIN_SERV, DOMAIN_CLI);
+        let (conf_server, _) = create_load_sample_configs(
+            true,
+            false,
+            DISABLE_TLSV1_2,
+            DOMAIN_CA,
+            DOMAIN_SERV,
+            DOMAIN_CLI,
+        );
 
         match timeout(
             Duration::from_secs(1),
@@ -323,8 +339,14 @@ mod tests {
 
         let port = get_port().await;
 
-        let (conf_server, conf_client) =
-            create_load_sample_configs(true, false, DOMAIN_CA, DOMAIN_SERV, DOMAIN_CLI);
+        let (conf_server, conf_client) = create_load_sample_configs(
+            true,
+            false,
+            DISABLE_TLSV1_2,
+            DOMAIN_CA,
+            DOMAIN_SERV,
+            DOMAIN_CLI,
+        );
 
         // Spawn server
         let _ = TlsServer::new(port, TO_SERVER, LOCAL, conf_server)
@@ -354,8 +376,14 @@ mod tests {
 
         let port = get_port().await;
 
-        let (_, conf_client) =
-            create_load_sample_configs(true, false, DOMAIN_CA, DOMAIN_SERV, DOMAIN_CLI);
+        let (_, conf_client) = create_load_sample_configs(
+            true,
+            false,
+            DISABLE_TLSV1_2,
+            DOMAIN_CA,
+            DOMAIN_SERV,
+            DOMAIN_CLI,
+        );
 
         // Try connecting
         assert!(match timeout(
@@ -377,8 +405,14 @@ mod tests {
     async fn listen_conn_after_deadline() {
         const TO_SERVER: Duration = Duration::from_secs(1);
         const TO_CLIENT: Duration = Duration::from_secs(1);
-        let (conf_server, conf_client) =
-            create_load_sample_configs(true, false, DOMAIN_CA, DOMAIN_SERV, DOMAIN_CLI);
+        let (conf_server, conf_client) = create_load_sample_configs(
+            true,
+            false,
+            DISABLE_TLSV1_2,
+            DOMAIN_CA,
+            DOMAIN_SERV,
+            DOMAIN_CLI,
+        );
 
         let port = get_port().await;
 

@@ -6,10 +6,10 @@ set(CMAKE_C_STANDARD 20)
 
 set(ARDUINO_PATH "$ENV{HOME}/Library/Arduino15")
 
-set(ARDUINO_CORE_PATH "${ARDUINO_PATH}/packages/esp32/hardware/esp32/3.1.1/cores/esp32")
+set(ARDUINO_CORE_PATH "${ARDUINO_PATH}/packages/esp32/hardware/esp32/3.2.0/cores/esp32")
 set(ARDUINO_LIBRARIES_PATH "${ARDUINO_PATH}/libraries")
 
-set(ARDUINO_ESP32_LIBRARIES_PATH "${ARDUINO_PATH}/packages/esp32/hardware/esp32/3.1.1/libraries")
+set(ARDUINO_ESP32_LIBRARIES_PATH "${ARDUINO_PATH}/packages/esp32/hardware/esp32/3.2.0/libraries")
 file(GLOB ARDUINO_ESP32_LIBRARIES_PATHS
         "${ARDUINO_ESP32_LIBRARIES_PATH}/*/src"
 )
@@ -24,9 +24,8 @@ set(MBEDTLS_INCLUDE_PATH "$ENV{HOME}/git/mbedtls/include")
 add_library(MQTTMTDClient STATIC
         src/MQTTMTDClient.h
         src/MQTTMTDClient.cpp
-        ../cpp-mqttmtd-cli/src/libmqttmtd.cpp
-        ../cpp-mqttmtd-cli/src/libmqttmtd.h
-        tests/test_publish.c
+        src/libmqttmtd.cpp
+        src/libmqttmtd.h
 )
 target_include_directories(
         MQTTMTDClient PUBLIC

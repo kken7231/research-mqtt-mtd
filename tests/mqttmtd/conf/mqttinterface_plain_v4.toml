@@ -1,0 +1,5 @@
+port = 11883
+broker_port = 1883
+verifier_port = 22085
+enable_unix_sock = false
+is_v3_1_1 = true

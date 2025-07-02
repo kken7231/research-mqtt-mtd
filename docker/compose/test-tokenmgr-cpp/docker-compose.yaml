@@ -2,8 +2,8 @@ services:
   server:
     build:
       context: ../../..
-      dockerfile: ./docker/Dockerfiles/Dockerfile.server
-    container_name: server
+      dockerfile: ./docker/Dockerfile/Dockerfile.server
+    container_name: server-cpp
     environment:
       - PROTOCOL=plain
       - HOST_TCPDUMP_LISTEN_PORT=9876
@@ -17,24 +17,25 @@ services:
     build:
       context: ../../..
       dockerfile_inline: |
-        FROM rust:1.86-alpine
-        # install mosquitto & musl
+        FROM alpine:latest
+        # install cmake
         RUN apk update && apk upgrade
-        RUN apk add --no-cache mosquitto-clients musl-dev gcc
+        RUN apk add --no-cache make cmake g++ mbedtls-static mbedtls-dev
+        WORKDIR /cpp-mqttmtd-cli/build
+        RUN echo "mkdir /cpp-mqttmtd-cli/build; cd /cpp-mqttmtd-cli/build || return; cmake ..; make;" > /run_cmake.sh
         # add user
         ARG CLIENT_UID=1001
         ARG CLIENT_NAME=client1
         RUN adduser -u $${CLIENT_UID} -D $${CLIENT_NAME}
         USER $${CLIENT_NAME}
-        WORKDIR /rust-mqttmtd/tokenmgr
-    container_name: client1
+        ENTRYPOINT ["/bin/sh"]
+    container_name: client1-cpp
     environment:
       - CLIENT_NAME=client1
-      - INTEGRATION_TESTS_CONF=/mqttmtd/conf/testing.toml
     networks:
       - inner-default
     volumes:
-      - "../../../rust-mqttmtd:/rust-mqttmtd"
+      - "../../../cpp-mqttmtd-cli:/cpp-mqttmtd-cli"
       - "../../../tests/certs/ca/ca.crt:/certs/ca/ca.crt"
       - "../../../tests/certs/clients:/certs/clients"
       - "../../../tests/mqttmtd/conf:/mqttmtd/conf"

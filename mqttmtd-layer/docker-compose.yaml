@@ -1,0 +1,17 @@
+services:
+  mqttmtd-layer:
+    build:
+      context: ../
+      dockerfile: ./mqttmtd-layer/Dockerfile
+    container_name: mqttmtd-layer
+    environment:
+      - HOST_NAME=haydn.local # hostname of the host
+      - SSLKEYLOGFILE=/logs/sslkey.log
+    volumes:
+      - ./certs:/certs
+    #    Comment out when you use /logs/sslkey.log on the host (e.g. Wireshark TLS decryption)
+    #      - ../../../tests/logs:/logs
+    ports:
+      - "11883:11883" # MQTT Interface
+      - "18771:18771" # Auth Server Issuer Interface
+      - "1883:1883" # MQTT Broker Port

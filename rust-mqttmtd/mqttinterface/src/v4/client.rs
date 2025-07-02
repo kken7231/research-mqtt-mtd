@@ -1,14 +1,13 @@
 // Import necessary crates
 use bytes::{Buf, BytesMut};
-use mqttbytes::v5::{self, Packet, Publish, Subscribe};
+use mqttbytes::v4::{self, Packet, Publish, Subscribe};
 
-use crate::{
+use crate::v4::{
     publish::unfreeze_publish,
-    subscribe::{ClientSubscriptionInfo, freeze_subscribed_publish, unfreeze_subscribe},
+    subscribe::{freeze_subscribed_publish, unfreeze_subscribe, ClientSubscriptionInfo},
 };
 use libmqttmtd::{
     consts::UNIX_SOCK_MQTT_BROKER,
-    localhost_v4,
     socket::plain::{client::PlainClient, stream::PlainStream},
 };
 use std::{fmt::write, sync::Arc};
@@ -21,6 +20,7 @@ const BUF_SIZE: usize = 4096;
 
 /// Intermediates an external client and an internal broker.
 pub async fn handler(
+    broker_host: String,
     broker_port: u16,
     verifier_addr_str: String,
     enable_unix_sock: bool,
@@ -35,7 +35,7 @@ pub async fn handler(
     let broker_addr = if enable_unix_sock {
         UNIX_SOCK_MQTT_BROKER
     } else {
-        broker_addr_str = localhost_v4!(broker_port);
+        broker_addr_str = format!("{}:{}", broker_host, broker_port);
         broker_addr_str.as_str()
     };
 
@@ -228,7 +228,7 @@ where
             while buf.has_remaining() {
                 // Read packet
                 let packet =
-                    v5::read(&mut buf, BUF_SIZE).map_err(|e| MediatorError::PacketReadError(e))?;
+                    v4::read(&mut buf, BUF_SIZE).map_err(|e| MediatorError::PacketReadError(e))?;
                 println!(
                     "({}=>{}) Packet received: {:?}",
                     src_name, dest_name, packet
@@ -273,9 +273,9 @@ where
                     Packet::SubAck(suback) => suback.write(&mut encoded_packet),
                     Packet::Unsubscribe(unsub) => unsub.write(&mut encoded_packet),
                     Packet::UnsubAck(unsuback) => unsuback.write(&mut encoded_packet),
-                    Packet::PingReq => v5::PingReq {}.write(&mut encoded_packet),
-                    Packet::PingResp => v5::PingResp {}.write(&mut encoded_packet),
-                    Packet::Disconnect(disconnect) => disconnect.write(&mut encoded_packet),
+                    Packet::PingReq => v4::PingReq {}.write(&mut encoded_packet),
+                    Packet::PingResp => v4::PingResp {}.write(&mut encoded_packet),
+                    Packet::Disconnect => v4::Disconnect {}.write(&mut encoded_packet),
                 }
                 .map_err(|e| MediatorError::PacketWriteError(e))?;
 

@@ -6,7 +6,7 @@
 #include <string>
 
 #include "MQTTMTDPahoClient.h"
-#define ADDRESS     "tcp://server:1883"
+#define ADDRESS     "tcp://client:1883"
 #define TOPIC       "MQTT Examples"
 #define PAYLOAD     "Hello World!"
 #define QOS         0
@@ -25,23 +25,42 @@ std::string readFileContent(const std::string &filename) {
 
 
 int main(const int argc, char *argv[]) {
-    if (argc != 2) {
-        std::cerr << "Usage: " << argv[0] << " <certificate_filename.pem>" << std::endl;
+    if (argc != 4) {
+        std::cerr << "Usage: " << argv[0] << " <ca_crt.crt> <client_crt.crt> <client_key.pem>" << std::endl;
         return 1;
     }
 
-    const std::string filename = argv[1];
+    const std::string ca_crt = argv[1];
+    const std::string client_crt = argv[2];
+    const std::string client_key = argv[3];
 
-    const std::string cert_pem_str = readFileContent(filename);
-    if (cert_pem_str.empty()) {
-        std::cerr << "Failed to read content from file: " << filename << std::endl;
+    const std::string ca_crt_str = readFileContent(ca_crt);
+    if (ca_crt_str.empty()) {
+        std::cerr << "Failed to read content from file: " << ca_crt << std::endl;
+        return 1;
+    }
+
+    const std::string client_crt_str = readFileContent(client_crt);
+    if (client_crt_str.empty()) {
+        std::cerr << "Failed to read content from file: " << client_crt << std::endl;
+        return 1;
+    }
+
+    const std::string client_key_str = readFileContent(client_key);
+    if (client_key_str.empty()) {
+        std::cerr << "Failed to read content from file: " << client_key << std::endl;
         return 1;
     }
 
     MQTTMTDPahoClient client;
-    client.setCACert(cert_pem_str.c_str());
+    client.setCACert(ca_crt_str.c_str());
+    client.setClientCertAndKey(client_crt_str.c_str(), client_key_str.c_str());
 
-    std::cout << "Doing publish..." << std::endl;
-    client.mtd_publish("sample/topic", "payload01");
+    std::cout << std::endl << "<--- Publish topic/pubonly... ---> " << std::endl;
+    client.mtd_publish("topic/pubonly", "payload01");
+    client.mtd_publish("topic/pubonly", "payload02");
+
+    std::cout << std::endl << "<--- Publish topic/pubsub... --->" << std::endl;
+    client.mtd_publish("topic/pubsub", "payload01");
     return 0;
 }

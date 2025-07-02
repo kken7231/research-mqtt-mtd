@@ -1,7 +1,6 @@
-mod client;
 mod config;
-mod publish;
-mod subscribe;
+mod v4;
+mod v5;
 
 use crate::config::load_config;
 use libmqttmtd::{
@@ -36,22 +35,43 @@ pub async fn run_server() -> Result<(), Box<dyn Error>> {
     }
 
     // open server
-    let _server = PlainServer::new_tcp(config.port, None, GLOBAL)?.spawn(move |s, addr| {
-        let verifier_addr = if config.enable_unix_sock {
-            UNIX_SOCK_VERIFIER.to_string()
-        } else {
-            localhost_v4!(config.verifier_port)
-        };
-        println!("verifier_addr: {}", verifier_addr);
-        client::handler(
-            config.broker_port,
-            verifier_addr,
-            config.enable_unix_sock,
-            s,
-            addr.to_string(),
-        )
-    });
+    let server = if config.is_v3_1_1 {
+        PlainServer::new_tcp(config.port, None, GLOBAL)?.spawn(move |s, addr| {
+            let verifier_addr = if config.enable_unix_sock {
+                UNIX_SOCK_VERIFIER.to_string()
+            } else {
+                localhost_v4!(config.verifier_port)
+            };
+            println!("verifier_addr: {}", verifier_addr);
+            v4::client::handler(
+                config.broker_host.clone(),
+                config.broker_port,
+                verifier_addr,
+                config.enable_unix_sock,
+                s,
+                addr.to_string(),
+            )
+        })
+    } else {
+        PlainServer::new_tcp(config.port, None, GLOBAL)?.spawn(move |s, addr| {
+            let verifier_addr = if config.enable_unix_sock {
+                UNIX_SOCK_VERIFIER.to_string()
+            } else {
+                localhost_v4!(config.verifier_port)
+            };
+            println!("verifier_addr: {}", verifier_addr);
+            v5::client::handler(
+                config.broker_host.clone(),
+                config.broker_port,
+                verifier_addr,
+                config.enable_unix_sock,
+                s,
+                addr.to_string(),
+            )
+        })
+    };
+
     println!("launched mqtt interface at port {}", config.port);
-    _server.await??;
+    server.await??;
     Ok(())
 }
