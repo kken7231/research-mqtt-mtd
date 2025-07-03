@@ -18,7 +18,7 @@ encoding and decoding of MQTTMTD packets, not only issuance of token sets.
     - HOST_NAME: Hostname of the host machine
     - MQTT Broker port
 
-3. Now system translates MQTT-MTD. MQTT Interface port is the port to send packets.
+3. Now system translates MQTT-MTD. MQTT Interface port is the port to send packets to.
 
 ## Configs
 
