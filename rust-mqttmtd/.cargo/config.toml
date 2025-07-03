@@ -1,2 +1,2 @@
 [target.aarch64-apple-darwin]
-rustflags = ["-L", "/opt/homebrew/Cellar/llvm/20.1.4/lib/unwind/"]
+rustflags = ["-L", "/opt/homebrew/opt/llvm/lib/unwind"]

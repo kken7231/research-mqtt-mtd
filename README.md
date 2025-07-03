@@ -6,7 +6,7 @@
 
 ### 1. Fetch tokens
 
-Tokens are issued by the *Auth Server*. TLSv1.3 with a valid certificate is needed for the connection.
+Tokens are issued by the *Auth Server*. TLSv1.2/TLSv1.3 with a valid certificate is needed for the connection.
 *Auth Server* checks the followings in addition to the optional client authentication:
 
 - The first DNS SAN (Subject Alternative Name) has an entry in the ACL.
@@ -17,7 +17,7 @@ the [Auth Server Packet Mapping](#auth-server-packet-mapping) section. The commu
 which
 consists of a session key, a nonce padding and a timestamp.
 
-### 2. Use tokens for client-to-server PUBLISH
+### 2. Use tokens for a client-to-server PUBLISH
 
 #### 1. On client
 
@@ -138,3 +138,37 @@ Components with * are present only when Status == `Success`
 | 5 + `topic_len` + `key_len` | *Nonce       | -             | `nonce_len` bytes       | Nonce that is to be used for encryption.                                                |
 
 Components with * are present only when Status == `Success`
+
+## Configurations
+
+Replace `_` in the names with `-` when setting parameters as args. (e.g.)
+`authserver --server-cert-pem "./certs/server/cert.crt"`
+
+### Auth Server
+
+| Name                  | Type   | Default                   | Description                                                                                                                   |
+|-----------------------|--------|---------------------------|-------------------------------------------------------------------------------------------------------------------------------|
+| server_cert_pem       | String | "./certs/server/cert.crt" | Path to the server certificate PEM file.                                                                                      |
+| server_key_pem        | String | "./certs/server/key.pem"  | Path to the server key PEM file.                                                                                              |
+| ca_certs_dir          | String | "./certs/ca"              | Directory containing CA certificates for authentication.                                                                      |
+| enable_client_auth    | bool   | true                      | Enable client certificate authentication.                                                                                     |
+| enable_server_key_log | bool   | false                     | Enable server key logging to SSLKEYLOGFILE.                                                                                   |
+| issuer_port           | u16    | 3000                      | Port for the issuer server.                                                                                                   |
+| verifier_port         | u16    | 3001                      | Port for the verifier server                                                                                                  |
+| enable_unix_sock      | bool   | true                      | Enable unix sockets on verifier interface. TCP sockets not supported when enabled. Socket path is composed of `verifier_port` |
+| enable_tlsv1_2        | bool   | false                     | Allow TLSv1.2 for issuer connection.                                                                                          |
+| acl                   | String | "./acl.yaml"              | Path to the Access Control List (ACL) yaml file.                                                                              |
+| conf                  | String | (none)                    | Conf file that sets parameters.                                                                                               |
+
+### MQTT Interface
+
+| Name             | Type   | Default     | Description                                                                                                                                                                                                                               |
+|------------------|--------|-------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| port             | u16    | 3000        | Port that accepts external clients (e.g., 8083).                                                                                                                                                                                          |
+| broker_host      | String | "127.0.0.1" | MQTT Broker host.                                                                                                                                                                                                                         |
+| broker_port      | u16    | 3001        | MQTT Broker port.                                                                                                                                                                                                                         |
+| verifier_port    | u16    | 3002        | Auth Server verifier port.                                                                                                                                                                                                                |
+| enable_unix_sock | bool   | true        | Enable unix sockets in both with Auth Server verifier interface and with broker. TCP sockets not supported when enabled. Socket path for the Auth Srver is composed of `verifier_port, one for the MQTT broker is `/tmp/mosquitto_plain`. |
+| conf             | String | (none)      | Conf file that sets parameters.                                                                                                                                                                                                           |
+| is_v3_1_1        | bool   | false       | MQTT v3.1.1 if true, otherwise v5.                                                                                                                                                                                                        |
+

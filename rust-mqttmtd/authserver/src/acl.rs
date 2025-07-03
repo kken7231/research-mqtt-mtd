@@ -152,7 +152,7 @@ client_b:
     #[tokio::test]
     async fn from_yaml_non_existent_file() {
         // Yaml file not exist
-        let temp_dir = tempdir().expect("failed to create temp dir").into_path();
+        let temp_dir = tempdir().expect("failed to create temp dir").keep();
         let non_existent_path = temp_dir.join("non_existent.yaml");
 
         let acl = AccessControlList::from_yaml(&non_existent_path);
@@ -172,7 +172,7 @@ client_b:
          topic/*: PubOnly
          invalid yaml syntax here: -
              "#;
-        let temp_dir = tempdir().expect("failed to create temp dir").into_path();
+        let temp_dir = tempdir().expect("failed to create temp dir").keep();
         let temp_yaml = temp_dir.join("invalid_syntax.yaml");
         fs::write(&temp_yaml, yaml_content).expect("failed to write temp yaml");
 
@@ -194,7 +194,7 @@ client_b:
         let yaml_content = r#"
      client_a: "just a string"
              "#;
-        let temp_dir = tempdir().expect("failed to create temp dir").into_path();
+        let temp_dir = tempdir().expect("failed to create temp dir").keep();
         let temp_yaml = temp_dir.join("invalid_structure.yaml");
         fs::write(&temp_yaml, yaml_content).expect("failed to write temp yaml");
 
@@ -216,7 +216,7 @@ client_b:
          topic/*: PubOnly
      client_with_empty_topics: {}
              "#;
-        let temp_dir = tempdir().expect("failed to create temp dir").into_path();
+        let temp_dir = tempdir().expect("failed to create temp dir").keep();
         let temp_yaml = temp_dir.join("edge_cases.yaml");
         fs::write(&temp_yaml, yaml_content).expect("failed to write temp yaml");
 

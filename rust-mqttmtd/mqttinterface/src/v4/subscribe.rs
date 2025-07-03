@@ -32,7 +32,7 @@ impl ClientSubscriptionInfo {
 }
 
 /// Replaces token and passes it down to Broker.
-pub async fn unfreeze_subscribe(
+pub(super) async fn unfreeze_subscribe(
     subscription_info: &Arc<RwLock<ClientSubscriptionInfo>>,
     verifier_addr: &str,
     enable_unix_sock: bool,
@@ -156,7 +156,7 @@ impl Display for SubscribeUnfreezeError {
 }
 
 /// Encrypts payload and passes it down to Client.
-pub async fn freeze_subscribed_publish(
+pub(super) async fn freeze_subscribed_publish(
     subscription_info: &Arc<RwLock<ClientSubscriptionInfo>>,
     mut publish: Publish,
 ) -> Result<Option<Publish>, SubscribedPublishFreezeError> {

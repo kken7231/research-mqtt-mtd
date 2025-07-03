@@ -4,7 +4,7 @@
     <option name="command" value="test --workspace --exclude tokenmgr --exclude libmqttmtd_macros" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$/rust-mqttmtd" />
     <envs>
-      <env name="DYLD_LIBRARY_PATH" value="/opt/homebrew/Cellar/llvm/20.1.4/lib/unwind/" />
+      <env name="DYLD_LIBRARY_PATH" value="/opt/homebrew/opt/llvm/lib/unwind" />
     </envs>
     <option name="emulateTerminal" value="true" />
     <option name="channel" value="DEFAULT" />
